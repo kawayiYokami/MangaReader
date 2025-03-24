@@ -6,52 +6,18 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QSizePolicy, QSlider)  # 添加 QSlider
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QPixmap, QImage, QStandardItemModel, QStandardItem
-from manga_manager import MangaManager
-from manga_model import MangaLoader
-from flow_layout import FlowLayout
-import manga_logger as log
+from core.manga_manager import MangaManager
+from core.manga_model import MangaLoader
+from ui.layouts.flow_layout import FlowLayout
+from utils import manga_logger as log
 from PyQt5.QtWidgets import QInputDialog
 from PyQt5.QtWidgets import QLineEdit
 from PyQt5.QtCore import QTimer
-from style import Win11Style
-from light_style import Win11LightStyle
-from dark_style import Win11DarkStyle
+from styles.style import Win11Style
+from styles.light_style import Win11LightStyle
+from styles.dark_style import Win11DarkStyle
 
-class ImageLabel(QLabel):
-    def __init__(self, viewer, parent=None):
-        super().__init__(parent)
-        self.viewer = viewer
-        self.setFocusPolicy(Qt.StrongFocus)
-        self.setMouseTracking(True)
-
-    def mousePressEvent(self, event):
-        self.setFocus()
-        event.accept()
-
-    def keyPressEvent(self, event):
-        if event.key() in (Qt.Key_Left, Qt.Key_Up):
-            self.viewer.show_previous_page()
-        elif event.key() in (Qt.Key_Right, Qt.Key_Down):
-            self.viewer.show_next_page()
-        event.accept()
-
-    def wheelEvent(self, event):
-        delta = event.angleDelta().y()
-        if delta > 0:  # 滚轮向上
-            self.viewer.change_page(-1)
-        else:  # 滚轮向下
-            self.viewer.change_page(1)
-        event.accept()
-
-    def focusInEvent(self, event):
-        # 当获得焦点时打印日志，帮助调试
-        print("Image label got focus")
-        super().focusInEvent(event)
-
-    def focusOutEvent(self, event):
-        # 当失去焦点时打印日志，帮助调试
-        print("Image label lost focus")
-        super().focusOutEvent(event)
+from ui.components.image_label import ImageLabel
 
 class MangaViewer(QMainWindow):
     def __init__(self, parent=None):
@@ -187,29 +153,14 @@ class MangaViewer(QMainWindow):
         self.page_slider.valueChanged.connect(self.on_slider_value_changed)
         self.page_slider.setFixedWidth(200)
         
-        # 创建一个自定义的 QSlider 子类来处理滚轮事件
-        class PageSlider(QSlider):
-            def wheelEvent(self, event):
-                delta = event.angleDelta().y()
-                if delta < 0:  # 向下滚动
-                    self.setValue(self.value() + 1)
-                else:  # 向上滚动
-                    self.setValue(self.value() - 1)
-                event.accept()
-        
-        # 使用自定义的 PageSlider 替换原来的 QSlider
-        self.page_slider = PageSlider(Qt.Horizontal)
-        self.page_slider.setMinimum(0)
-        self.page_slider.setMaximum(0)
+        # 使用自定义的 PageSlider
+        from ui.components.page_slider import PageSlider
+        self.page_slider = PageSlider()
         self.page_slider.valueChanged.connect(self.on_slider_value_changed)
-        self.page_slider.setFixedWidth(200)
         
-        # 添加缩放滑动条
-        self.zoom_slider = QSlider(Qt.Horizontal)
-        self.zoom_slider.setMinimum(50)  # 最小50%
-        self.zoom_slider.setMaximum(150)  # 最大150%
-        self.zoom_slider.setValue(100)  # 默认100%
-        self.zoom_slider.setFixedWidth(100)
+        # 使用自定义的 ZoomSlider
+        from ui.components.zoom_slider import ZoomSlider
+        self.zoom_slider = ZoomSlider()
         self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
         
         self.prev_btn = QPushButton('←')

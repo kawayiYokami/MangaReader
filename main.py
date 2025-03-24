@@ -1,8 +1,8 @@
 import sys
 import os
-from manga_viewer import MangaViewer
+from ui.manga_viewer import MangaViewer
 from PyQt5.QtWidgets import QApplication
-import manga_logger as log
+from utils import manga_logger as log
 
 def main():
     app = QApplication(sys.argv)
