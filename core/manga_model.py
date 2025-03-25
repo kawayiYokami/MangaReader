@@ -31,7 +31,7 @@ class MangaInfo:
         # 解析作者和团队 [团队 (作者)]
         group_author_match = re.search(r'\[(.*?) \((.*?)\)\]', original_title)
         if group_author_match:
-            self.tags.add(f'工作室:{group_author_match.group(1)}')
+            self.tags.add(f'组:{group_author_match.group(1)}')
             self.tags.add(f'作者:{group_author_match.group(2)}')
             original_title = original_title.replace(group_author_match.group(0), '', 1).strip()
         else:
@@ -68,10 +68,10 @@ class MangaInfo:
             elif any(keyword in tag_content for keyword in ['中国翻訳', '中国翻译', '中國翻譯', '中國翻訳']):
                 self.tags.add('汉化:中国翻译')
             elif any(keyword in tag_content for keyword in ['無修正', '无修正', '無修']):
-                self.tags.add('特殊:无修正')
+                self.tags.add('其他:无修正')
             else:
                 # 未知类型的标签
-                self.tags.add(f'特殊:{tag_content}')
+                self.tags.add(f'其他:{tag_content}')
             
             # 从标题中移除这个标签
             original_title = original_title.replace(f'[{tag_content}]', '', 1).strip()

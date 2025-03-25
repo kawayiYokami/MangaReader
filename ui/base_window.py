@@ -1,7 +1,7 @@
 from PyQt5.QtCore import Qt, QPoint
-from PyQt5.QtWidgets import QMainWindow, QWidget
+from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication
 from PyQt5.QtGui import QPainter, QPen, QColor
-from style import Win11Style
+from styles.style import Win11Style
 
 class BaseWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -72,6 +72,23 @@ class BaseWindow(QMainWindow):
             
             # 限制最小尺寸
             if rect.width() >= 200 and rect.height() >= 150:
+                # 窗口吸附功能
+                desktop = QApplication.desktop().availableGeometry()
+                snap_distance = 10  # 吸附距离阈值
+                
+                # 左边缘吸附
+                if abs(rect.left() - desktop.left()) < snap_distance:
+                    rect.setLeft(desktop.left())
+                # 右边缘吸附
+                if abs(rect.right() - desktop.right()) < snap_distance:
+                    rect.setRight(desktop.right())
+                # 上边缘吸附
+                if abs(rect.top() - desktop.top()) < snap_distance:
+                    rect.setTop(desktop.top())
+                # 下边缘吸附
+                if abs(rect.bottom() - desktop.bottom()) < snap_distance:
+                    rect.setBottom(desktop.bottom())
+                
                 self.setGeometry(rect)
                 self._drag_position = event.pos()
     

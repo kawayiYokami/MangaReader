@@ -796,7 +796,7 @@ class MangaViewer(QMainWindow):
                     tag_types.add(tag_type)
         
         # 按优先级排序标签类型（最多8个）
-        priority_types = ['会场', '作者', '作品', '平台', '工作室', '汉化', '特殊']
+        priority_types = ['会场', '作者', '作品', '平台', '组', '汉化', '其他']
         sorted_types = sorted(tag_types, key=lambda x: (
             priority_types.index(x) if x in priority_types else len(priority_types)
         ))[:8]

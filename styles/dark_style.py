@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPalette, QColor
-from win_theme_color import get_system_theme_colors
+from styles.win_theme_color import get_system_theme_colors
 
 class Win11DarkStyle:
     # 获取系统主题色，如果获取失败则使用默认的Win11蓝色主题
