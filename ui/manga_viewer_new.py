@@ -1,7 +1,7 @@
 import os
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                              QSplitter, QLineEdit, QFileDialog, QMessageBox,
-                             QPushButton)
+                             QPushButton, QLabel)
 from PyQt5.QtCore import Qt, QTimer
 from core.manga_manager import MangaManager
 from utils import manga_logger as log
@@ -13,6 +13,7 @@ from ui.components.tag_manager import TagManager
 from ui.components.manga_list_manager import MangaListManager
 from ui.components.navigation_controller import NavigationController
 from ui.components.title_bar import TitleBar
+from ui.components.vertical_zoom_slider import VerticalZoomSlider
 from ui.base_window import BaseWindow
 
 class MangaViewer(BaseWindow):
@@ -58,7 +59,7 @@ class MangaViewer(BaseWindow):
         # 创建内容区域容器
         content_widget = QWidget()
         content_layout = QHBoxLayout(content_widget)
-        content_layout.setContentsMargins(10, 10, 10, 10)
+        content_layout.setContentsMargins(5, 5, 5, 5)  # 调整边距为5像素
         
         # 创建水平分割器
         h_splitter = QSplitter(Qt.Horizontal)
@@ -100,6 +101,12 @@ class MangaViewer(BaseWindow):
         # 添加导航控制器
         nav_layout = self.navigation_controller.setup_ui(zoom_slider)
         right_layout.addLayout(nav_layout)
+        
+        # 连接标题栏中的页面滑动条
+        self.title_bar.page_slider.valueChanged.connect(self.on_title_slider_value_changed)
+        
+        # 移除导航控制器中的页面滑动条，使用标题栏中的滑动条代替
+        self.navigation_controller.page_slider = self.title_bar.page_slider
         
         # 将左右面板添加到水平分割器
         h_splitter.addWidget(left_panel)
@@ -163,6 +170,26 @@ class MangaViewer(BaseWindow):
             direction: 1 表示向后，-1 表示向前
         """
         self.navigation_controller.change_page(direction)
+    
+    def on_title_slider_value_changed(self):
+        """处理标题栏滑动条值变化"""
+        if self.current_manga and not self.navigation_controller.is_updating_slider:
+            self.current_manga.current_page = self.title_bar.page_slider.value()
+            self.image_viewer.show_current_page(
+                self.current_manga, 
+                self.navigation_controller.zoom_slider.value()
+            )
+            self.update_page_info()
+            self.navigation_controller.update_navigation_buttons()
+    
+    def update_page_info(self):
+        """更新页码信息"""
+        if self.current_manga:
+            current_page = self.current_manga.current_page + 1  # 显示从1开始
+            total_pages = self.current_manga.total_pages
+            self.title_bar.page_info_label.setText(f'{current_page} / {total_pages}')
+        else:
+            self.title_bar.page_info_label.setText('0 / 0')
     
     def resizeEvent(self, event):
         super().resizeEvent(event)

@@ -1,13 +1,19 @@
 from PyQt5.QtCore import Qt, QPoint, QSize
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QLineEdit
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QLineEdit, QVBoxLayout
 from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QIcon, QPixmap
 from styles.style import Win11Style
+from styles.ui_style import UIStyle
+from ui.components.page_slider import PageSlider
 
 class TitleBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
         self.setFixedHeight(48)  # 固定标题栏高度
+        
+        # 页码显示和滑动条
+        self.page_info_label = None
+        self.page_slider = PageSlider(self)  # 直接初始化PageSlider
         
         # 初始化界面
         self.initUI()
@@ -33,21 +39,7 @@ class TitleBar(QWidget):
         # 添加文件夹按钮
         self.select_dir_btn = QPushButton('📂')  # 文件夹选择按钮
         self.select_dir_btn.setMaximumWidth(50)  # 设置按钮最大宽度
-        self.select_dir_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                border-radius: {Win11Style.BORDER_RADIUS}px;
-                padding: 4px;
-                color: {Win11Style.TEXT_COLOR};
-            }}
-            QPushButton:hover {{
-                background-color: {Win11Style.TITLE_BAR_HOVER_COLOR};
-            }}
-            QPushButton:pressed {{
-                background-color: {Win11Style.TITLE_BAR_ACTIVE_COLOR};
-            }}
-        """)  # 设置按钮样式
+        self.select_dir_btn.setStyleSheet(UIStyle.get_title_bar_select_dir_button_style())  # 设置按钮样式
         layout.addWidget(self.select_dir_btn)
         layout.addSpacing(5)
         
@@ -55,18 +47,25 @@ class TitleBar(QWidget):
         self.search_input = QLineEdit()  # 搜索输入框
         self.search_input.setPlaceholderText('搜索漫画...')  # 设置占位符文本
         self.search_input.setMaximumWidth(200)  # 设置输入框最大宽度
-        self.search_input.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: {Win11Style.BACKGROUND_COLOR};
-                border: 1px solid {Win11Style.BORDER_COLOR};
-                border-radius: {Win11Style.BORDER_RADIUS}px;
-                padding: 4px 8px;
-                color: {Win11Style.TEXT_COLOR};
-            }}
-        """)  # 设置输入框样式
+        self.search_input.setStyleSheet(UIStyle.get_title_bar_search_input_style())  # 设置输入框样式
         layout.addWidget(self.search_input)
         
-        # 添加弹性空间
+        # 添加页码信息和滑动条
+        center_widget = QWidget()
+        center_layout = QVBoxLayout(center_widget)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(2)
+        
+        # 页码信息标签
+        self.page_info_label = QLabel('0 / 0')
+        self.page_info_label.setAlignment(Qt.AlignCenter)
+        center_layout.addWidget(self.page_info_label)
+        
+        # 页面滑动条
+        center_layout.addWidget(self.page_slider)
+        
+        layout.addStretch(1)  # 添加弹性空间以调整布局
+        layout.addWidget(center_widget)
         layout.addStretch(1)  # 添加弹性空间以调整布局
         
         # 最小化按钮
@@ -97,28 +96,7 @@ class TitleBar(QWidget):
     
     def _get_button_style(self, is_close=False):
         """获取按钮样式"""
-        hover_color = "#C42B1C" if is_close else Win11Style.TITLE_BAR_HOVER_COLOR
-        active_color = "#C42B1C" if is_close else Win11Style.TITLE_BAR_ACTIVE_COLOR
-        hover_text_color = "white" if is_close else Win11Style.TEXT_COLOR
-        text_color = Win11Style.TEXT_COLOR
-        
-        return f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                border-radius: 0;
-                padding: 0;
-                margin: 0;
-                color: {text_color};
-            }}
-            QPushButton:hover {{
-                background-color: {hover_color};
-                color: {hover_text_color};
-            }}
-            QPushButton:pressed {{
-                background-color: {active_color};
-            }}
-        """
+        return UIStyle.get_title_bar_button_style(is_close)
     
     def setTitle(self, title):
         """设置标题文本"""

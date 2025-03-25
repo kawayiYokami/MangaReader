@@ -1,10 +1,11 @@
-from PyQt5.QtWidgets import QLabel, QScrollArea, QSizePolicy
+from PyQt5.QtWidgets import QLabel, QScrollArea, QSizePolicy, QHBoxLayout, QWidget
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
 from utils import manga_logger as log
 from ui.components.image_label import ImageLabel
 from ui.components.zoom_slider import ZoomSlider
+from ui.components.vertical_zoom_slider import VerticalZoomSlider
 
 class MangaImageViewer:
     """负责漫画图像显示和处理的组件"""
@@ -13,11 +14,19 @@ class MangaImageViewer:
         self.parent = parent
         self.image_label = None
         self.zoom_slider = None
+        self.vertical_zoom_slider = None
         self.scroll_area = None
         self.next_page_on_right = True
         self.is_single_page_mode = False
+        self.auto_hide_controls = True  # 控制是否自动隐藏控件
     
     def setup_ui(self, layout):
+        # 创建一个容器来包含滚动区域和垂直缩放滑动条
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(5)  # 设置间距为5像素
+        
         # 图片查看区域
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -27,15 +36,28 @@ class MangaImageViewer:
         self.image_label = ImageLabel(self.parent)
         self.image_label.setAlignment(Qt.AlignCenter)
         self.scroll_area.setWidget(self.image_label)
-        layout.addWidget(self.scroll_area)
+        container_layout.addWidget(self.scroll_area)
         
         # 确保图像显示控件可以接收键盘焦点
         self.image_label.setFocusPolicy(Qt.StrongFocus)
         # 启用鼠标追踪
         self.image_label.setMouseTracking(True)
         
-        # 创建缩放滑块
+        # 创建垂直缩放滑动条
+        self.vertical_zoom_slider = VerticalZoomSlider()
+        self.vertical_zoom_slider.valueChanged.connect(self.on_zoom_changed)
+        container_layout.addWidget(self.vertical_zoom_slider)
+        
+        # 添加容器到主布局
+        layout.addWidget(container)
+        
+        # 创建水平缩放滑块（用于导航控制器）
         self.zoom_slider = ZoomSlider()
+        self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
+        
+        # 同步两个滑动条的值
+        self.zoom_slider.valueChanged.connect(self.vertical_zoom_slider.setValue)
+        self.vertical_zoom_slider.valueChanged.connect(self.zoom_slider.setValue)
         
         return self.zoom_slider
     
@@ -139,6 +161,19 @@ class MangaImageViewer:
     def toggle_page_mode(self, is_single_page):
         """切换单页/双页显示模式"""
         self.is_single_page_mode = is_single_page
+        
+    def set_auto_hide(self, auto_hide):
+        """设置是否自动隐藏控件"""
+        self.auto_hide_controls = auto_hide
+        self.vertical_zoom_slider.setAutoHide(auto_hide)
+        
+    def on_zoom_changed(self, value):
+        """处理缩放值变化"""
+        if self.parent.current_manga:
+            self.parent.image_viewer.show_current_page(
+                self.parent.current_manga, 
+                value
+            )
     
     def convert_image_to_pixmap(self, image):
         """将 PIL Image 转换为 QPixmap"""
