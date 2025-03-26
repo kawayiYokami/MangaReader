@@ -33,7 +33,7 @@ class Win11LightStyle:
     SELECTED_TEXT = "#FFFFFF"  # 选中状态的文本颜色
     
     # ====================== 字体系统 ======================
-    FONT_FAMILY = "Segoe UI Variable"  # Win11新默认字体 (支持动态调整)
+    FONT_FAMILY = "Microsoft YaHei"  # 替换为微软雅黑字体
     FONT_SIZE = 9  # 基础字号 (单位: pt)
     HEADER1_SIZE = 20  # 一级标题
     HEADER2_SIZE = 16  # 二级标题

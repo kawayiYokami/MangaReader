@@ -47,20 +47,19 @@ class MangaImageViewer:
         # 创建垂直缩放滑动条
         self.vertical_zoom_slider = VerticalZoomSlider()
         self.vertical_zoom_slider.valueChanged.connect(self.on_zoom_changed)
-        container_layout.addWidget(self.vertical_zoom_slider)
+        
+        # 设置滑动条为绝对定位
+        self.vertical_zoom_slider.setParent(self.scroll_area)
+        self.update_slider_position()
+        self.vertical_zoom_slider.raise_()
+        
+        # 监听滚动区域大小变化
+        self.scroll_area.resizeEvent = self.on_scroll_area_resized
         
         # 添加容器到主布局
-        layout.addWidget(container)
+        layout.addWidget(container)        
         
-        # 创建水平缩放滑块（用于导航控制器）
-        self.zoom_slider = ZoomSlider()
-        self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
-        
-        # 同步两个滑动条的值
-        self.zoom_slider.valueChanged.connect(self.vertical_zoom_slider.setValue)
-        self.vertical_zoom_slider.valueChanged.connect(self.zoom_slider.setValue)
-        
-        return self.zoom_slider
+        return self.vertical_zoom_slider
     
     def show_current_page(self, manga, zoom_factor):
         """显示当前页面"""
@@ -174,6 +173,19 @@ class MangaImageViewer:
             self.parent.image_viewer.show_current_page(
                 self.parent.current_manga, 
                 value
+            )
+            
+    def on_scroll_area_resized(self, event):
+        """处理滚动区域大小变化事件"""
+        if hasattr(self, 'vertical_zoom_slider') and self.vertical_zoom_slider:
+            self.update_slider_position()
+        
+    def update_slider_position(self):
+        """更新滑动条位置，使其始终位于滚动区域右侧并垂直居中"""
+        if hasattr(self, 'vertical_zoom_slider') and self.vertical_zoom_slider:
+            self.vertical_zoom_slider.move(
+                self.scroll_area.width() - self.vertical_zoom_slider.width(), 
+                (self.scroll_area.height() - self.vertical_zoom_slider.height()) // 2
             )
     
     def convert_image_to_pixmap(self, image):

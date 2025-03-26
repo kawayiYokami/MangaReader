@@ -35,7 +35,7 @@ class SideNavigation:
         nav_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)  # 水平居中并靠上对齐
         
         # 创建漫画按钮
-        self.manga_btn = QPushButton('本')
+        self.manga_btn = QPushButton('📖')
         self.manga_btn.setCheckable(True)  # 使按钮可选中
         self.manga_btn.setFixedSize(48, 48)  # 增加按钮大小
         self.manga_btn.setToolTip('漫画阅读')

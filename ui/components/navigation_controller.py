@@ -35,8 +35,6 @@ class NavigationController:
         # 创建导航按钮组（圆角矩形容器）
         self.nav_widget = QWidget()
         self.nav_widget.setAttribute(Qt.WA_StyledBackground, True)
-        self.nav_widget.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.nav_widget.raise_()
         
         
         nav_button_layout = QHBoxLayout(self.nav_widget)

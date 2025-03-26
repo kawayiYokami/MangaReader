@@ -13,8 +13,8 @@ from ui.components.tag_manager import TagManager
 from ui.components.manga_list_manager import MangaListManager
 from ui.components.navigation_controller import NavigationController
 from ui.components.title_bar import TitleBar
-from ui.components.vertical_zoom_slider import VerticalZoomSlider
 from ui.components.side_navigation import SideNavigation
+from ui.components.slider_controller import SliderController
 from ui.base_window import BaseWindow
 
 class MangaViewer(BaseWindow):
@@ -117,7 +117,9 @@ class MangaViewer(BaseWindow):
         # 连接标题栏中的页面滑动条
         self.title_bar.page_slider.valueChanged.connect(self.on_title_slider_value_changed)
         
-        # 移除导航控制器中的页面滑动条，使用标题栏中的滑动条代替
+        # 初始化滑动条控制器
+        self.slider_controller = SliderController(self)
+        self.slider_controller.setup_slider(self.title_bar.page_slider)
         self.navigation_controller.page_slider = self.title_bar.page_slider
         
         # 将左右面板添加到水平分割器
@@ -186,14 +188,7 @@ class MangaViewer(BaseWindow):
     
     def on_title_slider_value_changed(self):
         """处理标题栏滑动条值变化"""
-        if self.current_manga and not self.navigation_controller.is_updating_slider:
-            self.current_manga.current_page = self.title_bar.page_slider.value()
-            self.image_viewer.show_current_page(
-                self.current_manga, 
-                self.navigation_controller.zoom_slider.value()
-            )
-            self.update_page_info()
-            self.navigation_controller.update_navigation_buttons()
+        self.slider_controller.on_slider_value_changed()
     
     def update_page_info(self):
         """更新页码信息"""

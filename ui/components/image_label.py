@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import Qt
-import manga_logger as log
+from utils import manga_logger as log
 
 class ImageLabel(QLabel):
     def __init__(self, viewer, parent=None):

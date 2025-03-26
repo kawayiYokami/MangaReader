@@ -1,9 +1,10 @@
-from PyQt5.QtWidgets import QSlider, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QSlider, QWidget, QVBoxLayout, QLabel
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen
 from styles.style import Win11Style
 from styles.win_theme_color import get_system_theme_colors
-import manga_logger as log
+from utils import manga_logger as log
+from utils.color_utils import get_rgba_string
 
 class VerticalZoomSlider(QWidget):
     """垂直缩放滑动条组件，采用Win11 Fluent设计风格"""
@@ -19,11 +20,10 @@ class VerticalZoomSlider(QWidget):
         self.setFixedWidth(36)  # 稍微加宽以适应Fluent风格
         self.setAttribute(Qt.WA_StyledBackground, True)
         
-        # 初始样式 - 完全透明
-        self._update_style(opacity=0)
-        
         # 创建垂直滑动条
         self.slider = QSlider(Qt.Vertical, self)
+        self.slider.setMinimumHeight(300)  # 设置最小高度
+        self.slider.setMaximumHeight(900)  # 设置最大高度
         self.slider.setMinimum(1)
         self.slider.setMaximum(200)
         self.slider.setValue(100)
@@ -31,8 +31,19 @@ class VerticalZoomSlider(QWidget):
         
         # 布局
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 12, 6, 12)  # 增加内边距
+        layout.setContentsMargins(6, 20, 6, 20)  # 增加内边距
+
+        # 创建加号标签
+        self.plus_label = QLabel("✚")
+        self.plus_label.setAlignment(Qt.AlignCenter) # 可选：设置文本居中
+
+        # 创建减号标签
+        self.minus_label = QLabel("−")
+        self.minus_label.setAlignment(Qt.AlignCenter) # 可选：设置文本居中
+
+        layout.addWidget(self.plus_label)
         layout.addWidget(self.slider)
+        layout.addWidget(self.minus_label)
         
         # 自动隐藏相关
         self.setAutoHide(True)
@@ -41,16 +52,21 @@ class VerticalZoomSlider(QWidget):
         self.hide_timer.timeout.connect(self.fadeOut)
         self.setMouseTracking(True)
         self.is_hidden = False
-    
+
+        # 初始样式 - 完全透明
+        self._update_style(opacity=0)
+
     def _update_style(self, opacity):
         """更新为Win11 Fluent风格样式"""
         # 基础透明度计算 (0-100 => 0.0-1.0)
         alpha = opacity / 100.0
         
+        
+
         # Fluent风格颜色
         bg_color = f"rgba(243, 243, 243, {0.0*alpha})"  # 背景轻微透明
         groove_color = f"rgba(200, 200, 200, {0.6*alpha})"  # 轨道颜色
-        handle_color = f"rgba(0, 120, 215, {alpha})"  # Win11蓝色手柄
+        handle_color = get_rgba_string(self.primary_color, alpha)
         
         self.setStyleSheet(f"""
             VerticalZoomSlider {{
@@ -73,7 +89,11 @@ class VerticalZoomSlider(QWidget):
                 border: none;
             }}
         """)
-    
+
+        # 设置加号和减号标签的颜色，包括透明度
+        self.plus_label.setStyleSheet(f"color: {handle_color};")
+        self.minus_label.setStyleSheet(f"color: {handle_color};")
+
     def setAutoHide(self, auto_hide):
         self.auto_hide = auto_hide
         if not auto_hide:
@@ -117,8 +137,7 @@ class VerticalZoomSlider(QWidget):
         event.accept()
     
     def on_value_changed(self, value):
-        self.valueChanged.emit(value)
-    
+        self.valueChanged.emit(value)    
     def value(self):
         return self.slider.value()
     
