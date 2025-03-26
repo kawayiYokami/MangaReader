@@ -92,8 +92,7 @@ class Win11DarkStyle:
         
         /* ================= 按钮样式 ================= */
         QPushButton {{
-            background-color: {Win11DarkStyle.PRIMARY_COLOR};
-            color: white;
+            background-color: {Win11DarkStyle.SECONDARY_BACKGROUND};
             border: none;
             border-radius: {Win11DarkStyle.CORNER_RADIUS}px;
             padding: 6px 12px;
@@ -101,11 +100,11 @@ class Win11DarkStyle:
         }}
         
         QPushButton:hover {{
-            background-color: {Win11DarkStyle.ACCENT_COLOR};
+            background-color: {Win11DarkStyle.PRIMARY_COLOR};
         }}
         
         QPushButton:pressed {{
-            background-color: {QColor(Win11DarkStyle.ACCENT_COLOR).darker(115).name()};
+            background-color: {Win11DarkStyle.ACCENT_COLOR};
         }}
         
         QPushButton:disabled {{

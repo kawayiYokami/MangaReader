@@ -1,12 +1,12 @@
 from PyQt5.QtWidgets import (QHBoxLayout, QWidget, QPushButton, QCheckBox)
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QColor
 from utils import manga_logger as log
 from ui.components.page_slider import PageSlider
 from ui.components.zoom_slider import ZoomSlider
 from styles.light_style import Win11LightStyle
 from styles.dark_style import Win11DarkStyle
 from styles.style import Win11Style
-from styles.ui_style import UIStyle
 
 class NavigationController:
     """负责页面导航和控制的组件"""
@@ -23,12 +23,8 @@ class NavigationController:
         self.zoom_slider = None
         self.is_updating_slider = False
         self.nav_widget = None
-        
-        # 自动隐藏相关
-        self.auto_hide = True
-        self.hide_timer = QTimer()
-        self.hide_timer.setSingleShot(True)
-        self.hide_timer.timeout.connect(self.fade_out_nav)  # 连接到淡出方法
+
+        self.current_style = parent.current_style  # 获取父窗口的当前样式
     
     def setup_ui(self, zoom_slider):
         # 导航按钮布局
@@ -38,12 +34,7 @@ class NavigationController:
         # 创建导航按钮组（圆角矩形容器）
         self.nav_widget = QWidget()
         self.nav_widget.setAttribute(Qt.WA_StyledBackground, True)
-        self._set_nav_opacity(0)  # 初始完全透明
         
-        # 设置鼠标追踪
-        self.nav_widget.setMouseTracking(True)
-        self.nav_widget.enterEvent = self.nav_enter_event
-        self.nav_widget.leaveEvent = self.nav_leave_event
         
         nav_button_layout = QHBoxLayout(self.nav_widget)
         nav_button_layout.setContentsMargins(10, 5, 10, 5)
@@ -72,10 +63,6 @@ class NavigationController:
         self.direction_btn.setChecked(self.parent.image_viewer.next_page_on_right)
         self.direction_btn.clicked.connect(self.toggle_page_direction)
         
-        self.auto_hide_btn = QCheckBox('自动隐藏')
-        self.auto_hide_btn.setChecked(True)
-        self.auto_hide_btn.stateChanged.connect(self.toggle_auto_hide)
-        
         nav_button_layout.addWidget(self.prev_btn)
         nav_button_layout.addWidget(self.single_page_btn)
         nav_button_layout.addWidget(self.next_btn)
@@ -92,7 +79,6 @@ class NavigationController:
         nav_layout.addWidget(self.nav_widget)
         nav_layout.addStretch()
 
-        self._set_nav_opacity(0)
         return nav_layout
 
     
@@ -193,6 +179,7 @@ class NavigationController:
         self.parent.current_style = next_style
         self.style_btn.setText(btn_text)
         
+        # 重新应用父窗口样式
         if next_style == 'default':
             Win11Style.apply_style(self.parent)
         elif next_style == 'light':
@@ -212,48 +199,4 @@ class NavigationController:
                 self.parent.current_manga, 
                 self.zoom_slider.value()
             )
-    
-    def nav_leave_event(self, event):
-        """鼠标离开导航控件事件"""
-        if self.auto_hide:
-            self.hide_timer.start(1500)  # 1.5秒后隐藏
-    
-    def hide_nav_widget(self):
-        """隐藏导航控件"""
-        if self.auto_hide:
-            self._set_nav_opacity(0)  # 改为设置完全透明
 
-    def _set_nav_opacity(self, opacity):
-        """设置导航控件的透明度 (0-100)"""
-        self.nav_widget.setStyleSheet(UIStyle.get_navigation_widget_style(opacity))
-
-    def fade_in_nav(self):
-        """淡入导航控件"""
-        self.hide_timer.stop()  # 先停止可能存在的淡出计时器
-        for opacity in range(0, 101, 20):  # 加大步长使动画更快
-            QTimer.singleShot(opacity * 1, lambda o=opacity: self._set_nav_opacity(o))
-
-    def fade_out_nav(self):
-        """淡出导航控件"""
-        if self.auto_hide:
-            for opacity in range(100, -1, -20):  # 加大步长使动画更快
-                QTimer.singleShot((100 - opacity) * 1, lambda o=opacity: self._set_nav_opacity(o))
-
-    def nav_enter_event(self, event):
-        """鼠标进入导航控件事件"""
-        self.hide_timer.stop()
-        self.fade_in_nav()
-
-    def nav_leave_event(self, event):
-        """鼠标离开导航控件事件"""
-        if self.auto_hide:
-            self.hide_timer.start(800)  # 缩短隐藏延迟时间
-
-    def toggle_auto_hide(self, state):
-        """切换自动隐藏功能"""
-        self.auto_hide = (state == Qt.Checked)
-        if not self.auto_hide:
-            self.fade_in_nav()
-            self.hide_timer.stop()
-        else:
-            self.fade_out_nav()

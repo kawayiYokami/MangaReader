@@ -40,6 +40,7 @@ class MangaViewer(BaseWindow):
         self.search_timer.timeout.connect(self.perform_search)
         
         self.setup_ui()
+        
         Win11Style.apply_style(self)
         log.info("MangaViewer初始化完成")
 

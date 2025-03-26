@@ -6,7 +6,6 @@ from utils import manga_logger as log
 from ui.components.image_label import ImageLabel
 from ui.components.zoom_slider import ZoomSlider
 from ui.components.vertical_zoom_slider import VerticalZoomSlider
-
 class MangaImageViewer:
     """负责漫画图像显示和处理的组件"""
     
@@ -19,6 +18,7 @@ class MangaImageViewer:
         self.next_page_on_right = True
         self.is_single_page_mode = False
         self.auto_hide_controls = True  # 控制是否自动隐藏控件
+        self.current_style = parent.current_style  # 获取父窗口的当前样式
     
     def setup_ui(self, layout):
         # 创建一个容器来包含滚动区域和垂直缩放滑动条

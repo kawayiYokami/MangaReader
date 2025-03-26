@@ -2,7 +2,6 @@ from PyQt5.QtWidgets import QSlider, QWidget, QVBoxLayout
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen
 from styles.style import Win11Style
-from styles.ui_style import UIStyle
 from styles.win_theme_color import get_system_theme_colors
 import manga_logger as log
 
@@ -45,7 +44,35 @@ class VerticalZoomSlider(QWidget):
     
     def _update_style(self, opacity):
         """更新为Win11 Fluent风格样式"""
-        self.setStyleSheet(UIStyle.get_vertical_zoom_slider_style(opacity))
+        # 基础透明度计算 (0-100 => 0.0-1.0)
+        alpha = opacity / 100.0
+        
+        # Fluent风格颜色
+        bg_color = f"rgba(243, 243, 243, {0.0*alpha})"  # 背景轻微透明
+        groove_color = f"rgba(200, 200, 200, {0.6*alpha})"  # 轨道颜色
+        handle_color = f"rgba(0, 120, 215, {alpha})"  # Win11蓝色手柄
+        
+        self.setStyleSheet(f"""
+            VerticalZoomSlider {{
+                background-color: {bg_color};
+                border-radius: {Win11Style.CORNER_RADIUS}px;
+                border: 1px solid rgba(200, 200, 200, {0.3*alpha});
+            }}
+            QSlider::groove:vertical {{
+                background: {groove_color};
+                width: 4px;
+                border-radius: 2px;
+                margin: 0 12px;  /* 两侧留出空间 */
+            }}
+            QSlider::handle:vertical {{
+                background: {handle_color};
+                width: 12px;    /* 宽度 */
+                height: 12px;   /* 高度保持与宽度相同 */
+                margin: 0 -4px; /* 适当外边距使手柄超出轨道 */
+                border-radius: 6px; /* 半径设为宽度/高度的一半 */
+                border: none;
+            }}
+        """)
     
     def setAutoHide(self, auto_hide):
         self.auto_hide = auto_hide

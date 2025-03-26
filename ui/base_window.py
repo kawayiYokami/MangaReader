@@ -2,6 +2,8 @@ from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication
 from PyQt5.QtGui import QPainter, QPen, QColor
 from styles.style import Win11Style
+from styles.light_style import Win11LightStyle
+from styles.dark_style import Win11DarkStyle
 
 class BaseWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -98,16 +100,24 @@ class BaseWindow(QMainWindow):
             self._resize_direction = None
     
     def paintEvent(self, event):
+        """应用当前主题样式"""
+        if self.current_style == 'default':
+            style = Win11Style
+        elif self.current_style == 'light':
+            style = Win11LightStyle
+        else:
+            style = Win11DarkStyle
+            
         # 绘制窗口阴影和边框
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter = QPainter(self)  # 创建QPainter对象用于绘制当前窗口
+        painter.setRenderHint(QPainter.Antialiasing)  # 启用抗锯齿渲染
         
         # 绘制背景
-        painter.setBrush(QColor(Win11Style.BACKGROUND_COLOR))
-        painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(self.rect(), Win11Style.BORDER_RADIUS, Win11Style.BORDER_RADIUS)
+        painter.setBrush(QColor(style.BACKGROUND_COLOR))  # 设置背景画刷颜色(来自当前样式)
+        painter.setPen(Qt.NoPen)  # 设置无边框
+        painter.drawRoundedRect(self.rect(), style.CORNER_RADIUS, style.CORNER_RADIUS)  # 绘制圆角矩形背景
         
         # 绘制边框
-        painter.setPen(QPen(QColor(Win11Style.BORDER_COLOR), 1))
-        painter.setBrush(Qt.NoBrush)
-        painter.drawRoundedRect(self.rect(), Win11Style.BORDER_RADIUS, Win11Style.BORDER_RADIUS)
+        painter.setPen(QPen(QColor(style.HOVER_COLOR), 1))  # 设置边框笔刷(使用悬停颜色，1像素宽)
+        painter.setBrush(Qt.NoBrush)  # 设置无填充
+        painter.drawRoundedRect(self.rect(), style.CORNER_RADIUS, style.CORNER_RADIUS)  # 绘制圆角矩形边框

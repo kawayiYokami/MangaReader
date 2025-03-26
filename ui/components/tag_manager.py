@@ -3,6 +3,9 @@ from PyQt5.QtWidgets import (QButtonGroup, QRadioButton, QScrollArea,
 from PyQt5.QtCore import Qt
 from ui.layouts.flow_layout import FlowLayout
 from utils import manga_logger as log
+from styles.light_style import Win11LightStyle
+from styles.dark_style import Win11DarkStyle
+from styles.style import Win11Style
 
 class TagManager:
     """负责标签管理和过滤的组件"""
@@ -29,13 +32,14 @@ class TagManager:
         tag_scroll_area.setWidgetResizable(True)
         tag_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         tag_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.tag_scroll_area = tag_scroll_area  # 保存为实例变量
         
         self.tag_frame = QFrame()
         # 使用FlowLayout来实现标签的流式布局
         self.tag_layout = FlowLayout(self.tag_frame)
         self.tag_layout.setSpacing(5)
         tag_scroll_area.setWidget(self.tag_frame)
-        
+    
         return tag_scroll_area
     
     def create_tag_type_buttons(self, layout):

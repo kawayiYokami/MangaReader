@@ -12,6 +12,7 @@ class MangaListManager:
         self.manga_manager = parent.manga_manager
         self.manga_list_view = None
         self.manga_model = None
+        self.current_style = parent.current_style  # 获取父窗口的当前样式
     
     def setup_ui(self):
         # 漫画列表
@@ -192,3 +193,7 @@ class MangaListManager:
                 self.parent.current_manga, 
                 self.parent.navigation_controller.zoom_slider.value()
             )
+        
+        # 更新右键菜单样式
+        self.manga_list_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.manga_list_view.customContextMenuRequested.connect(self.show_manga_context_menu)

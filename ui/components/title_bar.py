@@ -1,8 +1,9 @@
 from PyQt5.QtCore import Qt, QPoint, QSize
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QLineEdit, QVBoxLayout
 from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QIcon, QPixmap
+from styles.light_style import Win11LightStyle
+from styles.dark_style import Win11DarkStyle
 from styles.style import Win11Style
-from styles.ui_style import UIStyle
 from ui.components.page_slider import PageSlider
 
 class TitleBar(QWidget):
@@ -33,13 +34,10 @@ class TitleBar(QWidget):
         # 窗口图标
         self.icon_label = QLabel()  # 用于显示窗口图标的标签
         self.icon_label.setFixedSize(16, 16)  # 设置图标大小
-        #layout.addWidget(self.icon_label)
-        #layout.addSpacing(5)  # 添加间距
         
         # 添加文件夹按钮
         self.select_dir_btn = QPushButton('📂')  # 文件夹选择按钮
         self.select_dir_btn.setMaximumWidth(50)  # 设置按钮最大宽度
-        self.select_dir_btn.setStyleSheet(UIStyle.get_title_bar_select_dir_button_style())  # 设置按钮样式
         layout.addWidget(self.select_dir_btn)
         layout.addSpacing(5)
         
@@ -47,7 +45,6 @@ class TitleBar(QWidget):
         self.search_input = QLineEdit()  # 搜索输入框
         self.search_input.setPlaceholderText('搜索漫画...')  # 设置占位符文本
         self.search_input.setMaximumWidth(200)  # 设置输入框最大宽度
-        self.search_input.setStyleSheet(UIStyle.get_title_bar_search_input_style())  # 设置输入框样式
         layout.addWidget(self.search_input)
         
         # 添加页码信息和滑动条
@@ -95,8 +92,37 @@ class TitleBar(QWidget):
         self.setLayout(layout)  # 设置布局
     
     def _get_button_style(self, is_close=False):
+        """应用当前主题样式"""
+        if self.parent.current_style == 'default':
+            style = Win11Style
+        elif self.parent.current_style == 'light':
+            style = Win11LightStyle
+        else:
+            style = Win11DarkStyle
+
         """获取按钮样式"""
-        return UIStyle.get_title_bar_button_style(is_close)
+        hover_color =  style.HOVER_COLOR
+        active_color =  style.SELECTED_COLOR
+        hover_PRIMARY_TEXT =  style.PRIMARY_TEXT
+        PRIMARY_TEXT = style.PRIMARY_TEXT
+        
+        return f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                border-radius: 0;
+                padding: 0;
+                margin: 0;
+                color: {PRIMARY_TEXT};
+            }}
+            QPushButton:hover {{
+                background-color: {hover_color};
+                color: {hover_PRIMARY_TEXT};
+            }}
+            QPushButton:pressed {{
+                background-color: {active_color};
+            }}
+        """
     
     def setTitle(self, title):
         """设置标题文本"""
@@ -136,7 +162,7 @@ class TitleBar(QWidget):
         pixmap = QPixmap(16, 16)
         pixmap.fill(Qt.transparent)
         painter = QPainter(pixmap)
-        painter.setPen(QPen(QColor(Win11Style.TEXT_COLOR), 1))
+        painter.setPen(QPen(QColor(Win11Style.PRIMARY_TEXT), 1))
         painter.drawLine(4, 8, 12, 8)
         painter.end()
         self.min_button.setIcon(QIcon(pixmap))
@@ -147,7 +173,7 @@ class TitleBar(QWidget):
         pixmap = QPixmap(16, 16)
         pixmap.fill(Qt.transparent)
         painter = QPainter(pixmap)
-        painter.setPen(QPen(QColor(Win11Style.TEXT_COLOR), 1))
+        painter.setPen(QPen(QColor(Win11Style.PRIMARY_TEXT), 1))
         if self.parent.isMaximized():
             painter.drawRect(4, 4, 8, 8)
             painter.drawLine(6, 4, 6, 2)
@@ -162,28 +188,23 @@ class TitleBar(QWidget):
     
     def update_close_button_icon(self):
         """更新关闭按钮图标"""
+        style = Win11Style
+            
         pixmap = QPixmap(16, 16)
         pixmap.fill(Qt.transparent)
         painter = QPainter(pixmap)
-        painter.setPen(QPen(QColor(Win11Style.TEXT_COLOR), 1))
+        painter.setPen(QPen(QColor(style.PRIMARY_TEXT), 1))
         painter.drawLine(4, 4, 12, 12)
-        painter.drawLine(12, 4, 4, 12)
+        painter.drawLine(4, 12, 12, 4)
         painter.end()
         self.close_button.setIcon(QIcon(pixmap))
         self.close_button.setIconSize(QSize(16, 16))
     
     def toggleMaximize(self):
-        """切换窗口最大化状态"""
+        """切换最大化状态"""
         if self.parent.isMaximized():
             self.parent.showNormal()
         else:
             self.parent.showMaximized()
         self.update_max_button_icon()
     
-    def paintEvent(self, event):
-        """绘制标题栏背景"""
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setBrush(QColor(Win11Style.TITLE_BAR_COLOR))
-        painter.setPen(Qt.NoPen)
-        painter.drawRect(self.rect())
