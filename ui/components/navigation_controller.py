@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QHBoxLayout, QWidget, QPushButton, QCheckBox)
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor
 from utils import manga_logger as log
 from ui.components.page_slider import PageSlider
@@ -7,6 +7,7 @@ from ui.components.zoom_slider import ZoomSlider
 from styles.light_style import Win11LightStyle
 from styles.dark_style import Win11DarkStyle
 from styles.style import Win11Style
+from styles.win_theme_color import get_system_theme_colors
 
 class NavigationController:
     """负责页面导航和控制的组件"""
@@ -34,6 +35,8 @@ class NavigationController:
         # 创建导航按钮组（圆角矩形容器）
         self.nav_widget = QWidget()
         self.nav_widget.setAttribute(Qt.WA_StyledBackground, True)
+        self.nav_widget.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.nav_widget.raise_()
         
         
         nav_button_layout = QHBoxLayout(self.nav_widget)
@@ -67,7 +70,7 @@ class NavigationController:
         nav_button_layout.addWidget(self.single_page_btn)
         nav_button_layout.addWidget(self.next_btn)
         nav_button_layout.addWidget(self.direction_btn)
-        nav_button_layout.addWidget(self.zoom_slider)
+        # nav_button_layout.addWidget(self.zoom_slider)
         
         self.style_btn = QPushButton('默认')
         self.style_btn.setFixedWidth(50)
@@ -199,4 +202,3 @@ class NavigationController:
                 self.parent.current_manga, 
                 self.zoom_slider.value()
             )
-

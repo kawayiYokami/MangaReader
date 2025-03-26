@@ -32,6 +32,7 @@ class MangaImageViewer:
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setStyleSheet("background: transparent;")
         
         self.image_label = ImageLabel(self.parent)
         self.image_label.setAlignment(Qt.AlignCenter)

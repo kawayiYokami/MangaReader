@@ -40,9 +40,9 @@ class Win11LightStyle:
     SUBHEADER_SIZE = 12  # 副标题
     
     # ====================== 形状系统 ======================
-    CORNER_RADIUS = 4  # 基础圆角大小 (单位: px)
-    SMALL_CORNER = 2  # 小型控件圆角 (如复选框)
-    LARGE_CORNER = 8  # 大型容器圆角 (如卡片)
+    CORNER_RADIUS = 8  # 基础圆角大小 (单位: px)
+    SMALL_CORNER = 4  # 小型控件圆角 (如复选框)
+    LARGE_CORNER = 16  # 大型容器圆角 (如卡片)
     
     # ====================== 间距系统 ======================
     CONTENT_MARGIN = 12  # 内容边距

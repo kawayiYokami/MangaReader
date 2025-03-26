@@ -14,6 +14,7 @@ from ui.components.manga_list_manager import MangaListManager
 from ui.components.navigation_controller import NavigationController
 from ui.components.title_bar import TitleBar
 from ui.components.vertical_zoom_slider import VerticalZoomSlider
+from ui.components.side_navigation import SideNavigation
 from ui.base_window import BaseWindow
 
 class MangaViewer(BaseWindow):
@@ -29,6 +30,7 @@ class MangaViewer(BaseWindow):
         self.tag_manager = TagManager(self)
         self.manga_list_manager = MangaListManager(self)
         self.navigation_controller = NavigationController(self)
+        self.side_navigation = SideNavigation(self)
         
         # 初始化标题栏
         self.title_bar = TitleBar(self)
@@ -60,7 +62,16 @@ class MangaViewer(BaseWindow):
         # 创建内容区域容器
         content_widget = QWidget()
         content_layout = QHBoxLayout(content_widget)
-        content_layout.setContentsMargins(5, 5, 5, 5)  # 调整边距为5像素
+        content_layout.setContentsMargins(0, 0, 0, 0)  # 移除边距
+        
+        # 添加侧边导航栏
+        side_nav = self.side_navigation.setup_ui()
+        content_layout.addWidget(side_nav)
+        
+        # 创建主内容区域
+        main_content = QWidget()
+        main_content_layout = QHBoxLayout(main_content)
+        main_content_layout.setContentsMargins(5, 5, 5, 5)  # 调整边距为5像素
         
         # 创建水平分割器
         h_splitter = QSplitter(Qt.Horizontal)
@@ -123,7 +134,8 @@ class MangaViewer(BaseWindow):
         # 设置左侧面板最小宽度
         left_panel.setMinimumWidth(300)  # 防止左侧面板被完全收缩
         
-        content_layout.addWidget(h_splitter)
+        main_content_layout.addWidget(h_splitter)
+        content_layout.addWidget(main_content)
         main_layout.addWidget(content_widget)
         
         self.navigation_controller.update_navigation_buttons()

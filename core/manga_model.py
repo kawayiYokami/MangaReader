@@ -143,7 +143,7 @@ class MangaLoader:
             with ZipFile(manga.file_path, 'r') as zip_file:
                 # 获取所有文件
                 all_files = zip_file.namelist()
-                log.debug(f"ZIP文件中包含 {len(all_files)} 个文件")
+                # log.debug(f"ZIP文件中包含 {len(all_files)} 个文件")
                 
                 # 获取所有图片文件，包括子目录中的图片
                 image_files = [f for f in all_files 
@@ -161,10 +161,10 @@ class MangaLoader:
                 
                 if 0 <= page_index < len(image_files):
                     file_name = image_files[page_index]
-                    log.debug(f"尝试读取图像文件: {file_name}")
+                    # log.debug(f"尝试读取图像文件: {file_name}")
                     try:
                         image_data = zip_file.read(file_name)
-                        log.debug(f"成功读取图像数据，大小: {len(image_data)} 字节")
+                        # log.debug(f"成功读取图像数据，大小: {len(image_data)} 字节")
                     except Exception as zip_error:
                         log.error(f"从ZIP文件读取图像数据时发生错误: {str(zip_error)}")
                         return None
@@ -176,11 +176,11 @@ class MangaLoader:
                             log.error(f"图像数据为空: {file_name}")
                             return None
                             
-                        log.debug(f"创建BytesIO对象，数据大小: {len(image_data)} 字节")
+                        # log.debug(f"创建BytesIO对象，数据大小: {len(image_data)} 字节")
                         image_buffer = io.BytesIO(image_data)
                         
                         # 尝试打开图像
-                        log.debug(f"尝试使用PIL打开图像: {file_name}")
+                        # log.debug(f"尝试使用PIL打开图像: {file_name}")
                         image = Image.open(image_buffer)
                         
                         # 立即加载图像数据，确保图像有效
@@ -191,7 +191,7 @@ class MangaLoader:
                             log.error(f"图像缺少必要属性: {file_name}")
                             return None
                             
-                        log.debug(f"成功加载图像: {file_name}, 大小: {image.width}x{image.height}, 模式: {image.mode}")
+                        # log.debug(f"成功加载图像: {file_name}, 大小: {image.width}x{image.height}, 模式: {image.mode}")
                         return image
                     except Exception as img_error:
                         log.error(f"无法解析图像数据: {str(img_error)}, 文件: {file_name}")
