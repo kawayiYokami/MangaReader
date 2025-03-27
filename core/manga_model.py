@@ -106,31 +106,35 @@ class MangaLoader:
         if not os.path.exists(file_path) or not file_path.lower().endswith('.zip'):
             log.warning(f"文件不存在或不是ZIP文件: {file_path}")
             return None
-        
+
         manga = MangaInfo(file_path)
         manga.file_path = file_path
-        
+
         try:
             with ZipFile(file_path, 'r') as zip_file:
                 all_files = zip_file.namelist()
-                image_files = [f for f in all_files 
-                              if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp'))]
-                
+                image_files = [f for f in all_files
+                                 if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp'))]
+
                 if not image_files and all_files:
                     log.warning(f"未找到图片文件: {file_path}")
                     return None
-                
+
                 image_files.sort()
                 manga.total_pages = len(image_files)
-                
+
                 if not manga.is_valid:
-                    log.warning(f"无效的漫画文件（缺少作者或标题）: {file_path}")
-                    return None
-                    
+                    # 如果验证不通过，但包含图片，则设置默认标题和添加未知标签
+                    if image_files:
+                        title_from_filename = os.path.splitext(os.path.basename(file_path))[0]
+                        manga.tags.add(f'标题:{title_from_filename}')
+                        manga.tags.add('其他:未知')
+                        manga.is_valid = True # 标记为有效
+
         except Exception as e:
             log.error(f"加载漫画时发生错误: {str(e)}")
             return None
-        
+
         return manga
     
     @staticmethod

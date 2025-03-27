@@ -33,20 +33,55 @@
 └── main.py             # 程序入口
 ```
 
+  ## 维护指南
+
+### 清理临时文件
+运行以下命令清除所有Python缓存文件：
+```bash
+python clean.py
+```
+该操作会自动删除所有__pycache__目录和.pyc/.pyo文件，同时保留logs目录下的日志文件
+
 ## 模块说明
 
 ### core - 核心业务逻辑
-- 负责漫画文件的管理、加载和数据模型定义
-- 处理漫画元数据解析和标签管理
+- manga_manager.py：漫画管理器，负责目录扫描、配置加载、文件过滤
+- manga_model.py：漫画数据模型，定义MangaInfo数据结构和MangaLoader加载器
 
 ### ui - 用户界面
-- components: 包含所有可重用的UI组件
-- layouts: 自定义布局管理器
-- 主要的视图和窗口类
+- components/：包含图片显示、导航控制、标签管理等交互组件
+- layouts/flow_layout.py：实现自动换行的流式布局
+- manga_viewer_new.py：主视图窗口，整合各UI组件
 
 ### styles - 样式管理
-- 提供统一的样式定义和主题支持
-- 支持明暗主题切换
+- dark_style.py：深色主题样式表
+- light_style.py：浅色主题样式表
+- win_theme_color.py：Windows系统主题色同步工具
+
+### utils - 工具模块
+- manga_logger.py：日志记录模块，支持多级别日志输出
+
+## 开发指南
+
+1. 环境配置：
+```bash
+# 安装开发依赖
+pip install -r requirements.txt
+
+# 启用代码格式检查
+pre-commit install
+```
+
+2. 代码规范：
+- 遵循PEP8规范
+- UI组件命名采用大驼峰式
+- 业务逻辑模块使用小写蛇形命名
+
+3. 测试方法：
+```bash
+# 运行单元测试
+python -m unittest discover tests
+```
 
 ### utils - 工具类
 - 提供日志记录功能

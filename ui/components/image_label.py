@@ -7,7 +7,7 @@ class ImageLabel(QLabel):
         super().__init__(parent)
         self.viewer = viewer
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setMouseTracking(True)
+        #self.setMouseTracking(True)
 
     def mousePressEvent(self, event):
         self.setFocus()
@@ -15,17 +15,17 @@ class ImageLabel(QLabel):
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Left, Qt.Key_Up):
-            self.viewer.show_previous_page()
+            self.viewer.navigation_controller.prev_page()
         elif event.key() in (Qt.Key_Right, Qt.Key_Down):
-            self.viewer.show_next_page()
+            self.viewer.navigation_controller.next_page()
         event.accept()
 
     def wheelEvent(self, event):
         delta = event.angleDelta().y()
         if delta > 0:  # 滚轮向上
-            self.viewer.change_page(-1)
+            self.viewer.title_bar.change_page(-1) # 修改这里
         else:  # 滚轮向下
-            self.viewer.change_page(1)
+            self.viewer.title_bar.change_page(1)  # 修改这里
         event.accept()
 
     def focusInEvent(self, event):

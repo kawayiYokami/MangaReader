@@ -33,7 +33,7 @@ class TagManager:
         tag_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         tag_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.tag_scroll_area = tag_scroll_area  # 保存为实例变量
-        
+
         self.tag_frame = QFrame()
         # 使用FlowLayout来实现标签的流式布局
         self.tag_layout = FlowLayout(self.tag_frame)

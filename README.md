@@ -29,6 +29,12 @@ pip install -r requirements.txt
 python main.py
 ```
 
+3. 打包为可执行文件：
+```bash
+pyinstaller manga_viewer.spec --noconsole --onefile
+```
+打包后的程序将生成在dist目录下
+
 ## 配置文件
 
 - `manga_config.json`: 保存漫画目录等配置信息
@@ -41,6 +47,7 @@ python main.py
 
 ## 系统要求
 
-- Python 3.x
-- PyQt5
-- Windows操作系统
+- Python 3.8+
+- PyQt5 5.15+
+- Windows 10/11 64位系统
+- 推荐使用虚拟环境安装依赖

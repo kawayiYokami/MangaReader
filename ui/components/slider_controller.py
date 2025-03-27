@@ -24,7 +24,7 @@ class SliderController:
                 self.parent.navigation_controller.zoom_slider.value()
             )
             self.parent.navigation_controller.update_navigation_buttons()
-            self.parent.update_page_info()
+            self.parent.title_bar.update_page_info()
             self.is_updating_slider = False
             
     def update_slider(self):

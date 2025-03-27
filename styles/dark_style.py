@@ -103,6 +103,11 @@ class Win11DarkStyle:
             background-color: {Win11DarkStyle.PRIMARY_COLOR};
         }}
         
+        QPushButton:checked {{
+            background-color: {Win11DarkStyle.ACCENT_COLOR};
+            color: white;
+        }}
+
         QPushButton:pressed {{
             background-color: {Win11DarkStyle.ACCENT_COLOR};
         }}
@@ -186,6 +191,24 @@ class Win11DarkStyle:
             background: none;
         }}
         
+        /* ================= 横向滚动条 ================= */
+        QScrollBar:horizontal {{
+            border: none;
+            background-color: transparent;
+            height: 8px; /* 将宽度改为高度 */
+        }}
+
+        QScrollBar::handle:horizontal {{
+            background-color: #C4C4C4;
+            border-radius: 4px;
+            min-width: 30px; /* 将最小高度改为最小宽度 */
+        }}
+
+        QScrollBar::add-line:horizontal,
+        QScrollBar::sub-line:horizontal {{
+            background: none;
+        }}
+
         /* ================= 树形视图 ================= */
         QTreeView {{
             border: 1px solid {Win11DarkStyle.DIVIDER_COLOR};
@@ -227,6 +250,12 @@ class Win11DarkStyle:
         QTabBar::tab:selected {{
             border-bottom: 2px solid {Win11DarkStyle.ACCENT_COLOR};
             color: {Win11DarkStyle.PRIMARY_TEXT};
+        }}
+
+        /* ================= 滚动区域 ================= */
+        QScrollArea {{
+            border: none; /* 添加这行来移除滚动区域的边框 */
+            background-color: {Win11DarkStyle.SECONDARY_BACKGROUND}; /* 背景色 */
         }}
         """
     

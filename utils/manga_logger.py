@@ -19,9 +19,10 @@ class MangaLogger:
             cls._instance = MangaLogger()
         return cls._instance
     
+    # 在 __init__ 方法中修改
     def __init__(self):
         self.logger = logging.getLogger('MangaViewer')
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.CRITICAL)  # 只显示严重错误
         
         # 创建控制台处理器，显示所有日志
         console_handler = logging.StreamHandler(sys.stdout)

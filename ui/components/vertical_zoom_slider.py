@@ -24,7 +24,7 @@ class VerticalZoomSlider(QWidget):
         self.slider = QSlider(Qt.Vertical, self)
         self.slider.setMinimumHeight(300)  # 设置最小高度
         self.slider.setMaximumHeight(900)  # 设置最大高度
-        self.slider.setMinimum(1)
+        self.slider.setMinimum(10)
         self.slider.setMaximum(200)
         self.slider.setValue(100)
         self.slider.valueChanged.connect(self.on_value_changed)
@@ -32,7 +32,10 @@ class VerticalZoomSlider(QWidget):
         # 布局
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 20, 6, 20)  # 增加内边距
-
+        
+        # 设置外边距（通过透明边框实现）
+        self.setStyleSheet("border: 20px solid transparent;")
+        
         # 创建加号标签
         self.plus_label = QLabel("✚")
         self.plus_label.setAlignment(Qt.AlignCenter) # 可选：设置文本居中
@@ -50,7 +53,7 @@ class VerticalZoomSlider(QWidget):
         self.hide_timer = QTimer(self)
         self.hide_timer.setSingleShot(True)
         self.hide_timer.timeout.connect(self.fadeOut)
-        self.setMouseTracking(True)
+        #self.setMouseTracking(True)
         self.is_hidden = False
 
         # 初始样式 - 完全透明
@@ -64,7 +67,7 @@ class VerticalZoomSlider(QWidget):
         
 
         # Fluent风格颜色
-        bg_color = f"rgba(243, 243, 243, {0.0*alpha})"  # 背景轻微透明
+        bg_color = f"rgba(243, 243, 243, {0.9*alpha})"  # 背景轻微透明
         groove_color = f"rgba(200, 200, 200, {0.6*alpha})"  # 轨道颜色
         handle_color = get_rgba_string(self.primary_color, alpha)
         
