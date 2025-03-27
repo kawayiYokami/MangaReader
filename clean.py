@@ -15,7 +15,7 @@ def clean_pycache():
         
         # 删除.pyc/.pyo文件
         for file in files:
-            if file.endswith(('.pyc', '.pyo')):
+            if file.endswith(('.pyc', '.pyo')) or file in ('code_review_report.txt', 'vulture_report.txt'):
                 file_path = os.path.join(root, file)
                 os.remove(file_path)
                 print(f'Removed file: {file_path}')
