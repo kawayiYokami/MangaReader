@@ -19,31 +19,21 @@ class MangaLogger:
             cls._instance = MangaLogger()
         return cls._instance
     
+    # 在 __init__ 方法中修改
     def __init__(self):
         self.logger = logging.getLogger('MangaViewer')
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.DEBUG)  # 修改为DEBUG级别
         
         # 创建控制台处理器，显示所有日志
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.DEBUG)
         
-        # 创建文件处理器，保存到文件
-        file_handler = RotatingFileHandler(
-            'manga_viewer.log',
-            maxBytes=1024*1024,  # 1MB
-            backupCount=5,
-            encoding='utf-8'
-        )
-        file_handler.setLevel(logging.DEBUG)
-        
         # 创建格式化器
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
         console_handler.setFormatter(formatter)
-        file_handler.setFormatter(formatter)
         
         # 添加处理器到日志记录器
         self.logger.addHandler(console_handler)
-        self.logger.addHandler(file_handler)
     
     def debug(self, message):
         self.logger.debug(message)
