@@ -1,6 +1,7 @@
 from typing import Optional
 import re
 
+
 def get_rgba_string(color_string: str, alpha: float) -> str:
     """
     将颜色字符串和透明度转换为 rgba 字符串。

@@ -7,6 +7,7 @@ import time
 CACHE_DIR = "app/config"
 CACHE_FILE = os.path.join(CACHE_DIR, "translation_cache.json")
 
+
 class Translator:
     """
     一个使用智谱AI API 进行翻译并带有缓存功能的类。
@@ -24,7 +25,7 @@ class Translator:
         self.model = model
         self.cache = {}
         self._load_cache()
-        self.api_base_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions" # 智谱AI 通用对话补全 API
+        self.api_base_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"  # 智谱AI 通用对话补全 API
 
         # 确保缓存目录存在
         if not os.path.exists(CACHE_DIR):
@@ -38,11 +39,13 @@ class Translator:
         """
         if os.path.exists(CACHE_FILE):
             try:
-                with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                with open(CACHE_FILE, "r", encoding="utf-8") as f:
                     self.cache = json.load(f)
                 print(f"Loaded cache from {CACHE_FILE}")
             except (IOError, json.JSONDecodeError) as e:
-                print(f"Error loading cache file {CACHE_FILE}: {e}. Starting with empty cache.")
+                print(
+                    f"Error loading cache file {CACHE_FILE}: {e}. Starting with empty cache."
+                )
                 self.cache = {}
         else:
             print(f"Cache file not found at {CACHE_FILE}. Starting with empty cache.")
@@ -53,7 +56,7 @@ class Translator:
         将当前翻译缓存保存到文件。
         """
         try:
-            with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+            with open(CACHE_FILE, "w", encoding="utf-8") as f:
                 json.dump(self.cache, f, ensure_ascii=False, indent=4)
             # print(f"Saved cache to {CACHE_FILE}") # 频繁打印可能干扰，按需开启
         except IOError as e:
@@ -72,17 +75,19 @@ class Translator:
         """
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         # 使用 chat completions API 通过 prompt 来实现翻译功能
         # 可以根据目标语言调整 prompt
-        system_prompt = f"你是一个专业的翻译引擎，请将用户提供的内容翻译成{target_lang}。"
+        system_prompt = (
+            f"你是一个专业的翻译引擎，请将用户提供的内容翻译成{target_lang}。"
+        )
         # 为了鲁棒性，可以考虑更详细的prompt，比如指定输入语言，处理多段文本等
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": text}
+            {"role": "user", "content": text},
         ]
 
         payload = {
@@ -93,7 +98,7 @@ class Translator:
 
         try:
             response = requests.post(self.api_base_url, headers=headers, json=payload)
-            response.raise_for_status() # 检查HTTP状态码，如果不是2xx则抛出异常
+            response.raise_for_status()  # 检查HTTP状态码，如果不是2xx则抛出异常
 
             result = response.json()
 
@@ -109,9 +114,8 @@ class Translator:
             print(f"API request failed: {e}")
             return None
         except KeyError as e:
-             print(f"API response parsing error: Missing key {e}. Response: {result}")
-             return None
-
+            print(f"API response parsing error: Missing key {e}. Response: {result}")
+            return None
 
     def translate(self, text, target_lang="en"):
         """
@@ -136,18 +140,19 @@ class Translator:
 
             if translated_text is not None:
                 self.cache[cache_key] = translated_text
-                self._save_cache() # 每次新的翻译成功后保存缓存
+                self._save_cache()  # 每次新的翻译成功后保存缓存
                 print(f"Translated and cached: '{text}' -> '{translated_text}'")
                 return translated_text
             else:
                 print(f"Translation failed for '{text}'")
-                return f"[Translation Failed: {text}]" # 或者返回原始文本
+                return f"[Translation Failed: {text}]"  # 或者返回原始文本
+
 
 # --- 如何使用 ---
 if __name__ == "__main__":
     # 替换为你的智谱AI API Key
     # 建议从环境变量或配置文件读取，这里为了演示直接写死，实际应用中请避免
-    YOUR_ZHIPU_API_KEY = "YOUR_API_KEY" # <-- 请替换为你的真实API Key
+    YOUR_ZHIPU_API_KEY = "YOUR_API_KEY"  # <-- 请替换为你的真实API Key
 
     if YOUR_ZHIPU_API_KEY == "YOUR_API_KEY":
         print("请将代码中的 'YOUR_API_KEY' 替换为你的智谱AI API Key。")
@@ -161,18 +166,18 @@ if __name__ == "__main__":
         print(f"翻译 '{text1}' -> English: {translated1}")
 
         print("-" * 20)
-        time.sleep(1) # 稍作等待，模拟不同时间调用
+        time.sleep(1)  # 稍作等待，模拟不同时间调用
 
         # 第二次翻译相同的文本 (会从缓存读取)
         translated2 = translator.translate(text1, target_lang="en")
-        print(f"再次翻译 '{text1}' -> English: {translated2}") # 应该会显示 Cache hit
+        print(f"再次翻译 '{text1}' -> English: {translated2}")  # 应该会显示 Cache hit
 
         print("-" * 20)
         time.sleep(1)
 
         # 翻译新的文本 (会调用API并缓存)
         text2 = "人工智能很有趣。"
-        translated3 = translator.translate(text2, target_lang="fr") # 翻译成法语
+        translated3 = translator.translate(text2, target_lang="fr")  # 翻译成法语
         print(f"翻译 '{text2}' -> French: {translated3}")
 
         print("-" * 20)
@@ -180,7 +185,7 @@ if __name__ == "__main__":
 
         # 再次翻译新的文本 (会从缓存读取)
         translated4 = translator.translate(text2, target_lang="fr")
-        print(f"再次翻译 '{text2}' -> French: {translated4}") # 应该会显示 Cache hit
+        print(f"再次翻译 '{text2}' -> French: {translated4}")  # 应该会显示 Cache hit
 
         print("-" * 20)
         time.sleep(1)
