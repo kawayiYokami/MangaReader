@@ -18,6 +18,6 @@ class MangaBrowserInterface(QWidget):
     def setup_ui(self):
         # 使用 QVBoxLayout 确保 MangaBrowser 可以填充可用空间
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0) # 通常界面容器不需要边距
+        layout.setContentsMargins(0, 32, 0, 0)
         layout.addWidget(self.manga_browser)
         self.setLayout(layout)

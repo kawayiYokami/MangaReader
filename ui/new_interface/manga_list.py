@@ -12,6 +12,7 @@ class MangaList(QWidget):  # 改为继承自QWidget
         super().__init__(parent)
         self.parent = parent
         self.manga_manager = manga_manager or MangaManager()  # 使用传入的管理器或新建实例
+        self.filtered_manga_list = []  # 添加过滤后的列表属性
         self.setup_ui()
         # 修改为连接filter_applied信号
         self.manga_manager.filter_applied.connect(self.update_table)
@@ -26,6 +27,7 @@ class MangaList(QWidget):  # 改为继承自QWidget
         self.open_button.clicked.connect(self.open_folder_dialog)
         self.search_input = SearchLineEdit()
         self.search_input.setPlaceholderText("搜索漫画...")
+        self.search_input.textChanged.connect(self.on_search_text_changed)
         
         search_layout.addWidget(self.open_button)
         search_layout.addWidget(self.search_input)
@@ -86,8 +88,17 @@ class MangaList(QWidget):  # 改为继承自QWidget
         """更新表格显示"""
         self.table.setRowCount(0)
         if manga_list:
-            self.table.setRowCount(len(manga_list))
-            for i, manga in enumerate(manga_list):
+            # 按标题排序
+            sorted_list = sorted(
+                manga_list,
+                key=lambda m: next(
+                    (tag.split(':', 1)[1].lower() for tag in m.tags if tag.startswith('标题:')), 
+                    ''
+                )
+            )
+            self.filtered_manga_list = sorted_list  # 更新过滤后的列表
+            self.table.setRowCount(len(sorted_list))
+            for i, manga in enumerate(sorted_list):
                 title = next((tag.split(':', 1)[1] for tag in manga.tags if tag.startswith('标题:')), '')
                 self.table.setItem(i, 0, QTableWidgetItem(title))
 
@@ -99,8 +110,27 @@ class MangaList(QWidget):  # 改为继承自QWidget
             # 从表格中获取当前显示的漫画标题
             selected_title = self.table.item(selected_row, 0).text()
             # 在过滤后的列表中查找匹配的漫画
-            for manga in self.manga_manager.manga_list:
+            for manga in self.filtered_manga_list:
                 manga_title = next((tag.split(':', 1)[1] for tag in manga.tags if tag.startswith('标题:') and ':' in tag))
                 if manga_title == selected_title:
                     self.manga_manager.set_current_manga(manga)
                     break
+        
+    def on_search_text_changed(self, text):
+        """处理搜索文本变化事件"""
+        if not text:  # 如果搜索框为空，显示所有漫画
+            self.update_table(self.manga_manager.manga_list)
+            return
+        
+        # 在所有标签中搜索匹配项
+        search_text = text.lower()
+        filtered_list = [
+            manga for manga in self.filtered_manga_list
+            if any(search_text in tag.lower() for tag in manga.tags)
+        ]
+        
+        # 更新表格显示
+        self.table.setRowCount(len(filtered_list))
+        for i, manga in enumerate(filtered_list):
+            title = next((tag.split(':', 1)[1] for tag in manga.tags if tag.startswith('标题:')), '')
+            self.table.setItem(i, 0, QTableWidgetItem(title))

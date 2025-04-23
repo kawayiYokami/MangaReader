@@ -1,0 +1,19 @@
+{
+    "Manager": {
+        "CurrentMangaPath": "C:/Users/sheng/Downloads/manga\\C105\\[肛門堂 (いしむら)] スーパーヒーロー肛門悪堕ち計画 [hhh个人汉化].zip",
+        "CurrentPage": 0,
+        "MangaDirectory": "C:/Users/sheng/Downloads"
+    },
+    "Manga": {
+        "DisplayMode": "双页显示",
+        "MergeTags": true,
+        "PageInterval": 15,
+        "ReadingOrder": "从左到右",
+        "SimplifyChinese": true,
+        "TranslateTitle": false
+    },
+    "QFluentWidgets": {
+        "ThemeColor": "#ff009faa",
+        "ThemeMode": "Dark"
+    }
+}

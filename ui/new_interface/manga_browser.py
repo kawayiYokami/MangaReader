@@ -19,7 +19,7 @@ class MangaBrowser(QWidget):
     def setup_ui(self):
         # 主布局
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setContentsMargins(10, 0, 10, 0)
         
         # 主分割器
         self.main_splitter = QSplitter(Qt.Horizontal)

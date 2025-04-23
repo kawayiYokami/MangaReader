@@ -1,14 +1,18 @@
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from PyQt5.QtCore import Qt
-from qfluentwidgets import CardWidget, TransparentPushButton, Slider, FluentIcon, TransparentToolButton, isDarkTheme, PillPushButton
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
+from qfluentwidgets import BodyLabel, CardWidget, TransparentPushButton, Slider, FluentIcon as FIF, TransparentToolButton, isDarkTheme, PillPushButton, InfoBar, InfoBarPosition, SwitchButton
 from core.manga_manager import MangaManager
-
+from PyQt5.QtGui import QColor
+from core.config import config, DisplayMode, ReadingOrder
+from PyQt5.QtCore import QTimer
 class ControlPanel(CardWidget):
     """控制面板组件"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
         self.manga_manager = None
+        self.auto_timer = None
+        self.auto_flip_interval = 3000  # 默认3秒自动翻页间隔
         # 尝试从父组件获取manga_manager
         if hasattr(parent, 'manga_manager'):
             self.manga_manager = parent.manga_manager
@@ -44,21 +48,28 @@ class ControlPanel(CardWidget):
         self.page_slider.valueChanged.connect(self.on_slider_changed)
         self.layout.addWidget(self.page_slider)
         
-        # 阅读方向按钮
-        self.direction_button = TransparentToolButton()
-        self.direction_button.setCheckable(True)
-        self.direction_button.clicked.connect(self.toggle_direction)
-        self.direction_button.setIcon(FluentIcon.RIGHT_ARROW)
-        self.layout.addWidget(self.direction_button)
+        # 添加页码标签
+        self.page_label = BodyLabel("0/0")
+        self.page_label.setFixedWidth(80)
+        self.page_label.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(self.page_label)
+        
+        # 添加Switch开关
+        self.switch_button = SwitchButton()
+        self.switch_button.checkedChanged.connect(self.on_switch_changed)
+        self.layout.addWidget(self.switch_button)
+        
+        # 根据阅读方向更新滑动条方向
+        if hasattr(self.parent, 'reading_order'):
+            self.update_slider_direction(self.parent.reading_order)
         
         # 添加右侧弹性空间
         self.layout.addStretch(1)
         
         # 初始状态下禁用控制按钮，直到选择了漫画
-        self.direction_button.setEnabled(False)
-        self.set_opacity(250)
+        self.set_opacity()
 
-    def set_opacity(self, alpha):
+    def set_opacity(self, alpha = 250):
         """设置控制面板透明度
         :param alpha: 透明度值(0-255)
         """
@@ -75,26 +86,21 @@ class ControlPanel(CardWidget):
                 border-radius: 8px;
             }}
         """)
-
-    def toggle_direction(self):
-        """切换阅读方向（从左到右/从右到左）"""
-        if hasattr(self.parent, 'toggle_reading_order'):
-            current_order = self.parent.toggle_reading_order()
-            self.direction_button.setChecked(current_order == 'right_to_left')
-            self.direction_button.setIcon(FluentIcon.RIGHT_ARROW if current_order == 'right_to_left' else FluentIcon.LEFT_ARROW)
             
-        # 更新显示
-        if hasattr(self.parent, 'update_display'):
-            self.parent.update_display()
-    
     def on_prev_page(self):
         """上一页按钮点击事件"""
         if hasattr(self.parent, 'prev_page'):
+            if self.auto_timer and self.auto_timer.isActive():
+                self.stop_auto_flip()
+                self.start_auto_flip()
             self.parent.prev_page()
     
     def on_next_page(self):
         """下一页按钮点击事件"""
         if hasattr(self.parent, 'next_page'):
+            if self.auto_timer and self.auto_timer.isActive():
+                self.stop_auto_flip()
+                self.start_auto_flip()
             self.parent.next_page()
     
     def on_manga_changed(self, manga):
@@ -103,21 +109,39 @@ class ControlPanel(CardWidget):
         
         # 启用或禁用控制按钮
         enabled = manga is not None
-        self.direction_button.setEnabled(enabled)
         
         # 更新标签按钮
         self.update_tag_buttons()
     
     def update_page_label(self):
-        """更新滑动条范围"""
+        """更新滑动条范围和页码显示"""
         if self.manga_manager and hasattr(self.manga_manager, 'current_manga') and self.manga_manager.current_manga:
             total_pages = self.manga_manager.current_manga.total_pages
             self.page_slider.setMaximum(total_pages - 1)
-            self.page_slider.setValue(self.manga_manager.current_page)
+            
+            # 根据阅读方向设置滑动条值
+            if hasattr(self.parent, 'reading_order') and self.parent.reading_order == ReadingOrder.RIGHT_TO_LEFT.value:
+                current_page = total_pages - 1 - config.current_page.value
+                self.page_slider.setValue(current_page)
+            else:
+                current_page = config.current_page.value
+                self.page_slider.setValue(current_page)
+            
+            # 更新页码标签
+            if hasattr(self, 'page_label'):
+                self.page_label.setText(f"{current_page + 1}/{total_pages}")
+            
+            # 同时更新滑动条方向
+            if hasattr(self.parent, 'reading_order'):
+                self.update_slider_direction(self.parent.reading_order)
             
     def on_slider_changed(self, value):
         """滑动条值改变事件"""
         if self.manga_manager and hasattr(self.manga_manager, 'current_manga') and self.manga_manager.current_manga:
+            # 根据阅读方向调整页面值
+            if hasattr(self.parent, 'reading_order') and self.parent.reading_order == ReadingOrder.RIGHT_TO_LEFT.value:
+                total_pages = self.manga_manager.current_manga.total_pages
+                value = total_pages - 1 - value
             self.manga_manager.change_page(value)
             
     def update_tag_buttons(self):
@@ -139,9 +163,26 @@ class ControlPanel(CardWidget):
             button.setText(tag.split(':', 1)[1] if ':' in tag else tag)
             button.setCheckable(True)
             button.clicked.connect(lambda checked, t=tag: self.on_tag_clicked(t, checked))
+            # 添加双击事件
+            button.mouseDoubleClickEvent = lambda event, t=tag: self.on_tag_double_clicked(t, event)
             self.tag_layout.addWidget(button)
             self.tag_buttons.append(button)
             
+    def on_tag_double_clicked(self, tag, event):
+        """标签双击事件处理"""
+        import pyperclip
+        # 复制标签内容到剪贴板
+        pyperclip.copy(tag.split(':', 1)[1] if ':' in tag else tag)
+        # 显示简洁的居中提示信息
+        InfoBar.success(
+            title='',  # 空标题
+            content='已复制',  # 简洁提示
+            isClosable=True,
+            position=InfoBarPosition.BOTTOM,  # 窗口正中间
+            duration=1500,  # 缩短显示时间
+            parent=self.parent
+        )
+        
     def on_tag_clicked(self, tag, checked):
         """标签按钮点击事件"""
         if hasattr(self.parent, 'tag_filter') and self.parent.tag_filter:
@@ -156,3 +197,47 @@ class ControlPanel(CardWidget):
             # 根据按钮状态传递当前标签作为过滤器
             tag_filters = [tag] if checked else []
             self.manga_manager.filter_manga(tag_filters)
+            
+    def update_slider_direction(self, reading_order):
+        """根据阅读方向更新滑动条方向"""
+        if reading_order == ReadingOrder.RIGHT_TO_LEFT.value:
+            self.page_slider.setInvertedAppearance(True)
+            self.page_slider.setInvertedControls(True)
+        else:
+            self.page_slider.setInvertedAppearance(False)
+            self.page_slider.setInvertedControls(False)
+            
+    def on_switch_changed(self, is_checked):
+        """Switch开关状态改变事件"""
+        if is_checked:
+            self.start_auto_flip()
+        else:
+            self.stop_auto_flip()
+            
+    def start_auto_flip(self):
+        """启动自动翻页定时器"""
+        if not self.auto_timer:
+
+            self.auto_timer = QTimer()
+            self.auto_timer.timeout.connect(self.auto_flip_page)
+            # 从config读取PageInterval值作为间隔时间(毫秒)
+            interval = config.page_interval.value * 1000
+            print(f"[DEBUG] 启动自动翻页定时器，间隔时间: {interval}ms")
+            print(f"[DEBUG] 当前配置值 page_interval: {config.page_interval.value}秒")
+            self.auto_timer.start(interval)
+            
+    def stop_auto_flip(self):
+        """停止自动翻页定时器"""
+        if self.auto_timer:
+            print("[DEBUG] 停止自动翻页定时器")
+            self.auto_timer.stop()
+            self.auto_timer = None
+            
+    def auto_flip_page(self):
+        """自动翻页逻辑"""
+        print("[DEBUG] 执行自动翻页动作")
+        if hasattr(self.parent, 'next_page'):
+            self.parent.next_page()
+        else:
+            print("[DEBUG] 父组件没有next_page方法，停止定时器")
+            self.stop_auto_flip()

@@ -106,7 +106,7 @@ class MangaLoader:
         self._cache_size_limit = 1024 * 1024 * 1024  # 1GB限制
         self._current_cache_size = 0
         self._caching_thread = None
-        self._stop_caching = False
+        self._stop_caching = True
         self._last_file_path = None  # 记录最后加载的文件路径
         self._screen_width = 1920  # 默认屏幕宽度
         self._screen_height = 1080  # 默认屏幕高度
@@ -187,54 +187,32 @@ class MangaLoader:
             self._current_cache_size += img_size
             return True
 
-    def _precache_images(self, manga, center_page, radius=10):
-        """后台预缓存方法"""
-        if self._stop_caching or not manga.file_path:
-            return
-            
-        for i in range(max(0, center_page - radius), min(manga.total_pages, center_page + radius + 1)):
-            if self._stop_caching:
-                break
-                
-            if i not in self._image_cache:
-                image = self.get_page_image(manga, i)
-                if image is not None and (isinstance(image, np.ndarray) and np.any(image)):
-                    self._add_to_cache(i, image)
-
-    def start_precaching(self, manga, center_page):
+    def start_precaching(self, manga):
         """启动后台预缓存线程"""
-        # 确保之前的缓存线程已完全停止
-        if self._caching_thread and self._caching_thread.is_alive():
-            self._stop_caching = True
-            self._caching_thread.join(timeout=0.5)
-            
         self._stop_caching = False
         self._caching_thread = threading.Thread(
-            target=self._precache_images, 
-            args=(manga, center_page,),
+            target=self._cache_entire_manga, 
+            args=(manga,),
             daemon=True
         )
         self._caching_thread.start()
 
-    def stop_precaching(self):
-        """停止后台预缓存"""
-        if self._caching_thread and self._caching_thread.is_alive():
-            self._stop_caching = True
-            self._caching_thread.join()
-
     def clear_cache(self):
         """清空所有缓存"""
         with self._cache_lock:
+            print("清空缓存")
+            self._stop_caching = True
             self._image_cache.clear()
             self._current_cache_size = 0
             self._last_file_path = None  # 新增这行，清空最后加载的文件路径记录
-            self.stop_precaching()
+
             
     def get_page_image(self, manga, page_index):
         """获取指定页面的漫画图像(优先从缓存读取)"""
         # 先检查是否需要清空缓存（不加锁）
         if hasattr(self, '_last_file_path') and self._last_file_path != manga.file_path:
-            self.clear_cache()  # 清空缓存（这个方法内部会加锁）
+            log.info(f"切换漫画，清空缓存: {self._last_file_path} -> {manga.file_path}")
+            self.clear_cache()  # 清空缓存
             self._last_file_path = manga.file_path  # 更新文件路径
         
         # 加锁检查缓存
@@ -253,14 +231,9 @@ class MangaLoader:
             log.warning(f"获取屏幕分辨率失败: {str(e)}")
             
         # 缓存未命中则从ZIP读取并缓存整本漫画
-        if manga.total_pages > 0 and not hasattr(self, '_is_caching') or not self._is_caching:
+        if manga.total_pages > 0 and self._stop_caching:
             # 启动后台线程缓存整本漫画
-            self._is_caching = True
-            threading.Thread(
-                target=self._cache_entire_manga,
-                args=(manga,),
-                daemon=True
-            ).start()
+            self.start_precaching(manga)
         
         # 返回当前请求的页面
         image = MangaLoader._get_page_image_from_zip(manga, page_index)
@@ -286,6 +259,14 @@ class MangaLoader:
         target_height_limit = screen_height * 2 if screen_height > 0 else 1
     
         for i in range(manga.total_pages):
+            # 检查是否应该停止缓存（漫画已切换或收到停止信号）
+            if self._stop_caching or (hasattr(self, '_last_file_path') and self._last_file_path != manga.file_path):
+                log.info(f"停止缓存: 漫画已切换或收到停止信号")
+                self.clear_cache()  # 清空缓存
+                self._stop_caching = True
+                break
+                
+
             if i in self._image_cache:
                 continue
     
@@ -295,25 +276,25 @@ class MangaLoader:
                 log.warning(f"页面 {i+1}: 获取无效图像")
                 continue
     
-            # 获取图像原始尺寸
-            height, width = image.shape[:2]
+            # # 获取图像原始尺寸
+            # height, width = image.shape[:2]
     
-            # 判断是否需要缩放
-            if width > target_width_limit or height > target_height_limit:
-                # 计算缩放比例
-                scale_factor = 1.0 / max(
-                    width / target_width_limit,
-                    height / target_height_limit
-                )
-                new_width = int(width * scale_factor)
-                new_height = int(height * scale_factor)
+            # # 判断是否需要缩放
+            # if width > target_width_limit or height > target_height_limit:
+            #     # 计算缩放比例
+            #     scale_factor = 1.0 / max(
+            #         width / target_width_limit,
+            #         height / target_height_limit
+            #     )
+            #     new_width = int(width * scale_factor)
+            #     new_height = int(height * scale_factor)
     
-                # 使用三次插值算法缩放图像
-                image = cv2.resize(
-                    image,
-                    (new_width, new_height),
-                    interpolation=cv2.INTER_CUBIC
-                )
+            #     # 使用三次插值算法缩放图像
+            #     image = cv2.resize(
+            #         image,
+            #         (new_width, new_height),
+            #         interpolation=cv2.INTER_CUBIC
+            #     )
     
             # 尝试添加到缓存
             if self._add_to_cache(i, image):
@@ -323,7 +304,7 @@ class MangaLoader:
         with self._cache_lock:
             log.info(f"缓存完成: {cached_pages}/{manga.total_pages}页")
             log.info(f"占用内存: {self._current_cache_size / (self._cache_size_limit):.2f}GB")
-            self._is_caching = False
+            self._stop_caching = True
 
     @staticmethod
     def _get_page_image_from_zip(manga, page_index):
