@@ -26,9 +26,7 @@ class MangaList(QWidget):  # 改为继承自QWidget
     def __init__(self, parent=None, manga_manager=None):  # 修改构造函数
         super().__init__(parent)
         self.parent = parent
-        self.manga_manager = (
-            manga_manager or MangaManager()
-        )  # 使用传入的管理器或新建实例
+        self.manga_manager = manga_manager or MangaManager(self)
         self.filtered_manga_list = []  # 添加过滤后的列表属性
         self.setup_ui()
         # 修改为连接filter_applied信号
@@ -102,18 +100,24 @@ class MangaList(QWidget):  # 改为继承自QWidget
         """更新表格显示"""
         self.table.setRowCount(0)
         if manga_list:
-            # 按标题排序
+            # 按最后修改时间排序（倒序：最新的在前面）
             sorted_list = sorted(
                 manga_list,
-                key=lambda m: next(
-                    (
-                        tag.split(":", 1)[1].lower()
-                        for tag in m.tags
-                        if tag.startswith("标题:")
-                    ),
-                    "",
-                ),
+                key=lambda m: -m.last_modified  # 使用负号实现倒序
             )
+            
+            # 原标题排序代码（已注释，后续添加排序开关时可以重新启用）
+            # sorted_list = sorted(
+            #     manga_list,
+            #     key=lambda m: next(
+            #         (
+            #             tag.split(":", 1)[1].lower()
+            #             for tag in m.tags
+            #             if tag.startswith("标题:")
+            #         ),
+            #         "",
+            #     ),
+            # )
             self.filtered_manga_list = sorted_list  # 更新过滤后的列表
             self.table.setRowCount(len(sorted_list))
             for i, manga in enumerate(sorted_list):

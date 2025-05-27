@@ -5,6 +5,7 @@ from PyQt5.QtCore import QObject, pyqtSignal  # 这些在您的代码中已导�
 from core.manga_model import MangaInfo, MangaLoader  # 这些在您的代码中已导入
 from core.config import config  # 导入 config 对象
 from utils import manga_logger as log  # 这个在您的代码中已导入
+from core.translator import TranslatorFactory  # 导入翻译器工厂
 
 
 class MangaManager(QObject):
@@ -26,7 +27,13 @@ class MangaManager(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
-        log.info("初始化MangaManager")
+
+        # 打印详细的初始化信息
+        import inspect
+        caller_frame = inspect.currentframe().f_back
+        caller_info = inspect.getframeinfo(caller_frame)
+        log.info(f"MangaManager初始化 - 调用者: {caller_info.filename}:{caller_info.lineno} 函数: {caller_info.function}")
+        log.info(f"父类类型: {self.parent.__class__}")
 
         self.manga_list = []
         self.tags = set()
@@ -58,6 +65,76 @@ class MangaManager(QObject):
             self.dir_changed.emit(config.manga_dir.value)  # 发送信号时使用 .value
         else:
             log.warning(f"目录无效或不存在: {dir_path}")
+            
+    def save_config(self):
+        """保存配置到文件"""
+        try:
+            config.save()
+            log.info("配置已保存")
+        except Exception as e:
+            log.error(f"保存配置时发生错误: {str(e)}")
+            
+    def create_translator(self):
+        """根据配置创建翻译器实例"""
+        try:
+            translator_type = config.translator_type.value
+            log.info(f"创建翻译器: {translator_type}")
+            
+            if translator_type == "智谱":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    api_key=config.zhipu_api_key.value,
+                    model=config.zhipu_model.value
+                )
+            elif translator_type == "Google":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    api_key=config.google_api_key.value
+                )
+            elif translator_type == "DeepL":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    api_key=config.deepl_api_key.value
+                )
+            elif translator_type == "百度":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    app_id=config.baidu_app_id.value,
+                    app_key=config.baidu_app_key.value
+                )
+            elif translator_type == "MyMemory":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    email=config.mymemory_email.value
+                )
+            else:
+                log.warning(f"未知的翻译器类型: {translator_type}，使用Google翻译作为默认选项")
+                return TranslatorFactory.create_translator("Google")
+        except Exception as e:
+            log.error(f"创建翻译器时发生错误: {str(e)}，使用Google翻译作为备选")
+            return TranslatorFactory.create_translator("Google")
+            
+    def clear_translation_cache(self):
+        """清空翻译缓存"""
+        try:
+            # 删除app/config目录下的translation_cache.json文件
+            from core.translator import CACHE_FILE
+            if os.path.exists(CACHE_FILE):
+                os.remove(CACHE_FILE)
+                log.info(f"翻译缓存已清空: {CACHE_FILE}")
+            else:
+                log.info(f"翻译缓存文件不存在，无需清空: {CACHE_FILE}")
+                
+            # 兼容旧版缓存清理
+            cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cache", "translation")
+            if os.path.exists(cache_dir) and os.path.isdir(cache_dir):
+                for file in os.listdir(cache_dir):
+                    file_path = os.path.join(cache_dir, file)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                log.info("旧版翻译缓存已清空")
+        except Exception as e:
+            log.error(f"清空翻译缓存时发生错误: {str(e)}")
 
     def scan_manga_files(self):
         # 访问 config 值时使用 .value

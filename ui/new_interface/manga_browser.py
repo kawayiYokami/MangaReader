@@ -12,9 +12,9 @@ from core.manga_manager import MangaManager
 class MangaBrowser(QWidget):
     """新的漫画浏览界面，采用模块化设计"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, manga_manager=None):
         super().__init__(parent)
-        self.manga_manager = MangaManager()  # 实例化核心管理器
+        self.manga_manager = manga_manager or MangaManager(self)  # 使用传入的manager或新建实例
         self.setup_ui()
         self.reading_order = "right_to_left"
 

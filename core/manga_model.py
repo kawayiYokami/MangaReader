@@ -7,6 +7,7 @@ import numpy as np
 from utils import manga_logger as log
 import threading
 from collections import OrderedDict
+from PIL import Image
 
 
 class MangaInfo:
@@ -18,6 +19,7 @@ class MangaInfo:
         self.total_pages = 0
         self.is_valid = False
         self.pages = []  # 存储页面路径
+        self.last_modified = os.path.getmtime(file_path) if os.path.exists(file_path) else 0  # 获取文件最后修改时间
         self._parse_metadata()
 
     def get_page_path(self, page_index):
@@ -279,8 +281,8 @@ class MangaLoader:
         screen_height = self._screen_height
 
         # 计算缓存尺寸上限（屏幕尺寸的2倍）
-        target_width_limit = screen_width * 2 if screen_width > 0 else 1
-        target_height_limit = screen_height * 2 if screen_height > 0 else 1
+        target_width_limit = screen_width * 1 if screen_width > 0 else 1
+        target_height_limit = screen_height * 1 if screen_height > 0 else 1
 
         for i in range(manga.total_pages):
             # 检查是否应该停止缓存（漫画已切换或收到停止信号）
@@ -302,25 +304,25 @@ class MangaLoader:
                 log.warning(f"页面 {i+1}: 获取无效图像")
                 continue
 
-            # # 获取图像原始尺寸
-            # height, width = image.shape[:2]
+            # 获取图像原始尺寸
+            height, width = image.shape[:2]
 
-            # # 判断是否需要缩放
-            # if width > target_width_limit or height > target_height_limit:
-            #     # 计算缩放比例
-            #     scale_factor = 1.0 / max(
-            #         width / target_width_limit,
-            #         height / target_height_limit
-            #     )
-            #     new_width = int(width * scale_factor)
-            #     new_height = int(height * scale_factor)
+            # 判断是否需要缩放
+            if width > target_width_limit or height > target_height_limit:
+                # 计算缩放比例
+                scale_factor = 1.0 / max(
+                    width / target_width_limit,
+                    height / target_height_limit
+                )
+                new_width = int(width * scale_factor)
+                new_height = int(height * scale_factor)
 
-            #     # 使用三次插值算法缩放图像
-            #     image = cv2.resize(
-            #         image,
-            #         (new_width, new_height),
-            #         interpolation=cv2.INTER_CUBIC
-            #     )
+                # 使用三次插值算法缩放图像
+                image = cv2.resize(
+                    image,
+                    (new_width, new_height),
+                    interpolation=cv2.INTER_AREA
+                )
 
             # 尝试添加到缓存
             if self._add_to_cache(i, image):
@@ -374,14 +376,31 @@ class MangaLoader:
                         log.error(f"空图像数据: {file_name}")
                         return None
 
-                    # 转换为OpenCV图像（优化版本）
+                    # 首先尝试使用OpenCV解码
                     nparr = np.frombuffer(image_data, np.uint8)
                     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
                     if image is None:
-                        log.error(f"OpenCV无法解码图像: {file_name}")
-                        return None
-
+                        log.warning(f"OpenCV无法解码图像，尝试使用Pillow: {file_name}")
+                        try:
+                            # 使用Pillow尝试解码
+                            image_io = io.BytesIO(image_data)
+                            pil_image = Image.open(image_io)
+                            
+                            # 确保图像被完全加载
+                            pil_image.load()
+                            
+                            # 转换为RGB模式
+                            if pil_image.mode != 'RGB':
+                                pil_image = pil_image.convert('RGB')
+                            
+                            # 转换为OpenCV格式
+                            image = np.array(pil_image)
+                            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                        except Exception as e:
+                            log.error(f"Pillow也无法解码图像({file_name}): {str(e)}")
+                            return None
+                    
                     # 转换为RGB格式
                     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                     return image

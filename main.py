@@ -44,15 +44,19 @@ class MainWindow(SplitFluentWindow):
             setTheme(Theme.DARK)
             setTheme(Theme.AUTO)
 
+        # 统一实例化MangaManager
+        from core.manga_manager import MangaManager
+        self.manga_manager = MangaManager()
+        
         # 添加漫画浏览器页面
-        self.manga_browser_interface = MangaBrowserInterface(self)
+        self.manga_browser_interface = MangaBrowserInterface(self, self.manga_manager)
         self.manga_browser_interface.setObjectName("mangaBrowserInterface")
         self.addSubInterface(
             self.manga_browser_interface, FIF.LIBRARY, "漫画", isTransparent=True
         )
 
         # 添加设置页面
-        self.settings_interface = SettingsInterface(self)
+        self.settings_interface = SettingsInterface(self, self.manga_manager)
         self.settings_interface.setObjectName("settingsInterface")
         self.addSubInterface(
             self.settings_interface,

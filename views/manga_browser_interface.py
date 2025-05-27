@@ -12,9 +12,9 @@ class MangaBrowserInterface(QWidget):
     使用模块化设计的MangaBrowser组件
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, manga_manager=None):
         super().__init__(parent=parent)
-        self.manga_browser = MangaBrowser(self)
+        self.manga_browser = MangaBrowser(self, manga_manager)
         self.setup_ui()
 
     def setup_ui(self):

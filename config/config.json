@@ -1,6 +1,16 @@
 {
+    "Translation": {
+        "BaiduAppId": "",
+        "BaiduAppKey": "",
+        "DeepLApiKey": "",
+        "GoogleApiKey": "",
+        "MyMemoryEmail": "",
+        "TranslatorType": "MyMemory",
+        "ZhipuApiKey": "8c60d044b7c34c839d2f332eb7335a49.B3frL0Iaol65vRAF",
+        "ZhipuModel": "glm-4-flash"
+    },
     "Manager": {
-        "CurrentMangaPath": "C:/Users/sheng/Downloads/manga\\C105\\[肛門堂 (いしむら)] スーパーヒーロー肛門悪堕ち計画 [hhh个人汉化].zip",
+        "CurrentMangaPath": "C:/Users/sheng/Downloads\\manga\\C105\\[あきのそら] 異世界来たのでスケベスキルで全力謳歌しようと思う 14射目 (コミック エグゼ 51) [godbing个人汉化] [DL版].zip",
         "CurrentPage": 0,
         "MangaDirectory": "C:/Users/sheng/Downloads"
     },
@@ -11,6 +21,9 @@
         "ReadingOrder": "从左到右",
         "SimplifyChinese": true,
         "TranslateTitle": false
+    },
+    "System": {
+        "LogLevel": "DEBUG"
     },
     "QFluentWidgets": {
         "ThemeColor": "#ff009faa",

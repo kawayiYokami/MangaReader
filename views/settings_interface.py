@@ -1,9 +1,10 @@
 # PyQt5相关导入
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout
 
 # qfluentwidgets组件导入
 from qfluentwidgets import (
+    BodyLabel,
     SpinBox,
     SwitchButton,
     ComboBox,
@@ -21,7 +22,11 @@ from qfluentwidgets import (
     PrimaryPushSettingCard,
     ExpandLayout,
     RangeSettingCard,
+    LineEdit,
+    PushButton,
     FluentIcon as FIF,
+    InfoBar,
+    InfoBarPosition,
 )
 from qfluentwidgets import setTheme, setThemeColor, isDarkTheme, Theme
 
@@ -30,6 +35,233 @@ from core.manga_manager import MangaManager
 from core.config import config, ReadingOrder, DisplayMode
 
 
+
+
+class TranslationSettingsCard(GroupHeaderCardWidget):
+    """翻译相关设置卡片"""
+
+    def __init__(self, manga_manager, parent=None):
+        super().__init__(parent=parent)
+        self.manga_manager = manga_manager
+
+        self.setTitle("翻译设置")
+        self.setBorderRadius(8)
+
+        # 翻译接口类型设置
+        self.translator_combo = ComboBox(self)
+        self.translator_combo.addItems(["Google", "智谱", "DeepL", "百度", "MyMemory"])
+        # 从配置中加载初始值
+        self.translator_combo.setCurrentText(config.translator_type.value)
+        # 连接信号到槽函数
+        self.translator_combo.currentIndexChanged.connect(self._on_translator_changed)
+        self.addGroup(
+            FIF.LANGUAGE, 
+            "翻译接口", 
+            "选择使用的翻译服务提供商。", 
+            self.translator_combo
+        )
+
+        # 创建API密钥输入区域
+        self.api_key_widget = QWidget(self)
+        self.api_key_layout = QVBoxLayout(self.api_key_widget)
+        self.api_key_layout.setContentsMargins(0, 0, 0, 0)
+        self.api_key_layout.setSpacing(8)
+        
+        # 智谱AI设置
+        self.zhipu_widget = QWidget(self.api_key_widget)
+        self.zhipu_layout = QGridLayout(self.zhipu_widget)
+        self.zhipu_layout.setContentsMargins(0, 0, 0, 0)
+        self.zhipu_layout.setSpacing(8)
+        
+        self.zhipu_api_key_edit = LineEdit(self.zhipu_widget)
+        self.zhipu_api_key_edit.setPlaceholderText("请输入智谱AI API密钥")
+        self.zhipu_api_key_edit.setEchoMode(LineEdit.Password)
+        self.zhipu_api_key_edit.setText(config.zhipu_api_key.value)
+        self.zhipu_api_key_edit.textChanged.connect(self._on_zhipu_api_key_changed)
+        
+        self.zhipu_model_combo = ComboBox(self.zhipu_widget)
+        self.zhipu_model_combo.addItems(["glm-4-plus", "glm-4-air-250414", "glm-4-airx", "glm-4-long", "glm-4-flashx", "glm-4-flash-250414"])
+        self.zhipu_model_combo.setCurrentText("glm-4-flash-250414" if config.zhipu_model.value == "glm-4-flash" else config.zhipu_model.value)
+        self.zhipu_model_combo.currentIndexChanged.connect(self._on_zhipu_model_changed)
+        
+        self.zhipu_layout.addWidget(BodyLabel("API密钥:"), 0, 0)
+        self.zhipu_layout.addWidget(self.zhipu_api_key_edit, 0, 1)
+        self.zhipu_layout.addWidget(BodyLabel("模型:"), 1, 0)
+        self.zhipu_layout.addWidget(self.zhipu_model_combo, 1, 1)
+        
+        # Google设置
+        self.google_widget = QWidget(self.api_key_widget)
+        self.google_layout = QGridLayout(self.google_widget)
+        self.google_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.google_api_key_edit = LineEdit(self.google_widget)
+        self.google_api_key_edit.setPlaceholderText("请输入Google API密钥 (可选)")
+        self.google_api_key_edit.setEchoMode(LineEdit.Password)
+        self.google_api_key_edit.setText(config.google_api_key.value)
+        self.google_api_key_edit.textChanged.connect(self._on_google_api_key_changed)
+        
+        self.google_layout.addWidget(BodyLabel("API密钥 (可选):"), 0, 0)
+        self.google_layout.addWidget(self.google_api_key_edit, 0, 1)
+        
+        # DeepL设置
+        self.deepl_widget = QWidget(self.api_key_widget)
+        self.deepl_layout = QGridLayout(self.deepl_widget)
+        self.deepl_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.deepl_api_key_edit = LineEdit(self.deepl_widget)
+        self.deepl_api_key_edit.setPlaceholderText("请输入DeepL API密钥")
+        self.deepl_api_key_edit.setEchoMode(LineEdit.Password)
+        self.deepl_api_key_edit.setText(config.deepl_api_key.value)
+        self.deepl_api_key_edit.textChanged.connect(self._on_deepl_api_key_changed)
+        
+        self.deepl_layout.addWidget(BodyLabel("API密钥:"), 0, 0)
+        self.deepl_layout.addWidget(self.deepl_api_key_edit, 0, 1)
+        
+        # 百度设置
+        self.baidu_widget = QWidget(self.api_key_widget)
+        self.baidu_layout = QGridLayout(self.baidu_widget)
+        self.baidu_layout.setContentsMargins(0, 0, 0, 0)
+        self.baidu_layout.setSpacing(8)
+        
+        self.baidu_app_id_edit = LineEdit(self.baidu_widget)
+        self.baidu_app_id_edit.setPlaceholderText("请输入百度翻译APP ID")
+        self.baidu_app_id_edit.setText(config.baidu_app_id.value)
+        self.baidu_app_id_edit.textChanged.connect(self._on_baidu_app_id_changed)
+        
+        self.baidu_app_key_edit = LineEdit(self.baidu_widget)
+        self.baidu_app_key_edit.setPlaceholderText("请输入百度翻译APP Key")
+        self.baidu_app_key_edit.setEchoMode(LineEdit.Password)
+        self.baidu_app_key_edit.setText(config.baidu_app_key.value)
+        self.baidu_app_key_edit.textChanged.connect(self._on_baidu_app_key_changed)
+        
+        self.baidu_layout.addWidget(BodyLabel("APP ID:"), 0, 0)
+        self.baidu_layout.addWidget(self.baidu_app_id_edit, 0, 1)
+        self.baidu_layout.addWidget(BodyLabel("APP Key:"), 1, 0)
+        self.baidu_layout.addWidget(self.baidu_app_key_edit, 1, 1)
+        
+        # MyMemory设置
+        self.mymemory_widget = QWidget(self.api_key_widget)
+        self.mymemory_layout = QGridLayout(self.mymemory_widget)
+        self.mymemory_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.mymemory_email_edit = LineEdit(self.mymemory_widget)
+        self.mymemory_email_edit.setPlaceholderText("请输入邮箱 (可选，提供可增加免费额度)")
+        self.mymemory_email_edit.setText(config.mymemory_email.value)
+        self.mymemory_email_edit.textChanged.connect(self._on_mymemory_email_changed)
+        
+        self.mymemory_layout.addWidget(BodyLabel("邮箱 (可选):"), 0, 0)
+        self.mymemory_layout.addWidget(self.mymemory_email_edit, 0, 1)
+        
+        # 将所有翻译器设置添加到布局中
+        self.api_key_layout.addWidget(self.zhipu_widget)
+        self.api_key_layout.addWidget(self.google_widget)
+        self.api_key_layout.addWidget(self.deepl_widget)
+        self.api_key_layout.addWidget(self.baidu_widget)
+        self.api_key_layout.addWidget(self.mymemory_widget)
+        
+        # 根据当前选择的翻译器显示对应的设置
+        self._update_api_settings_visibility()
+        
+        self.addGroup(
+            FIF.VPN, 
+            "API设置", 
+            "配置所选翻译服务的API参数。", 
+            self.api_key_widget
+        )
+
+        # 清空翻译缓存按钮
+        self.clear_cache_btn = PushButton("清空翻译缓存", self)
+        self.clear_cache_btn.clicked.connect(self._on_clear_cache_clicked)
+        self.addGroup(
+            FIF.DELETE, 
+            "缓存管理", 
+            "清空已缓存的翻译结果。", 
+            self.clear_cache_btn
+        )
+        
+    def _on_translator_changed(self, index):
+        """翻译接口类型变更处理函数"""
+        # 更新配置
+        config.translator_type.value = self.translator_combo.currentText()
+        self.manga_manager.save_config()
+        
+        # 更新API设置显示
+        self._update_api_settings_visibility()
+    
+    def _update_api_settings_visibility(self):
+        """根据当前选择的翻译接口更新API设置显示"""
+        current_translator = config.translator_type.value
+        
+        # 隐藏所有设置
+        self.zhipu_widget.setVisible(False)
+        self.google_widget.setVisible(False)
+        self.deepl_widget.setVisible(False)
+        self.baidu_widget.setVisible(False)
+        self.mymemory_widget.setVisible(False)
+        
+        # 显示当前选择的翻译器设置
+        if current_translator == "智谱":
+            self.zhipu_widget.setVisible(True)
+        elif current_translator == "Google":
+            self.google_widget.setVisible(True)
+        elif current_translator == "DeepL":
+            self.deepl_widget.setVisible(True)
+        elif current_translator == "百度":
+            self.baidu_widget.setVisible(True)
+        elif current_translator == "MyMemory":
+            self.mymemory_widget.setVisible(True)
+    
+    def _on_zhipu_api_key_changed(self, text):
+        """智谱API密钥变更处理函数"""
+        config.zhipu_api_key.value = text
+        self.manga_manager.save_config()
+    
+    def _on_zhipu_model_changed(self, index):
+        """智谱模型变更处理函数"""
+        config.zhipu_model.value = self.zhipu_model_combo.currentText()
+        self.manga_manager.save_config()
+    
+    def _on_google_api_key_changed(self, text):
+        """Google API密钥变更处理函数"""
+        config.google_api_key.value = text
+        self.manga_manager.save_config()
+    
+    def _on_deepl_api_key_changed(self, text):
+        """DeepL API密钥变更处理函数"""
+        config.deepl_api_key.value = text
+        self.manga_manager.save_config()
+    
+    def _on_baidu_app_id_changed(self, text):
+        """百度APP ID变更处理函数"""
+        config.baidu_app_id.value = text
+        self.manga_manager.save_config()
+    
+    def _on_baidu_app_key_changed(self, text):
+        """百度APP Key变更处理函数"""
+        config.baidu_app_key.value = text
+        self.manga_manager.save_config()
+    
+    def _on_mymemory_email_changed(self, text):
+        """MyMemory邮箱变更处理函数"""
+        config.mymemory_email.value = text
+        self.manga_manager.save_config()
+    
+    def _on_clear_cache_clicked(self):
+        """清空翻译缓存按钮点击事件"""
+        # 这里实现清空翻译缓存的逻辑
+        # 可以调用manga_manager中的方法来清空缓存
+        if hasattr(self.manga_manager, "clear_translation_cache"):
+            self.manga_manager.clear_translation_cache()
+            # 可以添加一个提示，表示缓存已清空
+            InfoBar.success(
+                title="成功",
+                content="翻译缓存已清空",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self
+            )
 class ThemeSettinsCard(GroupHeaderCardWidget):
 
     def __init__(self, manga_manager, parent=None):
@@ -42,6 +274,20 @@ class ThemeSettinsCard(GroupHeaderCardWidget):
         # --- 应用主题设置项 (使用 config.themeMode) ---
         self.theme_combo = ComboBox(self)
         self.theme_combo.addItems(["浅色", "深色", "跟随系统"])
+
+        # 日志等级设置
+        self.log_level_combo = ComboBox(self)
+        self.log_level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+        # 从配置中加载初始值
+        self.log_level_combo.setCurrentText(config.log_level.value)
+        # 连接信号到槽函数
+        self.log_level_combo.currentIndexChanged.connect(self._on_log_level_changed)
+        self.addGroup(
+            FIF.INFO, 
+            "日志等级", 
+            "设置应用程序的日志输出等级。", 
+            self.log_level_combo
+        )
 
         # 从 config.themeMode 加载初始值 (.value 是 Theme 枚举成员)
         current_theme_enum = config.themeMode.value
@@ -75,6 +321,16 @@ class ThemeSettinsCard(GroupHeaderCardWidget):
             new_theme_enum = Theme.AUTO
         setTheme(new_theme_enum)
         config.save()
+        
+    def _on_log_level_changed(self, index):
+        # 获取选中的日志等级
+        selected_level = self.log_level_combo.currentText()
+        # 更新配置
+        config.log_level.value = selected_level
+        self.manga_manager.save_config()
+        # 应用新的日志等级
+        from utils.manga_logger import MangaLogger
+        MangaLogger.get_instance().set_level(selected_level)
 
     def _on_radius_changed(self, index):
         config.radius.value = index  # 直接保存索引作为整数值
@@ -225,10 +481,10 @@ class MangaSettinsCard(GroupHeaderCardWidget):
 class SettingsInterface(ScrollArea):
     """设置界面"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, manga_manager=None):
         super().__init__(parent=parent)
         self.view = QWidget(self)
-        self.manga_manager = MangaManager(self)  # 实例化 MangaManager
+        self.manga_manager = manga_manager or MangaManager(self)  # 使用传入的manager或新建实例
         self.setup_ui()
 
     def setup_ui(self):
@@ -236,16 +492,20 @@ class SettingsInterface(ScrollArea):
         self.setWidgetResizable(True)
 
         self.vBoxLayout = QVBoxLayout(self.view)
-        self.vBoxLayout.setSpacing(6)
+        self.vBoxLayout.setSpacing(32)
         self.vBoxLayout.setContentsMargins(20, 32, 20, 20)
         self.vBoxLayout.setAlignment(Qt.AlignTop)
+
+        # 实例化 ThemeSettinsCard 并传递 manga_manager 实例
+        self.theme_settings_card = ThemeSettinsCard(self.manga_manager, self.view)
+        self.vBoxLayout.addWidget(self.theme_settings_card)
 
         # 实例化 MangaSettinsCard 并传递 manga_manager 实例
         self.manga_settings_card = MangaSettinsCard(self.manga_manager, self.view)
         self.vBoxLayout.addWidget(self.manga_settings_card)
 
-        # 实例化 ThemeSettinsCard 并传递 manga_manager 实例
-        self.theme_settings_card = ThemeSettinsCard(self.manga_manager, self.view)
-        self.vBoxLayout.addWidget(self.theme_settings_card)
+        # 实例化 TranslationSettingsCard 并传递 manga_manager 实例
+        self.translation_settings_card = TranslationSettingsCard(self.manga_manager, self.view)
+        self.vBoxLayout.addWidget(self.translation_settings_card)
 
         self.enableTransparentBackground()

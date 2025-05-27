@@ -62,7 +62,7 @@ class MangaViewer(CardWidget):
         super().__init__(parent)
         self.parent = parent
         # 使用传入的管理器或新建实例
-        self.manga_manager = manga_manager or MangaManager()
+        self.manga_manager = manga_manager or MangaManager(self)
         # 从管理器获取设置
         self.display_mode = config.display_mode.value
         config.display_mode.valueChanged.connect(self.update_display)
@@ -90,6 +90,10 @@ class MangaViewer(CardWidget):
 
         # 启用键盘和滚轮事件
         self.setFocusPolicy(Qt.StrongFocus)
+        
+        # 初始化时检查是否有当前漫画
+        if hasattr(self.manga_manager, 'current_manga') and self.manga_manager.current_manga:
+            self.on_current_manga_changed(self.manga_manager.current_manga)
 
     def setup_ui(self):
         """
@@ -145,7 +149,7 @@ class MangaViewer(CardWidget):
         # 将容器设置为滚动区域的 widget
         self.scroll_area.setWidget(scroll_container)
 
-        self.control_panel = ControlPanel(self)
+        self.control_panel = ControlPanel(self, self.manga_manager)
         # 控制面板的尺寸策略：水平伸展以适应窗口宽度，垂直固定或首选，不应伸展并挤压背景
         self.control_panel.setSizePolicy(
             QSizePolicy.Expanding, QSizePolicy.Fixed

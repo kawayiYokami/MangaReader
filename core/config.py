@@ -94,6 +94,38 @@ class Config(QConfig):
     manga_dir = ConfigItem("Manager", "MangaDirectory", "")
     current_page = ConfigItem("Manager", "CurrentPage", 0)
     current_manga_path = ConfigItem("Manager", "CurrentMangaPath", "")
+    
+    # ==================== 日志设置 ====================
+    log_level = OptionsConfigItem(
+        "System", 
+        "LogLevel", 
+        "WARNING",
+        validator=OptionsValidator(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+    )
+    
+    # ==================== 翻译设置 ====================
+    translator_type = OptionsConfigItem(
+        "Translation", 
+        "TranslatorType", 
+        "Google",
+        validator=OptionsValidator(["Google", "智谱", "DeepL", "百度", "MyMemory"])
+    )
+    # 智谱AI翻译设置
+    zhipu_api_key = ConfigItem("Translation", "ZhipuApiKey", "")
+    zhipu_model = ConfigItem("Translation", "ZhipuModel", "glm-4-flash")
+    
+    # Google翻译设置
+    google_api_key = ConfigItem("Translation", "GoogleApiKey", "")
+    
+    # DeepL翻译设置
+    deepl_api_key = ConfigItem("Translation", "DeepLApiKey", "")
+    
+    # 百度翻译设置
+    baidu_app_id = ConfigItem("Translation", "BaiduAppId", "")
+    baidu_app_key = ConfigItem("Translation", "BaiduAppKey", "")
+    
+    # MyMemory翻译设置
+    mymemory_email = ConfigItem("Translation", "MyMemoryEmail", "")
 
 
 # 创建全局 config 对象

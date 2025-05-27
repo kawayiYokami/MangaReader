@@ -22,17 +22,13 @@ from PyQt5.QtCore import QTimer
 class ControlPanel(CardWidget):
     """控制面板组件"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None , manga_manager=None):
         super().__init__(parent)
         self.parent = parent
-        self.manga_manager = None
         self.auto_timer = None
         self.auto_flip_interval = 3000  # 默认3秒自动翻页间隔
         # 尝试从父组件获取manga_manager
-        if hasattr(parent, "manga_manager"):
-            self.manga_manager = parent.manga_manager
-        else:
-            self.manga_manager = MangaManager()
+        self.manga_manager = manga_manager or MangaManager(self)
 
         # 连接信号
         if self.manga_manager:
@@ -258,22 +254,20 @@ class ControlPanel(CardWidget):
             self.auto_timer.timeout.connect(self.auto_flip_page)
             # 从config读取PageInterval值作为间隔时间(毫秒)
             interval = config.page_interval.value * 1000
-            print(f"[DEBUG] 启动自动翻页定时器，间隔时间: {interval}ms")
-            print(f"[DEBUG] 当前配置值 page_interval: {config.page_interval.value}秒")
             self.auto_timer.start(interval)
 
     def stop_auto_flip(self):
         """停止自动翻页定时器"""
         if self.auto_timer:
-            print("[DEBUG] 停止自动翻页定时器")
             self.auto_timer.stop()
             self.auto_timer = None
 
     def auto_flip_page(self):
         """自动翻页逻辑"""
-        print("[DEBUG] 执行自动翻页动作")
         if hasattr(self.parent, "next_page"):
-            self.parent.next_page()
+            if hasattr(self.parent, "reading_order") and self.parent.reading_order == ReadingOrder.RIGHT_TO_LEFT.value:
+                self.parent.prev_page()
+            else:
+                self.parent.next_page()
         else:
-            print("[DEBUG] 父组件没有next_page方法，停止定时器")
             self.stop_auto_flip()
