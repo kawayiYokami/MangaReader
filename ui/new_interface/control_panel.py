@@ -1,5 +1,5 @@
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
 from qfluentwidgets import (
     BodyLabel,
     CardWidget,
@@ -14,9 +14,8 @@ from qfluentwidgets import (
     SwitchButton,
 )
 from core.manga_manager import MangaManager
-from PyQt5.QtGui import QColor
+from PySide6.QtGui import QColor
 from core.config import config, DisplayMode, ReadingOrder
-from PyQt5.QtCore import QTimer
 
 
 class ControlPanel(CardWidget):

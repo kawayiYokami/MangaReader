@@ -10,8 +10,8 @@
         "ZhipuModel": "glm-4-flash"
     },
     "Manager": {
-        "CurrentMangaPath": "C:/Users/sheng/Downloads\\manga\\C105\\[あきのそら] 異世界来たのでスケベスキルで全力謳歌しようと思う 14射目 (コミック エグゼ 51) [godbing个人汉化] [DL版].zip",
-        "CurrentPage": 0,
+        "CurrentMangaPath": "C:/Users/sheng/Downloads\\manga\\2\\[無邪気漢化組] (C97) [もすきーと音。 (ぐれーともす)] 清楚彼女、堕ちる. [中国翻訳].zip",
+        "CurrentPage": 18,
         "MangaDirectory": "C:/Users/sheng/Downloads"
     },
     "Manga": {
@@ -23,7 +23,7 @@
         "TranslateTitle": false
     },
     "System": {
-        "LogLevel": "DEBUG"
+        "LogLevel": "CRITICAL"
     },
     "QFluentWidgets": {
         "ThemeColor": "#ff009faa",

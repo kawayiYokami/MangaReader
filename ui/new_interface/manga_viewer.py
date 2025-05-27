@@ -1,6 +1,6 @@
 # Qt核心模块
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QGridLayout,
 )
-from PyQt5.QtGui import QPixmap, QImage
+from PySide6.QtGui import QPixmap, QImage
 
 # 第三方UI组件
 from qfluentwidgets import (
@@ -78,6 +78,7 @@ class MangaViewer(CardWidget):
 
         # 初始化控制面板显示状态
         self.control_panel_visible = False
+        self.actual_pages_displayed = 1 # 记录当前实际显示的页面数量
 
         # 初始化拖动相关的属性
         self.is_dragging = False
@@ -232,7 +233,7 @@ class MangaViewer(CardWidget):
             and self.manga_manager.current_manga
         ):
             current_page = config.current_page.value
-            step = 2 if self.display_mode == DisplayMode.DOUBLE.value else 1
+            step = self.actual_pages_displayed # 根据实际显示的页面数量来决定步长
 
             # 处理双页模式下的边界情况
             if self.display_mode == DisplayMode.DOUBLE.value and current_page == 1:
@@ -254,7 +255,7 @@ class MangaViewer(CardWidget):
             and self.manga_manager.current_manga
         ):
             current_page = config.current_page.value
-            step = 2 if self.display_mode == DisplayMode.DOUBLE.value else 1
+            step = self.actual_pages_displayed # 根据实际显示的页面数量来决定步长
 
             # 处理双页模式下的边界情况
             if (
@@ -428,6 +429,8 @@ class MangaViewer(CardWidget):
 
         # 判断并处理双页合并
         display_image = current_image
+        self.actual_pages_displayed = 1 # 默认单页
+
         if self.display_mode != DisplayMode.SINGLE.value:
             next_page_index = current_page + 1
             if next_page_index < self.current_manga.total_pages:
@@ -440,6 +443,7 @@ class MangaViewer(CardWidget):
                     combined = self.combine_images(current_image, next_image)
                     if combined is not None and combined.size > 0:
                         display_image = combined
+                        self.actual_pages_displayed = 2 # 实际显示双页
 
         qimage = self.convert_image_to_qimage(display_image)
         if qimage and not qimage.isNull():

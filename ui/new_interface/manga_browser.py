@@ -1,5 +1,6 @@
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QSplitter
+import os
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 from qfluentwidgets import TitleLabel, InfoBar, InfoBarPosition
 
 from .manga_viewer import MangaViewer
@@ -17,6 +18,9 @@ class MangaBrowser(QWidget):
         self.manga_manager = manga_manager or MangaManager(self)  # 使用传入的manager或新建实例
         self.setup_ui()
         self.reading_order = "right_to_left"
+        
+        # 启用拖放功能
+        self.setAcceptDrops(True)
 
     def setup_ui(self):
         # 主布局
@@ -89,3 +93,54 @@ class MangaBrowser(QWidget):
         # 更新显示
         if hasattr(self.parent, "update_display"):
             self.parent.update_display()
+            
+    def dragEnterEvent(self, event):
+        """处理拖拽进入事件"""
+        # 检查是否是文件拖拽
+        if event.mimeData().hasUrls():
+            # 检查是否是支持的文件类型（.zip或.cbz）
+            for url in event.mimeData().urls():
+                file_path = url.toLocalFile()
+                if file_path.lower().endswith(('.zip', '.cbz')):
+                    event.acceptProposedAction()
+                    return
+                    
+    def dropEvent(self, event):
+        """处理拖拽释放事件"""
+        files = [url.toLocalFile() for url in event.mimeData().urls()
+                 if url.toLocalFile().lower().endswith(('.zip', '.cbz'))]
+        
+        if not files:
+            return
+            
+        # 扫描所有拖入的漫画文件
+        from core.manga_model import MangaLoader
+        manga_list = []
+        for file_path in files:
+            manga = MangaLoader.load_manga(file_path)
+            if manga and manga.is_valid:
+                manga_list.append(manga)
+        
+        if manga_list:
+            # 保存第一个拖入的漫画，稍后打开它
+            first_manga = manga_list[0]
+            
+            # 检查并添加不重复的漫画
+            new_manga_list = []
+            for manga in manga_list:
+                # 检查是否已存在相同路径的漫画（使用规范化路径进行比较）
+                manga_path = os.path.normpath(manga.file_path).lower()
+                if not any(os.path.normpath(existing.file_path).lower() == manga_path for existing in self.manga_manager.manga_list):
+                    new_manga_list.append(manga)
+                    self.manga_manager.manga_list.append(manga)
+            
+            # 如果有新添加的漫画，更新缓存
+            if new_manga_list:
+                from core.manga_cache import manga_cache
+                from core.config import config
+                manga_cache.update_manga_list(config.manga_dir.value, self.manga_manager.manga_list)
+                # 通知UI更新
+                self.manga_manager.manga_list_updated.emit(self.manga_manager.manga_list)
+            
+            # 无论是否重复，都打开第一个拖入的漫画
+            self.manga_manager.set_current_manga(first_manga)

@@ -1,7 +1,7 @@
 import sys
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtGui import QIcon
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QIcon
 
 from qfluentwidgets import (
     NavigationInterface,
@@ -79,7 +79,7 @@ class MainWindow(SplitFluentWindow):
 
     def initWindow(self):
         self.resize(1200, 800)
-        desktop = QApplication.desktop().availableGeometry()
+        desktop = QApplication.primaryScreen().availableGeometry()
         w, h = desktop.width(), desktop.height()
         self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
 
@@ -87,17 +87,10 @@ class MainWindow(SplitFluentWindow):
 if __name__ == "__main__":
     # 循环设置主题直到匹配
 
-    # 设置高DPI缩放
-    QApplication.setHighDpiScaleFactorRoundingPolicy(
-        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-    )
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-
     app = QApplication(sys.argv)
 
     # 创建并显示主窗口
     w = MainWindow()
     w.show()
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

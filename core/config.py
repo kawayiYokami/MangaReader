@@ -14,7 +14,7 @@
 """
 
 from enum import Enum
-from PyQt5.QtCore import QLocale
+from PySide6.QtCore import QLocale
 from qfluentwidgets import (
     QConfig,
     ConfigItem,
@@ -71,14 +71,14 @@ class Config(QConfig):
     reading_order = OptionsConfigItem(
         "Manga",
         "ReadingOrder",
-        ReadingOrder.RIGHT_TO_LEFT.value,
+        ReadingOrder.LEFT_TO_RIGHT.value,
         validator=OptionsValidator([e.value for e in ReadingOrder]),
     )
 
     display_mode = OptionsConfigItem(
         "Manga",
         "DisplayMode",
-        DisplayMode.SINGLE.value,
+        DisplayMode.DOUBLE.value,
         validator=OptionsValidator([e.value for e in DisplayMode]),
     )
 

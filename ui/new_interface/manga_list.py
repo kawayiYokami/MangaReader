@@ -1,12 +1,13 @@
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QTableWidget,
     QTableWidgetItem,
     QHBoxLayout,
     QSizePolicy,
+    QFileDialog
 )
-from PyQt5.QtCore import Qt, QEasingCurve
+from PySide6.QtCore import Qt, QEasingCurve
 from qfluentwidgets import (
     CardWidget,
     SearchLineEdit,
@@ -17,7 +18,6 @@ from qfluentwidgets import (
 )
 from qfluentwidgets.common.icon import FluentIcon as FIF
 from core.manga_manager import MangaManager  # 新增导入
-from PyQt5.QtWidgets import QFileDialog
 
 
 class MangaList(QWidget):  # 改为继承自QWidget
@@ -94,7 +94,8 @@ class MangaList(QWidget):  # 改为继承自QWidget
             self, "选择漫画目录", "", QFileDialog.ShowDirsOnly  # 默认路径
         )
         if dir_path:
-            self.manga_manager.set_manga_dir(dir_path)  # 调用管理器更新目录
+            # 用户选择了新目录，强制重新扫描
+            self.manga_manager.set_manga_dir(dir_path, force_rescan=True)  # 调用管理器更新目录
 
     def update_table(self, manga_list):
         """更新表格显示"""

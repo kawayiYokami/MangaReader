@@ -1,6 +1,6 @@
-# PyQt5相关导入
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout
+# Qt相关导入
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout
 
 # qfluentwidgets组件导入
 from qfluentwidgets import (

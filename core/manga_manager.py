@@ -1,7 +1,7 @@
 # core/manga_manager.py
 
 import os
-from PyQt5.QtCore import QObject, pyqtSignal  # 这些在您的代码中已导入
+from PySide6.QtCore import QObject, Signal  # 导入 PySide6 的信号
 from core.manga_model import MangaInfo, MangaLoader  # 这些在您的代码中已导入
 from core.config import config  # 导入 config 对象
 from utils import manga_logger as log  # 这个在您的代码中已导入
@@ -9,21 +9,22 @@ from core.translator import TranslatorFactory  # 导入翻译器工厂
 
 
 class MangaManager(QObject):
-    # 信号定义（保持不变）
-    data_loaded = pyqtSignal(list)
-    data_loading = pyqtSignal()
-    data_load_failed = pyqtSignal(str)
-    tags_updated = pyqtSignal(set)
+    # 信号定义
+    data_loaded = Signal(list)
+    data_loading = Signal()
+    data_load_failed = Signal(str)
+    tags_updated = Signal(set)
 
-    filter_applied = pyqtSignal(list)
-    filter_cleared = pyqtSignal()
-    file_renamed = pyqtSignal(str, str)
-    file_opened = pyqtSignal(str)
-    dir_changed = pyqtSignal(str)
+    filter_applied = Signal(list)
+    filter_cleared = Signal()
+    file_renamed = Signal(str, str)
+    file_opened = Signal(str)
+    dir_changed = Signal(str)
 
-    current_manga_changed = pyqtSignal(object)
-    view_mode_changed = pyqtSignal(int)
-    page_changed = pyqtSignal(int)
+    current_manga_changed = Signal(object)
+    view_mode_changed = Signal(int)
+    page_changed = Signal(int)
+    manga_list_updated = Signal(list)  # 漫画列表更新信号
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -55,13 +56,13 @@ class MangaManager(QObject):
         elif config.manga_dir.value:
             log.warning(f"配置文件中的漫画目录不存在或无效: {config.manga_dir.value}")
 
-    def set_manga_dir(self, dir_path):
+    def set_manga_dir(self, dir_path, force_rescan=False):
         log.info(f"设置漫画目录: {dir_path}")
         if os.path.exists(dir_path) and os.path.isdir(dir_path):
             config.manga_dir.value = dir_path  # 设置 config 值时使用 .value
             self.save_config()
             log.info(f"目录有效，开始扫描漫画文件")
-            self.scan_manga_files()
+            self.scan_manga_files(force_rescan=force_rescan)
             self.dir_changed.emit(config.manga_dir.value)  # 发送信号时使用 .value
         else:
             log.warning(f"目录无效或不存在: {dir_path}")
@@ -135,8 +136,17 @@ class MangaManager(QObject):
                 log.info("旧版翻译缓存已清空")
         except Exception as e:
             log.error(f"清空翻译缓存时发生错误: {str(e)}")
+            
+    def clear_manga_cache(self):
+        """清空漫画扫描缓存"""
+        try:
+            from core.manga_cache import manga_cache
+            manga_cache.clear_cache()
+            log.info("漫画扫描缓存已清空")
+        except Exception as e:
+            log.error(f"清空漫画扫描缓存时发生错误: {str(e)}")
 
-    def scan_manga_files(self):
+    def scan_manga_files(self, force_rescan=False):
         # 访问 config 值时使用 .value
         if not config.manga_dir.value:
             log.warning("未设置漫画目录，无法扫描文件")
@@ -147,15 +157,50 @@ class MangaManager(QObject):
         self.tags.clear()
 
         try:
-            # 访问 config 值时使用 .value
-            manga_files = MangaLoader.find_manga_files(config.manga_dir.value)
+            # 导入缓存模块
+            from core.manga_cache import manga_cache
+            
+            # 检查是否有缓存，且不强制重新扫描
+            cached_manga_list = None
+            if not force_rescan:
+                cached_manga_list = manga_cache.get_manga_list(config.manga_dir.value)
+            
+            if cached_manga_list and not force_rescan:
+                log.info(f"从缓存加载漫画列表，共 {len(cached_manga_list)} 本漫画")
+                
+                # 从缓存创建MangaInfo对象
+                for manga_data in cached_manga_list:
+                    # 检查文件是否存在且未被修改
+                    if os.path.exists(manga_data["file_path"]) and not manga_cache.is_manga_modified(manga_data["file_path"]):
+                        manga = MangaInfo(manga_data["file_path"])
+                        manga.title = manga_data["title"]
+                        manga.tags = set(manga_data["tags"])
+                        manga.total_pages = manga_data["total_pages"]
+                        manga.is_valid = manga_data["is_valid"]
+                        manga.last_modified = manga_data["last_modified"]
+                        manga.pages = manga_data["pages"]
+                        self.manga_list.append(manga)
+                    else:
+                        # 文件已修改或不存在，需要重新加载
+                        manga = MangaLoader.load_manga(manga_data["file_path"])
+                        if manga and manga.is_valid:
+                            self.manga_list.append(manga)
+                        else:
+                            log.warning(f"无法加载漫画: {manga_data['file_path']}")
+            else:
+                # 没有缓存或强制重新扫描，执行完整扫描
+                log.info(f"开始扫描漫画目录: {config.manga_dir.value}")
+                manga_files = MangaLoader.find_manga_files(config.manga_dir.value)
 
-            for file_path in manga_files:
-                manga = MangaLoader.load_manga(file_path)
-                if manga and manga.is_valid:
-                    self.manga_list.append(manga)
-                else:
-                    log.warning(f"无法加载漫画: {file_path}")
+                for file_path in manga_files:
+                    manga = MangaLoader.load_manga(file_path)
+                    if manga and manga.is_valid:
+                        self.manga_list.append(manga)
+                    else:
+                        log.warning(f"无法加载漫画: {file_path}")
+
+                # 更新缓存
+                manga_cache.update_manga_list(config.manga_dir.value, self.manga_list)
 
             log.info(f"扫描完成，成功加载 {len(self.manga_list)} 本漫画")
 
@@ -328,6 +373,35 @@ class MangaManager(QObject):
     def set_current_manga(self, manga):
         if manga != self.current_manga:
             log.info(f"切换当前漫画: {manga.title if manga else 'None'}")
+            
+            # 检查漫画文件是否存在，如果不存在则更新漫画列表
+            if manga and not os.path.exists(manga.file_path):
+                log.warning(f"漫画文件不存在: {manga.file_path}，将从列表中移除")
+                self.manga_list = [m for m in self.manga_list if m.file_path != manga.file_path]
+                # 更新缓存
+                from core.manga_cache import manga_cache
+                manga_cache.update_manga_list(config.manga_dir.value, self.manga_list)
+                self.current_manga = None
+                config.current_manga_path.value = ""
+                self.current_manga_changed.emit(None)
+                return
+            
+            # 检查漫画文件是否被修改，如果被修改则重新加载
+            if manga:
+                from core.manga_cache import manga_cache
+                if manga_cache.is_manga_modified(manga.file_path):
+                    log.info(f"漫画文件已修改，重新加载: {manga.file_path}")
+                    updated_manga = MangaLoader.load_manga(manga.file_path)
+                    if updated_manga and updated_manga.is_valid:
+                        # 更新列表中的漫画对象
+                        for i, m in enumerate(self.manga_list):
+                            if m.file_path == manga.file_path:
+                                self.manga_list[i] = updated_manga
+                                manga = updated_manga
+                                break
+                        # 更新缓存
+                        manga_cache.update_manga_list(config.manga_dir.value, self.manga_list)
+            
             self.current_manga = manga
             config.current_manga_path.value = (
                 manga.file_path if manga else ""

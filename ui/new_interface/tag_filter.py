@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QButtonGroup, QSizePolicy
-from PyQt5.QtCore import Qt, QEasingCurve
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QButtonGroup, QSizePolicy
+from PySide6.QtCore import Qt, QEasingCurve
 from qfluentwidgets import (
     CardWidget,
     PushButton,

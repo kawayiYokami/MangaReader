@@ -152,8 +152,7 @@ class MangaLoader:
             log.warning(f"文件不存在或不是ZIP文件: {file_path}")
             return None
 
-        manga = MangaInfo(file_path)
-        manga.file_path = file_path
+        manga = MangaInfo(file_path)  # MangaInfo 的 __init__ 方法已经设置了 file_path
 
         try:
             with ZipFile(file_path, "r") as zip_file:
@@ -226,7 +225,6 @@ class MangaLoader:
     def clear_cache(self):
         """清空所有缓存"""
         with self._cache_lock:
-            print("清空缓存")
             self._stop_caching = True
             self._image_cache.clear()
             self._current_cache_size = 0
