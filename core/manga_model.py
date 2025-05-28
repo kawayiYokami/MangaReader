@@ -134,55 +134,113 @@ class MangaLoader:
 
     @staticmethod
     def find_manga_files(directory):
-        """递归遍历目录查找漫画文件"""
+        """递归遍历目录查找漫画文件和图片文件夹"""
         manga_files = []
+        image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp")
         try:
-            for root, _, files in os.walk(directory):
+            # 首先检查传入的directory本身是否是一个漫画文件夹
+            if os.path.isdir(directory):
+                has_images_in_root = False
+                for item in os.listdir(directory):
+                    item_path = os.path.join(directory, item)
+                    if os.path.isfile(item_path) and item.lower().endswith(image_extensions):
+                        has_images_in_root = True
+                        break
+                if has_images_in_root:
+                    manga_files.append(directory)
+
+            for root, dirs, files in os.walk(directory):
+                # 检查ZIP文件
                 for file in files:
                     if file.lower().endswith(".zip"):
                         full_path = os.path.join(root, file)
                         manga_files.append(full_path)
+
+                # 检查图片文件夹 (不包含子目录)
+                for d in dirs:
+                    dir_path = os.path.join(root, d)
+                    # 检查目录是否包含图片文件 (不递归检查子目录)
+                    has_images = False
+                    for item in os.listdir(dir_path):
+                        item_path = os.path.join(dir_path, item)
+                        if os.path.isfile(item_path) and item.lower().endswith(image_extensions):
+                            has_images = True
+                            break # 找到图片文件即可
+
+                    if has_images:
+                        manga_files.append(dir_path)
         except Exception as e:
             log.error(f"遍历目录时发生错误: {str(e)}")
         return manga_files
 
     @staticmethod
     def load_manga(file_path):
-        if not os.path.exists(file_path) or not file_path.lower().endswith(".zip"):
-            log.warning(f"文件不存在或不是ZIP文件: {file_path}")
+        if not os.path.exists(file_path):
+            log.warning(f"文件或目录不存在: {file_path}")
             return None
 
-        manga = MangaInfo(file_path)  # MangaInfo 的 __init__ 方法已经设置了 file_path
+        manga = MangaInfo(file_path)
 
-        try:
-            with ZipFile(file_path, "r") as zip_file:
-                all_files = zip_file.namelist()
+        if os.path.isdir(file_path):
+            # 处理文件夹作为漫画
+            image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+            try:
+                all_files = os.listdir(file_path)
                 image_files = [
-                    f
+                    os.path.join(file_path, f)
                     for f in all_files
-                    if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
+                    if os.path.isfile(os.path.join(file_path, f)) and f.lower().endswith(image_extensions)
                 ]
+                image_files.sort()
 
-                if not image_files and all_files:
-                    log.warning(f"未找到图片文件: {file_path}")
+                if not image_files:
+                    log.warning(f"文件夹中未找到图片文件: {file_path}")
                     return None
 
-                image_files.sort()
                 manga.total_pages = len(image_files)
-                manga.pages = image_files  # 保存页面列表
+                manga.pages = image_files  # 存储实际文件路径
 
                 if not manga.is_valid:
-                    # 如果验证不通过，但包含图片，则设置默认标题和添加未知标签
-                    if image_files:
+                    title_from_filename = os.path.basename(file_path)
+                    manga.tags.add(f"标题:{title_from_filename}")
+                    manga.tags.add("其他:文件夹漫画")
+                    manga.is_valid = True
+
+            except Exception as e:
+                log.error(f"加载文件夹漫画时发生错误: {str(e)}")
+                return None
+        elif file_path.lower().endswith(".zip"):
+            # 处理ZIP文件作为漫画
+            try:
+                with ZipFile(file_path, "r") as zip_file:
+                    all_files = zip_file.namelist()
+                    image_files = [
+                        f
+                        for f in all_files
+                        if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
+                    ]
+
+                    if not image_files and all_files:
+                        log.warning(f"ZIP中未找到图片文件: {file_path}")
+                        return None
+
+                    image_files.sort()
+                    manga.total_pages = len(image_files)
+                    manga.pages = image_files  # 保存页面在ZIP文件中的路径
+
+                    if not manga.is_valid:
                         title_from_filename = os.path.splitext(
                             os.path.basename(file_path)
                         )[0]
                         manga.tags.add(f"标题:{title_from_filename}")
                         manga.tags.add("其他:未知")
-                        manga.is_valid = True  # 标记为有效
+                        manga.is_valid = True
 
-        except Exception as e:
-            log.error(f"加载漫画时发生错误: {str(e)}")
+            except Exception as e:
+                log.error(f"加载ZIP漫画时发生错误: {str(e)}")
+                return None
+        else:
+            log.warning(f"不支持的文件类型: {file_path}")
             return None
 
         return manga
@@ -246,7 +304,6 @@ class MangaLoader:
         # 获取当前屏幕分辨率
         try:
             import screeninfo
-
             monitors = screeninfo.get_monitors()
             if monitors:
                 self._screen_width = monitors[0].width
@@ -260,7 +317,12 @@ class MangaLoader:
             self.start_precaching(manga)
 
         # 返回当前请求的页面
-        image = MangaLoader._get_page_image_from_zip(manga, page_index)
+        # 根据漫画类型调用不同的图像获取方法
+        if os.path.isdir(manga.file_path):
+            image = MangaLoader._get_page_image_from_folder(manga, page_index)
+        else: # 默认为ZIP文件
+            image = MangaLoader._get_page_image_from_zip(manga, page_index)
+
         if image is not None and (isinstance(image, np.ndarray) and np.any(image)):
             self._add_to_cache(page_index, image)
         return image
@@ -297,7 +359,12 @@ class MangaLoader:
                 continue
 
             # 获取原始图像数据
-            image = MangaLoader._get_page_image_from_zip(manga, i)
+            # 根据漫画类型调用不同的图像获取方法
+            if os.path.isdir(manga.file_path):
+                image = MangaLoader._get_page_image_from_folder(manga, i)
+            else: # 默认为ZIP文件
+                image = MangaLoader._get_page_image_from_zip(manga, i)
+
             if not isinstance(image, np.ndarray) or not np.any(image):
                 log.warning(f"页面 {i+1}: 获取无效图像")
                 continue
@@ -336,9 +403,7 @@ class MangaLoader:
 
     @staticmethod
     def _get_page_image_from_zip(manga, page_index):
-        """从ZIP文件读取图像数据(原get_page_image的逻辑)
-        优化版本：使用高质量图像读取设置
-        """
+        """从ZIP文件读取图像数据"""
         # 参数验证
         if not manga or not os.path.exists(manga.file_path):
             log.warning(
@@ -409,4 +474,58 @@ class MangaLoader:
 
         except Exception as e:
             log.error(f"处理ZIP文件时出错({manga.file_path}): {str(e)}")
+            return None
+
+    @staticmethod
+    def _get_page_image_from_folder(manga, page_index):
+        """从文件夹读取图像数据"""
+        if not manga or not os.path.exists(manga.file_path) or not os.path.isdir(manga.file_path):
+            log.warning(f"无效的漫画对象或目录不存在: {getattr(manga, 'file_path', None)}")
+            return None
+
+        try:
+            # manga.pages 已经存储了完整的图片路径
+            if page_index < 0 or page_index >= len(manga.pages):
+                log.warning(f"无效页码: {page_index} (总数: {len(manga.pages)})")
+                return None
+
+            image_path = manga.pages[page_index]
+            if not os.path.exists(image_path):
+                log.error(f"图片文件不存在: {image_path}")
+                return None
+
+            try:
+                # 首先尝试使用OpenCV解码
+                image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+
+                if image is None:
+                    log.warning(f"OpenCV无法解码图像，尝试使用Pillow: {image_path}")
+                    try:
+                        # 使用Pillow尝试解码
+                        pil_image = Image.open(image_path)
+                        
+                        # 确保图像被完全加载
+                        pil_image.load()
+                        
+                        # 转换为RGB模式
+                        if pil_image.mode != 'RGB':
+                            pil_image = pil_image.convert('RGB')
+                        
+                        # 转换为OpenCV格式
+                        image = np.array(pil_image)
+                        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                    except Exception as e:
+                        log.error(f"Pillow也无法解码图像({image_path}): {str(e)}")
+                        return None
+                
+                # 转换为RGB格式
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                return image
+
+            except Exception as e:
+                log.error(f"处理图像时出错({image_path}): {str(e)}")
+                return None
+
+        except Exception as e:
+            log.error(f"处理文件夹漫画时出错({manga.file_path}): {str(e)}")
             return None

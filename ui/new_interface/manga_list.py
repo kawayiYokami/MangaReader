@@ -5,7 +5,8 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QHBoxLayout,
     QSizePolicy,
-    QFileDialog
+    QFileDialog,
+    QMessageBox,  # 新增导入
 )
 from PySide6.QtCore import Qt, QEasingCurve
 from qfluentwidgets import (
@@ -15,6 +16,8 @@ from qfluentwidgets import (
     PushButton,
     SmoothScrollArea,
     TableWidget,
+    MessageBoxBase,  # 新增导入
+    SubtitleLabel,  # 新增导入
 )
 from qfluentwidgets.common.icon import FluentIcon as FIF
 from core.manga_manager import MangaManager  # 新增导入
@@ -40,11 +43,14 @@ class MangaList(QWidget):  # 改为继承自QWidget
         search_layout = QHBoxLayout()
         self.open_button = ToolButton(FIF.FOLDER, self)  # 使用文件夹图标
         self.open_button.clicked.connect(self.open_folder_dialog)
+        self.clear_button = ToolButton(FIF.BROOM, self)  # 新增清理按钮
+        self.clear_button.clicked.connect(self.clear_loaded_data)  # 连接清理槽函数
         self.search_input = SearchLineEdit()
         self.search_input.setPlaceholderText("搜索漫画...")
         self.search_input.textChanged.connect(self.on_search_text_changed)
 
         search_layout.addWidget(self.open_button)
+        search_layout.addWidget(self.clear_button)  # 添加清理按钮
         search_layout.addWidget(self.search_input)
         self.layout.addLayout(search_layout)
 
@@ -95,7 +101,9 @@ class MangaList(QWidget):  # 改为继承自QWidget
         )
         if dir_path:
             # 用户选择了新目录，强制重新扫描
-            self.manga_manager.set_manga_dir(dir_path, force_rescan=True)  # 调用管理器更新目录
+            self.manga_manager.set_manga_dir(
+                dir_path, force_rescan=True
+            )  # 调用管理器更新目录
 
     def update_table(self, manga_list):
         """更新表格显示"""
@@ -103,22 +111,8 @@ class MangaList(QWidget):  # 改为继承自QWidget
         if manga_list:
             # 按最后修改时间排序（倒序：最新的在前面）
             sorted_list = sorted(
-                manga_list,
-                key=lambda m: -m.last_modified  # 使用负号实现倒序
+                manga_list, key=lambda m: -m.last_modified  # 使用负号实现倒序
             )
-            
-            # 原标题排序代码（已注释，后续添加排序开关时可以重新启用）
-            # sorted_list = sorted(
-            #     manga_list,
-            #     key=lambda m: next(
-            #         (
-            #             tag.split(":", 1)[1].lower()
-            #             for tag in m.tags
-            #             if tag.startswith("标题:")
-            #         ),
-            #         "",
-            #     ),
-            # )
             self.filtered_manga_list = sorted_list  # 更新过滤后的列表
             self.table.setRowCount(len(sorted_list))
             for i, manga in enumerate(sorted_list):
@@ -174,3 +168,39 @@ class MangaList(QWidget):  # 改为继承自QWidget
                 "",
             )
             self.table.setItem(i, 0, QTableWidgetItem(title))
+
+    def clear_loaded_data(self):
+        """清空加载过的目录和缓存"""
+        # 使用自定义的ClearConfirmDialog
+        message_box = ClearConfirmDialog(self.parent)  # 将父窗口传入
+
+        if message_box.exec():  # exec()返回QDialog.Accepted或QDialog.Rejected
+            # 用户点击了确定
+            self.manga_manager.clear_all_data()  # 调用管理器清空数据
+            self.update_table([])  # 清空表格显示
+            self.search_input.clear()  # 清空搜索框
+            self.table.setItem(0, 0, QTableWidgetItem("等待打开"))  # 恢复初始提示
+
+
+class ClearConfirmDialog(MessageBoxBase):
+    """清空确认对话框"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.titleLabel = SubtitleLabel("清空确认", self)
+        self.contentLabel = SubtitleLabel(
+            "您确定要清空所有已加载的漫画目录和缓存吗？这将需要重新加载。", self
+        )
+
+        # add widget to view layout
+        self.viewLayout.addWidget(self.titleLabel)
+        self.viewLayout.addWidget(self.contentLabel)
+
+        self.widget.setMinimumWidth(350)
+
+        self.yesButton.setText("确定")
+        self.cancelButton.setText("取消")
+
+    def validate(self):
+        """重写验证表单数据的方法"""
+        return True  # 这是一个确认框，不需要额外的验证

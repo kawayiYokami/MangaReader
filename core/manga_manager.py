@@ -25,6 +25,7 @@ class MangaManager(QObject):
     view_mode_changed = Signal(int)
     page_changed = Signal(int)
     manga_list_updated = Signal(list)  # 漫画列表更新信号
+    tags_cleared = Signal() # 新增：标签已清空信号
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -146,6 +147,29 @@ class MangaManager(QObject):
         except Exception as e:
             log.error(f"清空漫画扫描缓存时发生错误: {str(e)}")
 
+    def clear_all_data(self):
+        """清空所有加载的漫画数据和缓存"""
+        log.info("开始清空所有漫画数据和缓存")
+        self.manga_list.clear()
+        self.tags.clear()
+        self.current_manga = None
+        
+        # 清空配置中的目录和当前漫画路径
+        config.manga_dir.value = ""
+        config.current_manga_path.value = ""
+        config.current_page.value = 0
+        self.save_config()
+
+        # 清空缓存
+        self.clear_manga_cache()
+        self.clear_translation_cache()
+        
+
+        # 发送信号通知UI更新
+        self.filter_applied.emit([])
+        self.tags_cleared.emit() # 发送标签清空信号
+        log.info("所有漫画数据和缓存已清空")
+
     def scan_manga_files(self, force_rescan=False):
         # 访问 config 值时使用 .value
         if not config.manga_dir.value:
@@ -153,8 +177,8 @@ class MangaManager(QObject):
             return
 
         self.data_loading.emit()
-        self.manga_list.clear()
-        self.tags.clear()
+        # self.manga_list.clear() # 移除此行
+        # self.tags.clear() # 移除此行
 
         try:
             # 导入缓存模块
@@ -165,6 +189,8 @@ class MangaManager(QObject):
             if not force_rescan:
                 cached_manga_list = manga_cache.get_manga_list(config.manga_dir.value)
             
+            # 用于存放本次扫描或从缓存加载的漫画
+            current_scan_mangas = [] 
             if cached_manga_list and not force_rescan:
                 log.info(f"从缓存加载漫画列表，共 {len(cached_manga_list)} 本漫画")
                 
@@ -179,12 +205,12 @@ class MangaManager(QObject):
                         manga.is_valid = manga_data["is_valid"]
                         manga.last_modified = manga_data["last_modified"]
                         manga.pages = manga_data["pages"]
-                        self.manga_list.append(manga)
+                        current_scan_mangas.append(manga) 
                     else:
                         # 文件已修改或不存在，需要重新加载
                         manga = MangaLoader.load_manga(manga_data["file_path"])
                         if manga and manga.is_valid:
-                            self.manga_list.append(manga)
+                            current_scan_mangas.append(manga) 
                         else:
                             log.warning(f"无法加载漫画: {manga_data['file_path']}")
             else:
@@ -195,20 +221,25 @@ class MangaManager(QObject):
                 for file_path in manga_files:
                     manga = MangaLoader.load_manga(file_path)
                     if manga and manga.is_valid:
-                        self.manga_list.append(manga)
+                        current_scan_mangas.append(manga) 
                     else:
                         log.warning(f"无法加载漫画: {file_path}")
 
-                # 更新缓存
-                manga_cache.update_manga_list(config.manga_dir.value, self.manga_list)
+                # 更新缓存，只缓存当前目录的漫画
+                manga_cache.update_manga_list(config.manga_dir.value, current_scan_mangas)
 
-            log.info(f"扫描完成，成功加载 {len(self.manga_list)} 本漫画")
+            # 合并新扫描到的漫画到主列表，并去重
+            existing_manga_paths = {manga.file_path for manga in self.manga_list}
+            
+            for manga in current_scan_mangas:
+                if manga.file_path not in existing_manga_paths:
+                    self.manga_list.append(manga)
+                    existing_manga_paths.add(manga.file_path) 
 
-            # 根据 config 中的开关决定是否执行
-            self.optimize_tags()
-            self.analyze_and_merge_tags()
-            self.translate_titles()
+            log.info(f"扫描完成，当前共加载 {len(self.manga_list)} 本漫画")
 
+            # 重新收集所有漫画的标签
+            self.tags.clear() # 每次扫描后重新收集所有标签
             for manga in self.manga_list:
                 self.tags.update(manga.tags)
 

@@ -22,6 +22,9 @@ class MangaBrowser(QWidget):
         # 启用拖放功能
         self.setAcceptDrops(True)
 
+        # 连接manga_manager的tags_cleared信号到tag_filter的clear_tags槽
+        self.manga_manager.tags_cleared.connect(self.tag_filter.clear_tags)
+
     def setup_ui(self):
         # 主布局
         self.main_layout = QVBoxLayout(self)
@@ -101,22 +104,39 @@ class MangaBrowser(QWidget):
             # 检查是否是支持的文件类型（.zip或.cbz）
             for url in event.mimeData().urls():
                 file_path = url.toLocalFile()
-                if file_path.lower().endswith(('.zip', '.cbz')):
+                # 检查是否是支持的文件类型（.zip, .cbz）或目录
+                if file_path.lower().endswith(('.zip', '.cbz')) or os.path.isdir(file_path):
                     event.acceptProposedAction()
                     return
                     
     def dropEvent(self, event):
         """处理拖拽释放事件"""
-        files = [url.toLocalFile() for url in event.mimeData().urls()
-                 if url.toLocalFile().lower().endswith(('.zip', '.cbz'))]
+        urls = event.mimeData().urls()
+        if not urls:
+            return
+
+        # 优先处理拖入的第一个文件夹
+        for url in urls:
+            file_path = url.toLocalFile()
+            if os.path.isdir(file_path):
+                # 如果是目录，则调用manga_manager的设置目录并重新扫描功能
+                self.manga_manager.set_manga_dir(file_path, force_rescan=True)
+                return # 找到第一个目录就处理并返回
+
+        # 如果没有拖入目录，则处理拖入的ZIP/CBZ文件
+        files_to_process = []
+        for url in urls:
+            file_path = url.toLocalFile()
+            if file_path.lower().endswith(('.zip', '.cbz')):
+                files_to_process.append(file_path)
         
-        if not files:
+        if not files_to_process:
             return
             
         # 扫描所有拖入的漫画文件
         from core.manga_model import MangaLoader
         manga_list = []
-        for file_path in files:
+        for file_path in files_to_process:
             manga = MangaLoader.load_manga(file_path)
             if manga and manga.is_valid:
                 manga_list.append(manga)
