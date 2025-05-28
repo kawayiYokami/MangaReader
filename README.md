@@ -20,8 +20,25 @@
    cd manga
    ```
 
-2. **安装依赖**:
-   建议使用 `pip` 安装项目依赖。请确保您的 Python 环境已安装 `pip`。
+2. **安装依赖 (推荐使用 uv)**:
+   `uv` 是一个快速的 Python 包管理和虚拟环境工具，推荐用于安装项目依赖。
+
+   a. **安装 uv** (如果尚未安装):
+      ```bash
+      pip install uv
+      ```
+
+   b. **创建虚拟环境**:
+      ```bash
+      uv venv
+      ```
+
+   c. **安装项目依赖**:
+      ```bash
+      uv pip install -r requirements.txt
+      ```
+
+   如果您更倾向于使用 `pip`，请确保您的 Python 环境已安装 `pip`，并运行：
    ```bash
    pip install -r requirements.txt
    ```
