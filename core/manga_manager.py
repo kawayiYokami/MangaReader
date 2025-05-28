@@ -1,103 +1,297 @@
+# core/manga_manager.py
+
 import os
-import json
-from PyQt5.QtCore import QObject, pyqtSignal
-from core.manga_model import MangaInfo, MangaLoader
-from utils import manga_logger as log
+from PySide6.QtCore import QObject, Signal  # 导入 PySide6 的信号
+from core.manga_model import MangaInfo, MangaLoader  # 这些在您的代码中已导入
+from core.config import config  # 导入 config 对象
+from utils import manga_logger as log  # 这个在您的代码中已导入
+from core.translator import TranslatorFactory  # 导入翻译器工厂
+
 
 class MangaManager(QObject):
-    # 数据状态信号
-    data_loaded = pyqtSignal(list)      # 漫画数据加载完成
-    data_loading = pyqtSignal()         # 开始加载数据
-    data_load_failed = pyqtSignal(str)  # 加载失败(错误信息)
-    tags_updated = pyqtSignal(set)      # 标签集合更新
-    
-    # 用户操作信号
-    filter_applied = pyqtSignal(list)    # 应用过滤后的漫画列表
-    filter_cleared = pyqtSignal()        # 清除过滤条件
-    file_renamed = pyqtSignal(str, str)  # (旧路径, 新路径)
-    file_opened = pyqtSignal(str)        # 文件打开通知
-    dir_changed = pyqtSignal(str)        # 新增：目录变更信号(新目录路径)
-    
-    # 视图交互信号
-    current_manga_changed = pyqtSignal(object)  # 当前选中漫画对象
-    view_mode_changed = pyqtSignal(int)         # 视图模式变更
-    page_changed = pyqtSignal(int)             # 页码变更信号
+    # 信号定义
+    data_loaded = Signal(list)
+    data_loading = Signal()
+    data_load_failed = Signal(str)
+    tags_updated = Signal(set)
 
-    def __init__(self, manga_dir=''):
-        super().__init__()
-        log.info("初始化MangaManager")
-        self.manga_dir = manga_dir
+    filter_applied = Signal(list)
+    filter_cleared = Signal()
+    file_renamed = Signal(str, str)
+    file_opened = Signal(str)
+    dir_changed = Signal(str)
+
+    current_manga_changed = Signal(object)
+    view_mode_changed = Signal(int)
+    page_changed = Signal(int)
+    manga_list_updated = Signal(list)  # 漫画列表更新信号
+    tags_cleared = Signal() # 新增：标签已清空信号
+
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+
+        # 打印详细的初始化信息
+        import inspect
+        caller_frame = inspect.currentframe().f_back
+        caller_info = inspect.getframeinfo(caller_frame)
+        log.info(f"MangaManager初始化 - 调用者: {caller_info.filename}:{caller_info.lineno} 函数: {caller_info.function}")
+        log.info(f"父类类型: {self.parent.__class__}")
+
         self.manga_list = []
         self.tags = set()
-        self.config_file = 'manga_config.json'
-        self.current_manga = None  # 当前选中的漫画
-        self.current_page = 0      # 当前页码
-        self._load_config()
-        log.info(f"MangaManager初始化完成，当前目录: {self.manga_dir}, 漫画数量: {len(self.manga_list)}")
-    
-    def set_manga_dir(self, dir_path):
+        self.current_manga = None  # 当前漫画对象，不直接持久化
+
+        # 访问 config 值时使用 .value
+        log.info(
+            f"MangaManager初始化完成，当前目录: {config.manga_dir.value}, 漫画数量: {len(self.manga_list)}"
+        )
+
+        # 访问 config 值时使用 .value，并检查目录是否存在且有效
+        if (
+            config.manga_dir.value
+            and os.path.exists(config.manga_dir.value)
+            and os.path.isdir(config.manga_dir.value)
+        ):
+            self.scan_manga_files()
+        # 访问 config 值时使用 .value
+        elif config.manga_dir.value:
+            log.warning(f"配置文件中的漫画目录不存在或无效: {config.manga_dir.value}")
+
+    def set_manga_dir(self, dir_path, force_rescan=False):
         log.info(f"设置漫画目录: {dir_path}")
         if os.path.exists(dir_path) and os.path.isdir(dir_path):
-            self.manga_dir = dir_path
+            config.manga_dir.value = dir_path  # 设置 config 值时使用 .value
             self.save_config()
             log.info(f"目录有效，开始扫描漫画文件")
-            self.scan_manga_files()
+            self.scan_manga_files(force_rescan=force_rescan)
+            self.dir_changed.emit(config.manga_dir.value)  # 发送信号时使用 .value
         else:
             log.warning(f"目录无效或不存在: {dir_path}")
-    
-    def scan_manga_files(self):
-        if not self.manga_dir:
-            log.warning("未设置漫画目录，无法扫描文件")
-            return
-        
-        self.data_loading.emit()
+            
+    def save_config(self):
+        """保存配置到文件"""
+        try:
+            config.save()
+            log.info("配置已保存")
+        except Exception as e:
+            log.error(f"保存配置时发生错误: {str(e)}")
+            
+    def create_translator(self):
+        """根据配置创建翻译器实例"""
+        try:
+            translator_type = config.translator_type.value
+            log.info(f"创建翻译器: {translator_type}")
+            
+            if translator_type == "智谱":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    api_key=config.zhipu_api_key.value,
+                    model=config.zhipu_model.value
+                )
+            elif translator_type == "Google":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    api_key=config.google_api_key.value
+                )
+            elif translator_type == "DeepL":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    api_key=config.deepl_api_key.value
+                )
+            elif translator_type == "百度":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    app_id=config.baidu_app_id.value,
+                    app_key=config.baidu_app_key.value
+                )
+            elif translator_type == "MyMemory":
+                return TranslatorFactory.create_translator(
+                    translator_type=translator_type,
+                    email=config.mymemory_email.value
+                )
+            else:
+                log.warning(f"未知的翻译器类型: {translator_type}，使用Google翻译作为默认选项")
+                return TranslatorFactory.create_translator("Google")
+        except Exception as e:
+            log.error(f"创建翻译器时发生错误: {str(e)}，使用Google翻译作为备选")
+            return TranslatorFactory.create_translator("Google")
+            
+    def clear_translation_cache(self):
+        """清空翻译缓存"""
+        try:
+            # 删除app/config目录下的translation_cache.json文件
+            from core.translator import CACHE_FILE
+            if os.path.exists(CACHE_FILE):
+                os.remove(CACHE_FILE)
+                log.info(f"翻译缓存已清空: {CACHE_FILE}")
+            else:
+                log.info(f"翻译缓存文件不存在，无需清空: {CACHE_FILE}")
+                
+            # 兼容旧版缓存清理
+            cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cache", "translation")
+            if os.path.exists(cache_dir) and os.path.isdir(cache_dir):
+                for file in os.listdir(cache_dir):
+                    file_path = os.path.join(cache_dir, file)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                log.info("旧版翻译缓存已清空")
+        except Exception as e:
+            log.error(f"清空翻译缓存时发生错误: {str(e)}")
+            
+    def clear_manga_cache(self):
+        """清空漫画扫描缓存"""
+        try:
+            from core.manga_cache import manga_cache
+            manga_cache.clear_cache()
+            log.info("漫画扫描缓存已清空")
+        except Exception as e:
+            log.error(f"清空漫画扫描缓存时发生错误: {str(e)}")
+
+    def clear_all_data(self):
+        """清空所有加载的漫画数据和缓存"""
+        log.info("开始清空所有漫画数据和缓存")
         self.manga_list.clear()
         self.tags.clear()
+        self.current_manga = None
         
+        # 清空配置中的目录和当前漫画路径
+        config.manga_dir.value = ""
+        config.current_manga_path.value = ""
+        config.current_page.value = 0
+        self.save_config()
+
+        # 清空缓存
+        self.clear_manga_cache()
+        self.clear_translation_cache()
+        
+
+        # 发送信号通知UI更新
+        self.filter_applied.emit([])
+        self.tags_cleared.emit() # 发送标签清空信号
+        log.info("所有漫画数据和缓存已清空")
+
+    def scan_manga_files(self, force_rescan=False):
+        # 访问 config 值时使用 .value
+        if not config.manga_dir.value:
+            log.warning("未设置漫画目录，无法扫描文件")
+            return
+
+        self.data_loading.emit()
+        # self.manga_list.clear() # 移除此行
+        # self.tags.clear() # 移除此行
+
         try:
-            manga_files = MangaLoader.find_manga_files(self.manga_dir)
+            # 导入缓存模块
+            from core.manga_cache import manga_cache
             
-            for file_path in manga_files:
-                manga = MangaLoader.load_manga(file_path)
-                if manga and manga.is_valid:
+            # 检查是否有缓存，且不强制重新扫描
+            cached_manga_list = None
+            if not force_rescan:
+                cached_manga_list = manga_cache.get_manga_list(config.manga_dir.value)
+            
+            # 用于存放本次扫描或从缓存加载的漫画
+            current_scan_mangas = [] 
+            if cached_manga_list and not force_rescan:
+                log.info(f"从缓存加载漫画列表，共 {len(cached_manga_list)} 本漫画")
+                
+                # 从缓存创建MangaInfo对象
+                for manga_data in cached_manga_list:
+                    # 检查文件是否存在且未被修改
+                    if os.path.exists(manga_data["file_path"]) and not manga_cache.is_manga_modified(manga_data["file_path"]):
+                        manga = MangaInfo(manga_data["file_path"])
+                        manga.title = manga_data["title"]
+                        manga.tags = set(manga_data["tags"])
+                        manga.total_pages = manga_data["total_pages"]
+                        manga.is_valid = manga_data["is_valid"]
+                        manga.last_modified = manga_data["last_modified"]
+                        manga.pages = manga_data["pages"]
+                        current_scan_mangas.append(manga) 
+                    else:
+                        # 文件已修改或不存在，需要重新加载
+                        manga = MangaLoader.load_manga(manga_data["file_path"])
+                        if manga and manga.is_valid:
+                            current_scan_mangas.append(manga) 
+                        else:
+                            log.warning(f"无法加载漫画: {manga_data['file_path']}")
+            else:
+                # 没有缓存或强制重新扫描，执行完整扫描
+                log.info(f"开始扫描漫画目录: {config.manga_dir.value}")
+                manga_files = MangaLoader.find_manga_files(config.manga_dir.value)
+
+                for file_path in manga_files:
+                    manga = MangaLoader.load_manga(file_path)
+                    if manga and manga.is_valid:
+                        current_scan_mangas.append(manga) 
+                    else:
+                        log.warning(f"无法加载漫画: {file_path}")
+
+                # 更新缓存，只缓存当前目录的漫画
+                manga_cache.update_manga_list(config.manga_dir.value, current_scan_mangas)
+
+            # 合并新扫描到的漫画到主列表，并去重
+            existing_manga_paths = {manga.file_path for manga in self.manga_list}
+            
+            for manga in current_scan_mangas:
+                if manga.file_path not in existing_manga_paths:
                     self.manga_list.append(manga)
-                    self.tags.update(manga.tags)
-                else:
-                    log.warning(f"无法加载漫画: {file_path}")
-            
-            log.info(f"扫描完成，成功加载 {len(self.manga_list)} 本漫画，共 {len(self.tags)} 个标签")
-            # 漫画列表存储在self.manga_list中
-            # 标签集合存储在self.tags中
-            self.optimize_tags()
-            self.analyze_and_merge_tags()
+                    existing_manga_paths.add(manga.file_path) 
+
+            log.info(f"扫描完成，当前共加载 {len(self.manga_list)} 本漫画")
+
+            # 重新收集所有漫画的标签
+            self.tags.clear() # 每次扫描后重新收集所有标签
+            for manga in self.manga_list:
+                self.tags.update(manga.tags)
+
+            log.info(f"标签收集完成，共收集 {len(self.tags)} 个标签")
+
             self.data_loaded.emit(self.manga_list)
             self.tags_updated.emit(self.tags)
-            self.filter_manga([])  # 新增：触发初始过滤，显示所有漫画
+            self.filter_manga([])
+
+            # 恢复上次阅读状态
+            # 访问 config 值时使用 .value
+            if config.current_manga_path.value and os.path.exists(
+                config.current_manga_path.value
+            ):
+                # 访问 config 值时使用 .value
+                found_manga = next(
+                    (
+                        m
+                        for m in self.manga_list
+                        if m.file_path == config.current_manga_path.value
+                    ),
+                    None,
+                )
+                if found_manga:
+                    self.set_current_manga(found_manga)
+                    # 访问 config 值时使用 .value
+                    self.change_page(config.current_page.value)
+
         except Exception as e:
             error_msg = f"扫描漫画文件时发生错误: {str(e)}"
             log.error(error_msg)
             self.data_load_failed.emit(error_msg)
-            raise
-    
+
     def change_page(self, page_number):
-        """改变当前页码"""
         if self.current_manga is None:
             log.warning("未选择漫画，无法改变页码")
             return
-            
+
         total_pages = len(self.current_manga.pages) if self.current_manga.pages else 0
         if 0 <= page_number < total_pages:
-            self.current_page = page_number
+            config.current_page.value = page_number  # 设置 config 值时使用 .value
+            # self.current_page = page_number # 移除了 MangaManager 自身的页码属性
             self.page_changed.emit(page_number)
         else:
             log.warning(f"页码超出范围: {page_number + 1}, 总页数: {total_pages}")
-    
+
     def filter_manga(self, tag_filters):
         if not tag_filters:
             self.filter_cleared.emit()
             self.filter_applied.emit(self.manga_list)
             return self.manga_list
-        
+
         log.info(f"开始按标签过滤漫画，过滤标签: {tag_filters}")
         filtered_list = []
         for manga in self.manga_list:
@@ -108,146 +302,150 @@ class MangaManager(QObject):
                     break
             if match:
                 filtered_list.append(manga)
-        
-        log.info(f"过滤完成，从 {len(self.manga_list)} 本漫画中筛选出 {len(filtered_list)} 本")
+
+        log.info(
+            f"过滤完成，从 {len(self.manga_list)} 本漫画中筛选出 {len(filtered_list)} 本"
+        )
         self.filter_applied.emit(filtered_list)
         return filtered_list
-    
-    def _load_config(self):
-        log.info(f"尝试加载配置文件: {self.config_file}")
-        if os.path.exists(self.config_file):
-            try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                    self.manga_dir = config.get('manga_dir', '')
-                    log.info(f"从配置文件加载漫画目录: {self.manga_dir}")
-                    if self.manga_dir:
-                        if os.path.exists(self.manga_dir) and os.path.isdir(self.manga_dir):
-                            log.info("开始扫描漫画文件")
-                            self.scan_manga_files()
-                        else:
-                            log.warning(f"配置文件中的漫画目录不存在或无效: {self.manga_dir}")
-            except Exception as e:
-                log.error(f"加载配置文件时发生错误: {str(e)}")
-        else:
-            log.info("配置文件不存在，使用默认设置")
-    
+
     def translate_titles(self):
-        """
-        翻译作品名和标题为中文
-        """
+        if not config.translate_title.value:  # 访问 config 值时使用 .value
+            return
+
         import zhconv
-        
+
         log.info("开始翻译作品名和标题")
-        
         for manga in self.manga_list:
             if manga.title:
-                manga.title = zhconv.convert(manga.title, 'zh-hans')
-            
+                manga.title = zhconv.convert(manga.title, "zh-hans")
         log.info("作品名和标题翻译完成")
-        
+
     def optimize_tags(self):
-        """
-        优化加载回来的标签
-        这个方法会在data_loaded信号发射前被调用
-        功能：将标签中的繁体中文转换为简体中文
-        """
+        if not config.simplify_chinese.value:  # 访问 config 值时使用 .value
+            return
+
         import zhconv
-        
-        log.info(f"开始优化标签，原始标签数量: {len(self.tags)}")
-        log.debug(f"原始标签内容: {self.tags}")
-        
-        simplified_tags = set()
-        for tag in self.tags:
-            simplified_tag = zhconv.convert(tag, 'zh-hans')
-            simplified_tags.add(simplified_tag)
-            
-        log.info(f"标签优化完成，转换后标签数量: {len(simplified_tags)}")
-        log.debug(f"转换后标签内容: {simplified_tags}")
-        
-        self.tags = simplified_tags
-        self.translate_titles()
-        
+
+        for manga in self.manga_list:
+            simplified_tags = set()
+            for tag in manga.tags:
+                simplified_tag = zhconv.convert(tag, "zh-hans")
+                simplified_tags.add(simplified_tag)
+            manga.tags = simplified_tags
+
     def analyze_and_merge_tags(self, similarity_threshold=0.9):
-        """
-        分析并合并相似的标签
-        :param similarity_threshold: 相似度阈值(0-1之间)，默认0.8
-        """
+        if not config.merge_tags.value:  # 访问 config 值时使用 .value
+            return
+
         from difflib import SequenceMatcher
-        
-        log.info(f"开始分析并合并相似标签，当前标签数量: {len(self.tags)}")
-        
-        tags_list = list(self.tags)
-        merged_tags = set()
-        
-        while tags_list:
-            current_tag = tags_list.pop(0)
-            merged = False
-            
-            # 对特定前缀标签执行合并操作
-            if current_tag.startswith(('作者', '作品', '汉化')):
-                for merged_tag in merged_tags:
-                    # 计算标签相似度
-                    similarity = SequenceMatcher(None, current_tag, merged_tag).ratio()
-                    if similarity >= similarity_threshold:
-                        log.debug(f"合并相似标签: '{current_tag}' -> '{merged_tag}' (相似度: {similarity:.2f})")
-                        merged = True
-                        break
-            
-            # 所有标签都会被保留，非特定前缀标签直接添加
-            if not merged:
-                merged_tags.add(current_tag)
-            
-            if not merged:
-                merged_tags.add(current_tag)
-        
-        log.info(f"标签合并完成，从 {len(self.tags)} 个标签合并为 {len(merged_tags)} 个")
-        self.tags = merged_tags
-        self.tags_updated.emit(self.tags)
+
+        for manga in self.manga_list:
+            tags_list = list(manga.tags)
+            merged_tags = set()
+            while tags_list:
+                current_tag = tags_list.pop(0)
+                merged = False
+                if current_tag.startswith(("作者", "作品", "汉化")):
+                    for merged_tag in merged_tags:
+                        similarity = SequenceMatcher(
+                            None, current_tag, merged_tag
+                        ).ratio()
+                        if similarity >= similarity_threshold:
+                            merged = True
+                            break
+                if not merged:
+                    merged_tags.add(current_tag)
+            manga.tags = merged_tags
 
     def save_config(self):
-        log.info(f"保存配置到文件: {self.config_file}")
+        log.info(f"保存配置到文件: {config.file}")
         try:
-            config = {
-                'manga_dir': self.manga_dir
-            }
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, ensure_ascii=False, indent=2)
+            # 调用 config.save 方法保存所有 ConfigItem
+            config.save()
             log.info("配置保存成功")
         except Exception as e:
-            log.error(f"保存配置文件时发生错误: {str(e)}")
-    
+            log.error(f"保存配置文件失败: {e}")
+
     def rename_manga_file(self, manga, new_name):
         log.info(f"尝试重命名漫画: {manga.title} -> {new_name}")
         if not manga or not manga.file_path or not os.path.exists(manga.file_path):
             log.error("无效的漫画对象或文件不存在")
             return False
-        
+
         try:
             file_dir = os.path.dirname(manga.file_path)
             file_ext = os.path.splitext(manga.file_path)[1]
             new_file_path = os.path.join(file_dir, new_name + file_ext)
-            
+
             if os.path.exists(new_file_path):
                 log.error(f"文件已存在，无法重命名: {new_file_path}")
                 return False
-            
+
             os.rename(manga.file_path, new_file_path)
             old_title = manga.title
-            manga.title = new_name + file_ext
+            manga.title = new_name
             manga.file_path = new_file_path
-            
+
             log.info(f"漫画重命名成功: {old_title} -> {manga.title}")
             self.file_renamed.emit(manga.file_path, new_file_path)
+
+            if self.current_manga == manga:
+                config.current_manga_path.value = (
+                    new_file_path  # 设置 config 值时使用 .value
+                )
+                self.save_config()
+
             return True
         except Exception as e:
             log.error(f"重命名漫画时发生错误: {str(e)}")
             return False
-    
+
     def set_current_manga(self, manga):
-        """设置当前阅读的漫画"""
         if manga != self.current_manga:
             log.info(f"切换当前漫画: {manga.title if manga else 'None'}")
+            
+            # 检查漫画文件是否存在，如果不存在则更新漫画列表
+            if manga and not os.path.exists(manga.file_path):
+                log.warning(f"漫画文件不存在: {manga.file_path}，将从列表中移除")
+                self.manga_list = [m for m in self.manga_list if m.file_path != manga.file_path]
+                # 更新缓存
+                from core.manga_cache import manga_cache
+                manga_cache.update_manga_list(config.manga_dir.value, self.manga_list)
+                self.current_manga = None
+                config.current_manga_path.value = ""
+                self.current_manga_changed.emit(None)
+                return
+            
+            # 检查漫画文件是否被修改，如果被修改则重新加载
+            if manga:
+                from core.manga_cache import manga_cache
+                if manga_cache.is_manga_modified(manga.file_path):
+                    log.info(f"漫画文件已修改，重新加载: {manga.file_path}")
+                    updated_manga = MangaLoader.load_manga(manga.file_path)
+                    if updated_manga and updated_manga.is_valid:
+                        # 更新列表中的漫画对象
+                        for i, m in enumerate(self.manga_list):
+                            if m.file_path == manga.file_path:
+                                self.manga_list[i] = updated_manga
+                                manga = updated_manga
+                                break
+                        # 更新缓存
+                        manga_cache.update_manga_list(config.manga_dir.value, self.manga_list)
+            
             self.current_manga = manga
-            self.current_page = 0  # 重置页码
-            self.current_manga_changed.emit(manga)  # 发送信号通知视图更新
+            config.current_manga_path.value = (
+                manga.file_path if manga else ""
+            )  # 设置 config 值时使用 .value
+            # 调用 change_page，change_page 会负责更新 config.current_page
+            self.change_page(0)
+            self.current_manga_changed.emit(manga)
+
+    def set_current_manga_by_path(self, file_path):
+        found_manga = next(
+            (m for m in self.manga_list if m.file_path == file_path), None
+        )
+        if found_manga:
+            self.set_current_manga(found_manga)
+            # 访问 config 值时使用 .value
+            self.change_page(config.current_page.value)
