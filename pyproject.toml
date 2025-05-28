@@ -1,0 +1,21 @@
+[project]
+name = "MangaReader"
+version = "0.1.0"
+description = "本子浏览器"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "deep-translator==1.11.4",
+    "numpy==2.2.6",
+    "opencv-python==4.11.0.86",
+    "pillow==11.2.1",
+    "pyperclip==1.9.0",
+    "pyside6==6.9.0",
+    "pyside6-addons==6.9.0",
+    "pyside6-essentials==6.9.0",
+    "pyside6-fluent-widgets==1.8.1",
+    "pysidesix-frameless-window==0.7.3",
+    "requests==2.32.3",
+    "screeninfo==0.8.1",
+    "zhconv==1.4.3",
+]
