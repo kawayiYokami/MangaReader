@@ -62,14 +62,40 @@ class BaseTranslator(ABC):
 
     def _save_cache(self):
         """
-        将当前翻译缓存保存到文件。
+        将当前翻译缓存保存到文件（优化性能，避免频繁保存）
         """
+        # 避免频繁保存，每10次翻译保存一次
+        if not hasattr(self, '_save_counter'):
+            self._save_counter = 0
+            
+        self._save_counter += 1
+        
+        if self._save_counter % 10 == 0:
+            try:
+                with open(CACHE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(self.cache, f, ensure_ascii=False, indent=4)
+                # print(f"Saved cache to {CACHE_FILE}") # 频繁打印可能干扰，按需开启
+            except IOError as e:
+                print(f"Error saving cache file {CACHE_FILE}: {e}")
+        else:
+            # 设置定时器在程序空闲时保存
+            if not hasattr(self, '_save_timer'):
+                from threading import Timer
+                self._save_timer = Timer(5.0, self._force_save_cache)
+                self._save_timer.daemon = True
+                self._save_timer.start()
+                
+    def _force_save_cache(self):
+        """强制保存缓存"""
         try:
             with open(CACHE_FILE, "w", encoding="utf-8") as f:
                 json.dump(self.cache, f, ensure_ascii=False, indent=4)
-            # print(f"Saved cache to {CACHE_FILE}") # 频繁打印可能干扰，按需开启
+            # print(f"Saved cache to {CACHE_FILE}")
         except IOError as e:
             print(f"Error saving cache file {CACHE_FILE}: {e}")
+        finally:
+            if hasattr(self, '_save_timer'):
+                del self._save_timer
 
     @abstractmethod
     def _translate_text(self, text, target_lang):
@@ -96,24 +122,44 @@ class BaseTranslator(ABC):
         Returns:
             str: 翻译结果。如果翻译失败，返回原始文本或错误提示。
         """
-        # 使用一个唯一的键来标识缓存条目，包含原文和目标语言
-        cache_key = f"{text}::{target_lang}"
+        # 清理文本中的特殊字符
+        clean_text = self._clean_text(text)
+        
+        # 使用更健壮的缓存键生成方式
+        translator_type = type(self).__name__.replace("Translator", "").replace("Deep", "")
+        cache_key = self._generate_cache_key(translator_type, clean_text, target_lang)
 
         if cache_key in self.cache:
-            print(f"Cache hit for '{text}' -> {target_lang}")
+            print(f"Cache hit for '{clean_text}' -> {target_lang}")
             return self.cache[cache_key]
         else:
-            print(f"Cache miss for '{text}' -> {target_lang}. Calling API...")
-            translated_text = self._translate_text(text, target_lang)
+            print(f"Cache miss for '{clean_text}' -> {target_lang}. Calling API...")
+            translated_text = self._translate_text(clean_text, target_lang)
 
             if translated_text is not None:
                 self.cache[cache_key] = translated_text
                 self._save_cache()  # 每次新的翻译成功后保存缓存
-                print(f"Translated and cached: '{text}' -> '{translated_text}'")
+                print(f"Translated and cached: '{clean_text}' -> '{translated_text}'")
                 return translated_text
             else:
-                print(f"Translation failed for '{text}'")
-                return f"[Translation Failed: {text}]"  # 或者返回原始文本
+                print(f"Translation failed for '{clean_text}'")
+                return f"[Translation Failed: {clean_text}]"  # 或者返回原始文本
+
+    def _clean_text(self, text):
+        """清理文本中的特殊字符和多余空格"""
+        if not text:
+            return ""
+        # 移除多余空格和换行
+        cleaned = ' '.join(text.strip().split())
+        # 移除控制字符
+        cleaned = ''.join(c for c in cleaned if c.isprintable())
+        return cleaned
+
+    def _generate_cache_key(self, translator_type, text, target_lang):
+        """生成更健壮的缓存键"""
+        import hashlib
+        key_data = f"{translator_type}::{text}::{target_lang}".encode('utf-8')
+        return hashlib.sha256(key_data).hexdigest()
 
 
 class ZhipuTranslator(BaseTranslator):
@@ -121,13 +167,13 @@ class ZhipuTranslator(BaseTranslator):
     使用智谱AI API进行翻译的翻译器
     """
 
-    def __init__(self, api_key, model="glm-4-flash"):
+    def __init__(self, api_key, model="glm-4-flash-250414"):
         """
         初始化智谱翻译器
 
         Args:
             api_key (str): 智谱AI的API Key
-            model (str): 使用的模型名称，默认为"glm-4-flash"
+            model (str): 使用的模型名称，默认为"glm-4-flash-250414"
         """
         super().__init__()
         self.api_key = api_key
@@ -151,8 +197,23 @@ class ZhipuTranslator(BaseTranslator):
         }
 
         # 使用chat completions API通过prompt来实现翻译功能
+        # 根据目标语言设置更具体的提示
+        lang_map = {
+            "zh": "中文",
+            "zh-cn": "中文",
+            "en": "英文",
+            "ja": "日文",
+            "ko": "韩文",
+            "fr": "法文",
+            "de": "德文",
+            "es": "西班牙文",
+            "ru": "俄文"
+        }
+        
+        target_lang_name = lang_map.get(target_lang.lower(), target_lang)
         system_prompt = (
-            f"你是一个专业的翻译引擎，请将用户提供的内容翻译成{target_lang}。"
+            f"你是一个专业的翻译引擎。请将用户提供的内容准确翻译成{target_lang_name}。"
+            f"要求：1. 保持原文的语气和风格 2. 确保翻译准确自然 3. 只返回翻译结果，不要添加任何解释"
         )
 
         messages = [
@@ -397,7 +458,7 @@ class TranslatorFactory:
             BaseTranslator: 翻译器实例
         """
         if translator_type == "智谱":
-            return ZhipuTranslator(api_key=api_key, model=model or "glm-4-flash")
+            return ZhipuTranslator(api_key=api_key, model=model or "glm-4-flash-250414")
         elif translator_type == "Google":
             return GoogleDeepTranslator(api_key=api_key)
         elif translator_type == "DeeplTranslator":

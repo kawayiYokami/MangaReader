@@ -112,7 +112,17 @@ class Config(QConfig):
     )
     # 智谱AI翻译设置
     zhipu_api_key = ConfigItem("Translation", "ZhipuApiKey", "")
-    zhipu_model = ConfigItem("Translation", "ZhipuModel", "glm-4-flash")
+    zhipu_model = OptionsConfigItem(
+        "Translation",
+        "ZhipuModel",
+        "glm-4-flash-250414",
+        validator=OptionsValidator([
+            "glm-4-flash-250414",
+            "glm-4-flash",
+            "glm-4",
+            "glm-3-turbo"
+        ])
+    )
     
     # Google翻译设置
     google_api_key = ConfigItem("Translation", "GoogleApiKey", "")
