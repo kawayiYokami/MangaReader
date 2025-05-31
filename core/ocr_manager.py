@@ -156,7 +156,7 @@ class OCRManager(QObject):
             'use_gpu': False,       # 是否使用GPU
             'det': True,            # 是否进行文本检测
             'rec': True,            # 是否进行文本识别
-            'cls': True             # 是否进行角度分类
+            'cls': False             # 是否进行角度分类
         }
         
         log.info("OCRManager初始化完成")
@@ -427,7 +427,7 @@ class OCRManager(QObject):
         return '\n'.join([item['text'] for item in structured_texts])
     
     def filter_by_confidence(self, ocr_results: List[OCRResult], 
-                           min_confidence: float = 0.5) -> List[OCRResult]:
+                           min_confidence: float = 0.8) -> List[OCRResult]:
         """
         根据置信度过滤OCR结果
         
@@ -438,10 +438,19 @@ class OCRManager(QObject):
         Returns:
             过滤后的OCR结果列表
         """
+        # 输出过滤前的结果
+        print("OCR结果:")
+        for result in ocr_results:
+            print(f"文本: {result.text}, 置信度: {result.confidence}")
         filtered_results = [result for result in ocr_results 
                           if result.confidence >= min_confidence]
         
-        log.info(f"置信度过滤: {len(ocr_results)} -> {len(filtered_results)} "
+        # 输出过滤后的结果
+        print("\n过滤后的OCR结果:")
+        for result in filtered_results:
+            print(f"文本: {result.text}, 置信度: {result.confidence}")
+
+        print(f"置信度过滤: {len(ocr_results)} -> {len(filtered_results)} "
                 f"(阈值: {min_confidence})")
         
         return filtered_results
@@ -479,6 +488,8 @@ class OCRManager(QObject):
         """
         if not ocr_results:
             return []
+
+        ocr_results = self.filter_by_confidence(ocr_results, min_confidence=0.8)
         
         # 1. 按方向分组
         direction_groups = {}

@@ -27,7 +27,15 @@ from core.translator import TranslatorFactory
 from core.manga_text_replacer import MangaTextReplacer, create_manga_translation_dict
 from core.config import config
 from utils import manga_logger as log
-
+from qfluentwidgets import (
+    CardWidget,
+    PushButton,
+    InfoBar,
+    InfoBarPosition,
+    BodyLabel,
+    ImageLabel,
+    SmoothScrollArea,
+)
 # 尝试相对导入，如果失败则使用绝对导入
 try:
     from .translation_settings_window import TranslationSettingsWindow
@@ -92,7 +100,7 @@ class OCRTestWindow(QMainWindow):
         layout = QVBoxLayout(widget)
         
         # 图像显示标签
-        self.image_label = QLabel()
+        self.image_label = ImageLabel()
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_label.setStyleSheet("""
             QLabel {
