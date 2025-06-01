@@ -1,14 +1,15 @@
-# Manga Reader
+# Manga Translator
 
-一个现代化、功能丰富的漫画阅读器，旨在提供流畅且个性化的阅读体验。
+现代化漫画翻译工具，集成 OCR 识别、多引擎翻译和文本替换功能，提供高效的漫画本地化解决方案。
 
 ## ✨ 功能特性
 
-- **直观的用户界面**: 基于 `PySide6` 和 `qfluentwidgets` 构建，提供美观且响应迅速的界面。
-- **灵活的阅读模式**: 支持单页、双页自适应显示，以及从左到右或从右到左的阅读顺序。
-- **智能配置管理**: 通过 `QConfig` 系统，轻松管理阅读偏好、UI 设置和应用程序状态。
-- **漫画管理**: 方便地浏览、搜索和管理本地漫画文件。
-- **日志系统**: 集成日志功能，便于问题排查和应用监控。
+- **OCR 文本识别**：精准识别漫画中的文本区域，支持多语言字符集
+- **多引擎翻译**：集成智谱AI、Google翻译引擎，支持自定义API和批量处理
+- **批量处理**：全自动批量翻译整个漫画章节
+- **字体保持**：内置 12+ 精选字体库，确保翻译文本风格统一
+- **文本替换系统**：智能处理气泡文本布局，保持原始漫画美学
+- **直观界面**：基于 PySide6 和 qfluentwidgets 构建的操作界面
 
 ## 🚀 快速开始
 
@@ -20,79 +21,110 @@
    cd manga
    ```
 
-2. **安装依赖 (推荐使用 uv)**:
-   `uv` 是一个快速的 Python 包管理和虚拟环境工具，推荐用于安装项目依赖。
-
-   a. **安装 uv** (如果尚未安装):
-      ```bash
-      pip install uv
-      ```
-
-   b. **创建虚拟环境**:
-      ```bash
-      uv venv
-      ```
-
-   c. **安装项目依赖**:
-      ```bash
-      uv pip install -r requirements.txt
-      ```
-
-   如果您更倾向于使用 `pip`，请确保您的 Python 环境已安装 `pip`，并运行：
+2. **安装依赖**:
    ```bash
-   pip install -r requirements.txt
+   pip install uv
+   uv venv
+   uv pip install -r requirements.txt
    ```
-   如果您遇到依赖问题，可以尝试重新生成 `requirements.txt` 文件：
+
+3. **初始化子项目 (OCR 引擎)**:
    ```bash
-   pip install pipreqs
-   pipreqs --force --encoding=utf8 .
-   pip install -r requirements.txt
+   update_ocr_font.bat
    ```
+   > 此脚本会自动克隆 [OnnxOCR](https://github.com/jingsongliujing/OnnxOCR) 子项目
 
 ### 🏃 运行
 
-安装完所有依赖后，您可以通过以下命令启动应用程序：
-
+启动应用程序：
 ```bash
 python main.py
 ```
+
+### 使用指南
+1. 主界面选择漫画文件/目录
+2. 在 OCR 翻译窗口（`Ctrl+T`）配置：
+   - 选择源语言/目标语言
+   - 设置翻译引擎和 API 密钥
+   - 调整文本检测参数
+3. 点击"开始翻译"进行单页处理
+4. 使用批处理工作器进行全集翻译
 
 ## 🛠️ 项目结构
 
 ```
 manga/
-├── core/                     # 核心业务逻辑和数据模型
-│   ├── config.py             # 应用程序配置管理 (基于 QConfig)
-│   ├── manga_cache.py        # 漫画数据缓存
-│   ├── manga_manager.py      # 漫画文件管理和解析
-│   ├── manga_model.py        # 漫画数据模型
-│   └── translator.py         # 翻译相关功能
-├── download/                 # 下载模块 (待实现或扩展)
-├── main.py                   # 应用程序入口点
-├── requirements.txt          # 项目依赖列表
-├── ui/                       # 用户界面相关文件
-│   └── new_interface/        # 新版 UI 模块
-│       ├── control_panel.py  # 控制面板组件
-│       ├── manga_browser.py  # 漫画浏览界面
-│       ├── manga_list.py     # 漫画列表显示
-│       ├── manga_viewer.py   # 漫画阅读器核心组件
-│       └── tag_filter.py     # 标签过滤组件
-├── utils/                    # 工具函数和辅助模块
-│   ├── color_utils.py        # 颜色处理工具
-│   └── manga_logger.py       # 自定义日志工具
-└── views/                    # 视图接口定义
+├── main.py                    # 应用入口
+├── pyproject.toml             # 项目配置
+├── README.md                  # 项目文档
+├── update_ocr_font.bat        # 字体更新脚本
+├── uv.toml                    # uv 配置
+├── core/                      # 核心逻辑
+│   ├── batch_translation_worker.py  # 批量翻译工作器
+│   ├── config.py              # 应用配置
+│   ├── image_translator.py    # 图像翻译器
+│   ├── manga_cache.py         # 漫画缓存
+│   ├── manga_manager.py       # 漫画管理
+│   ├── manga_model.py         # 数据模型
+│   ├── manga_text_replacer.py # 文本替换引擎
+│   ├── ocr_manager.py         # OCR 管理器
+│   └── translator.py          # 翻译器
+├── font/                      # 字体库（12+ 精选字体）
+│   ├── 杨任东竹石体-Heavy.ttf
+│   ├── Alibaba-PuHuiTi-Bold.ttf
+│   └── ...（其他字体文件）
+├── OnnxOCR/                   # OCR 子项目 [MIT]
+│   └── ...（OCR 引擎实现）
+├── ui/                        # 用户界面
+│   ├── new_interface/         # 主界面组件
+│   │   ├── control_panel.py   # 控制面板
+│   │   ├── manga_browser.py   # 漫画浏览器
+│   │   ├── manga_list.py      # 漫画列表
+│   │   ├── manga_viewer.py    # 漫画查看器
+│   │   └── tag_filter.py      # 标签过滤器
+│   └── ocr_translation/       # OCR 翻译界面
+│       ├── ocr_translation_window.py     # 主窗口
+│       └── translation_settings_window.py # 设置窗口
+├── utils/                     # 工具模块
+│   ├── color_utils.py         # 颜色处理
+│   └── manga_logger.py        # 日志系统
+└── views/                     # 视图接口
     ├── manga_browser_interface.py
+    ├── manga_translation_interface.py
     └── settings_interface.py
 ```
 
 ## ⚙️ 配置
 
-应用程序的默认配置定义在 <mcfile name="config.py" path="core/config.py"></mcfile> 文件中。您可以在此文件中调整默认的阅读顺序、显示模式等设置。例如，默认设置为双页、从左到右阅读。
+关键配置文件：
 
-## 🤝 贡献
+1. **翻译设置** [`ui/ocr_translation/translation_settings_window.py`]：
+   - 设置默认翻译引擎 (ChatGPT/DeepL)
+   - 配置 API 密钥和端点
+   - 调整翻译参数（温度、最大 token 等）
 
-欢迎任何形式的贡献！如果您有任何建议、功能请求或 Bug 报告，请随时提交 Issue 或 Pull Request。
+2. **OCR 配置** [`core/ocr_manager.py`]：
+   - 文本检测置信度阈值
+   - 文本区域合并参数
+   - 语言识别模型选择
+
+3. **字体设置** [`core/manga_text_replacer.py`]：
+   - 默认替换字体（从 `font/` 目录选择）
+   - 字体大小自适应规则
+   - 文本描边和阴影配置
+
+## 🤝 贡献指南
+
+欢迎贡献！请遵循以下流程：
+1. 提交 issue 描述问题/建议
+2. 创建特性分支 (`feat/your-feature`)
+3. 提交 PR 并关联对应 issue
+4. 确保通过核心功能测试：
+   ```bash
+   python -m core.test.test_manga_batch_translate
+   ```
 
 ## 📄 许可证
 
-本项目采用 [MIT License](LICENSE) 许可。
+- 主项目: [MIT License](LICENSE)
+- OnnxOCR 子项目: [MIT License](https://github.com/jingsongliujing/OnnxOCR/blob/main/LICENSE)
