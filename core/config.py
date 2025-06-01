@@ -103,42 +103,46 @@ class Config(QConfig):
         validator=OptionsValidator(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     )
     
+    # ==================== OCR 设置 ==================== # 新增分组
+    ocr_confidence_threshold = RangeConfigItem( # 使用 RangeConfigItem 以便设置范围
+        "OCR",
+        "ConfidenceThreshold",
+        0.75,  # 默认值 0.75
+        validator=RangeValidator(0.0, 1.0) # 验证范围 0.0 到 1.0
+    )
+
     # ==================== 翻译设置 ====================
     translator_type = OptionsConfigItem(
         "Translation", 
         "TranslatorType", 
-        "Google",
-        validator=OptionsValidator(["Google", "智谱", "DeepL", "百度", "MyMemory"])
+        "Google", 
+        validator=OptionsValidator(["Google", "智谱"])
     )
+
+    # 文字替换设置
+    font_name = ConfigItem("TextReplace", "FontName", "SourceHanSerifCN-Heavy.ttf")
+
     # 智谱AI翻译设置
     zhipu_api_key = ConfigItem("Translation", "ZhipuApiKey", "")
-    zhipu_model = OptionsConfigItem(
+    zhipu_model = ConfigItem(
         "Translation",
         "ZhipuModel",
-        "glm-4-flash-250414",
+        "glm-4-flash", # 更新默认模型为一个更常用的值
         validator=OptionsValidator([
-            "glm-4-flash-250414",
             "glm-4-flash",
             "glm-4",
-            "glm-3-turbo"
+            "glm-3-turbo",
+            "glm-4-flash-250414" # 保留旧值以防用户已配置
         ])
     )
     
     # Google翻译设置
     google_api_key = ConfigItem("Translation", "GoogleApiKey", "")
-    
-    # DeepL翻译设置
-    deepl_api_key = ConfigItem("Translation", "DeepLApiKey", "")
-    
-    # 百度翻译设置
-    baidu_app_id = ConfigItem("Translation", "BaiduAppId", "")
-    baidu_app_key = ConfigItem("Translation", "BaiduAppKey", "")
-    
-    # MyMemory翻译设置
-    mymemory_email = ConfigItem("Translation", "MyMemoryEmail", "")
 
 
 # 创建全局 config 对象
 config = Config()
-config.themeMode.value = Theme.AUTO
-config.load(config=config)
+# 确保在加载前设置默认主题模式，如果qconfig系统不处理这个
+if config.themeMode.value not in [Theme.LIGHT, Theme.DARK, Theme.AUTO]:
+    config.themeMode.value = Theme.AUTO
+config.load(config=config) # 确保加载用户已保存的配置

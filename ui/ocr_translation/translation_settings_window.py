@@ -7,13 +7,16 @@
 """
 
 import sys
+import os
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QPushButton, QLabel, QLineEdit, QComboBox, 
     QGroupBox, QMessageBox, QTextEdit
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QFontDatabase
+from PIL import ImageFont
+from fontTools.ttLib import TTFont
 
 from core.config import config
 
@@ -24,12 +27,12 @@ class TranslationSettingsWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("翻译设置")
-        self.setFixedSize(500, 600)
+        self.setFixedSize(500, 400)  # 减少窗口高度，因为选项更少了
         self.setModal(True)
         
         self.init_ui()
         self.load_settings()
-    
+
     def init_ui(self):
         """初始化界面"""
         layout = QVBoxLayout(self)
@@ -45,7 +48,7 @@ class TranslationSettingsWindow(QDialog):
         translator_layout = QFormLayout(translator_group)
         
         self.translator_combo = QComboBox()
-        self.translator_combo.addItems(["Google", "智谱", "DeepL", "百度", "MyMemory"])
+        self.translator_combo.addItems(["Google", "智谱"])
         self.translator_combo.currentTextChanged.connect(self.on_translator_changed)
         translator_layout.addRow("翻译器类型:", self.translator_combo)
         
@@ -82,53 +85,24 @@ class TranslationSettingsWindow(QDialog):
         
         layout.addWidget(self.google_group)
         
-        # DeepL设置
-        self.deepl_group = QGroupBox("DeepL翻译设置")
-        deepl_layout = QFormLayout(self.deepl_group)
+        # 字体设置
+        self.font_group = QGroupBox("文字替换设置")
+        font_layout = QFormLayout(self.font_group)
         
-        self.deepl_api_key_edit = QLineEdit()
-        self.deepl_api_key_edit.setEchoMode(QLineEdit.Password)
-        self.deepl_api_key_edit.setPlaceholderText("请输入DeepL API密钥")
-        deepl_layout.addRow("API密钥:", self.deepl_api_key_edit)
+        self.font_combo = QComboBox()
+        self.load_available_fonts()  # 加载字体
+        font_layout.addRow("替换字体:", self.font_combo)
         
-        layout.addWidget(self.deepl_group)
-        
-        # 百度设置
-        self.baidu_group = QGroupBox("百度翻译设置")
-        baidu_layout = QFormLayout(self.baidu_group)
-        
-        self.baidu_app_id_edit = QLineEdit()
-        self.baidu_app_id_edit.setPlaceholderText("请输入百度翻译APP ID")
-        baidu_layout.addRow("APP ID:", self.baidu_app_id_edit)
-        
-        self.baidu_app_key_edit = QLineEdit()
-        self.baidu_app_key_edit.setEchoMode(QLineEdit.Password)
-        self.baidu_app_key_edit.setPlaceholderText("请输入百度翻译APP Key")
-        baidu_layout.addRow("APP Key:", self.baidu_app_key_edit)
-        
-        layout.addWidget(self.baidu_group)
-        
-        # MyMemory设置
-        self.mymemory_group = QGroupBox("MyMemory翻译设置")
-        mymemory_layout = QFormLayout(self.mymemory_group)
-        
-        self.mymemory_email_edit = QLineEdit()
-        self.mymemory_email_edit.setPlaceholderText("可选，提供邮箱可增加免费额度")
-        mymemory_layout.addRow("邮箱:", self.mymemory_email_edit)
-        
-        layout.addWidget(self.mymemory_group)
+        layout.addWidget(self.font_group)
         
         # 说明文本
         info_text = QTextEdit()
-        info_text.setMaximumHeight(100)
+        info_text.setMaximumHeight(80)
         info_text.setReadOnly(True)
         info_text.setText(
             "说明：\n"
             "• 智谱AI：需要API密钥，推荐使用GLM-4-Flash-250414模型\n"
-            "• Google：免费版本有限制，付费版本需要API密钥\n"
-            "• DeepL：需要API密钥，翻译质量较高\n"
-            "• 百度：需要APP ID和APP Key\n"
-            "• MyMemory：免费使用，提供邮箱可增加额度"
+            "• Google：免费版本有限制，付费版本需要API密钥"
         )
         layout.addWidget(info_text)
         
@@ -153,7 +127,7 @@ class TranslationSettingsWindow(QDialog):
         
         # 初始状态
         self.on_translator_changed(self.translator_combo.currentText())
-    
+
     def load_settings(self):
         """加载当前设置"""
         # 翻译器类型
@@ -169,34 +143,21 @@ class TranslationSettingsWindow(QDialog):
         if model_index >= 0:
             self.zhipu_model_combo.setCurrentIndex(model_index)
         
-        # 其他设置
+        # Google设置
         self.google_api_key_edit.setText(config.google_api_key.value)
-        self.deepl_api_key_edit.setText(config.deepl_api_key.value)
-        self.baidu_app_id_edit.setText(config.baidu_app_id.value)
-        self.baidu_app_key_edit.setText(config.baidu_app_key.value)
-        self.mymemory_email_edit.setText(config.mymemory_email.value)
-    
+
     def on_translator_changed(self, translator_type):
         """翻译器类型改变时的处理"""
         # 隐藏所有设置组
         self.zhipu_group.setVisible(False)
         self.google_group.setVisible(False)
-        self.deepl_group.setVisible(False)
-        self.baidu_group.setVisible(False)
-        self.mymemory_group.setVisible(False)
         
         # 显示对应的设置组
         if translator_type == "智谱":
             self.zhipu_group.setVisible(True)
         elif translator_type == "Google":
             self.google_group.setVisible(True)
-        elif translator_type == "DeepL":
-            self.deepl_group.setVisible(True)
-        elif translator_type == "百度":
-            self.baidu_group.setVisible(True)
-        elif translator_type == "MyMemory":
-            self.mymemory_group.setVisible(True)
-    
+
     def test_connection(self):
         """测试翻译器连接"""
         try:
@@ -223,32 +184,6 @@ class TranslationSettingsWindow(QDialog):
                     translator_type="Google",
                     api_key=api_key if api_key else None
                 )
-            elif translator_type == "DeepL":
-                api_key = self.deepl_api_key_edit.text().strip()
-                if not api_key:
-                    QMessageBox.warning(self, "警告", "请输入DeepL API密钥")
-                    return
-                translator = TranslatorFactory.create_translator(
-                    translator_type="DeepL",
-                    api_key=api_key
-                )
-            elif translator_type == "百度":
-                app_id = self.baidu_app_id_edit.text().strip()
-                app_key = self.baidu_app_key_edit.text().strip()
-                if not app_id or not app_key:
-                    QMessageBox.warning(self, "警告", "请输入百度翻译APP ID和APP Key")
-                    return
-                translator = TranslatorFactory.create_translator(
-                    translator_type="百度",
-                    app_id=app_id,
-                    app_key=app_key
-                )
-            else:  # MyMemory
-                email = self.mymemory_email_edit.text().strip()
-                translator = TranslatorFactory.create_translator(
-                    translator_type="MyMemory",
-                    email=email if email else None
-                )
             
             # 测试翻译
             test_text = "Hello, World!"
@@ -265,7 +200,7 @@ class TranslationSettingsWindow(QDialog):
                 
         except Exception as e:
             QMessageBox.critical(self, "测试错误", f"测试过程中发生错误：\n{str(e)}")
-    
+
     def save_settings(self):
         """保存设置"""
         try:
@@ -276,18 +211,87 @@ class TranslationSettingsWindow(QDialog):
             config.zhipu_api_key.value = self.zhipu_api_key_edit.text().strip()
             config.zhipu_model.value = self.zhipu_model_combo.currentText()
             
-            # 保存其他设置
+            # 保存Google设置
             config.google_api_key.value = self.google_api_key_edit.text().strip()
-            config.deepl_api_key.value = self.deepl_api_key_edit.text().strip()
-            config.baidu_app_id.value = self.baidu_app_id_edit.text().strip()
-            config.baidu_app_key.value = self.baidu_app_key_edit.text().strip()
-            config.mymemory_email.value = self.mymemory_email_edit.text().strip()
+            
+            # 保存字体设置
+            font_file_name = self.font_combo.currentData()
+            if font_file_name:
+                config.font_name.value = font_file_name
             
             QMessageBox.information(self, "成功", "设置已保存！")
             self.accept()
             
         except Exception as e:
             QMessageBox.critical(self, "保存错误", f"保存设置时发生错误：\n{str(e)}")
+
+    def load_available_fonts(self):
+        """加载可用字体到下拉框"""
+        try:
+            # 获取font目录中的所有字体文件
+            font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'font')
+            if not os.path.exists(font_dir):
+                QMessageBox.warning(self, "警告", f"找不到字体目录：{font_dir}")
+                return
+
+            # 加载字体文件
+            font_files = [(f, os.path.join(font_dir, f)) 
+                         for f in os.listdir(font_dir) 
+                         if f.lower().endswith(('.ttf', '.otf'))]
+            
+            if not font_files:
+                QMessageBox.warning(self, "警告", "字体目录中没有找到任何字体文件")
+                return
+            
+            self.font_combo.clear()
+            self.available_fonts = {}  # 用于存储字体文件名到字体信息的映射
+            
+            # 加载每个字体文件并读取其属性
+            for file_name, file_path in font_files:
+                try:
+                    # 使用fontTools读取字体
+                    tt = TTFont(file_path)
+                    # 尝试获取中文名称
+                    name_records = tt['name'].names
+                    font_name = None
+                    
+                    # 优先查找简体中文名称
+                    for record in name_records:
+                        if record.platformID == 3 and record.langID in (2052, 1033):  # Windows 简体中文或英文
+                            try:
+                                if record.nameID in (4, 6, 1, 16):  # 完整名称、PostScript名称、字体家族名称或首选家族名称
+                                    font_name = record.string.decode('utf-16be')
+                                    if record.langID == 2052:  # 如果找到中文名称就立即使用
+                                        break
+                            except:
+                                continue
+                    
+                    # 如果没有找到任何名称，使用文件名
+                    if not font_name:
+                        font_name = os.path.splitext(file_name)[0]
+                    
+                    display_text = f"{font_name} ({file_name})"
+                    self.font_combo.addItem(display_text, file_name)
+                    self.available_fonts[file_name] = {
+                        'path': file_path,
+                        'name': font_name
+                    }
+                    
+                    tt.close()
+                except Exception as e:
+                    print(f"无法加载字体 {file_name}: {e}")
+            
+            # 设置当前选中的字体
+            current_font = config.font_name.value
+            index = self.font_combo.findData(current_font)
+            if index >= 0:
+                self.font_combo.setCurrentIndex(index)
+            elif self.font_combo.count() > 0:
+                # 如果找不到已配置的字体，默认选择第一个
+                self.font_combo.setCurrentIndex(0)
+        
+        except Exception as e:
+            QMessageBox.warning(self, "字体加载错误", f"无法加载可用字体：\n{str(e)}")
 
 
 if __name__ == "__main__":

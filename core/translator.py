@@ -5,19 +5,7 @@ import time
 from abc import ABC, abstractmethod
 
 # 导入deep_translator库
-from deep_translator import (
-    GoogleTranslator,
-    MicrosoftTranslator,
-    DeeplTranslator,
-    PonsTranslator,
-    LingueeTranslator,
-    MyMemoryTranslator,
-    YandexTranslator,
-    PapagoTranslator,
-    BaiduTranslator,
-    LibreTranslator,
-    QcriTranslator
-)
+from deep_translator import GoogleTranslator
 
 # 确保 app/config 目录存在
 CACHE_DIR = "app/config"
@@ -168,36 +156,116 @@ class ZhipuTranslator(BaseTranslator):
     """
 
     def __init__(self, api_key, model="glm-4-flash-250414"):
-        """
-        初始化智谱翻译器
-
-        Args:
-            api_key (str): 智谱AI的API Key
-            model (str): 使用的模型名称，默认为"glm-4-flash-250414"
-        """
         super().__init__()
         self.api_key = api_key
         self.model = model
-        self.api_base_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"  # 智谱AI通用对话补全API
+        self.api_base_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+        self.batch_size = 20
+        print(f"ZhipuTranslator initialized with batch_size: {self.batch_size}")
 
-    def _translate_text(self, text, target_lang):
+    def translate_batch(self, texts, target_lang="en"):
         """
-        调用智谱AI API进行翻译
+        批量翻译文本列表。会先检查缓存，对未缓存的文本进行批量翻译。
+        恢复分批逻辑，使用 self.batch_size，并加入频率控制。
 
         Args:
-            text (str): 需要翻译的文本
+            texts (list[str]): 需要翻译的文本列表
+            target_lang (str): 目标语言代码 (e.g., "en", "zh")
+
+        Returns:
+            list[str]: 翻译结果列表，与输入文本列表顺序对应
+        """
+        if not texts:
+            return []
+
+        # 清理文本
+        clean_texts = [self._clean_text(text) for text in texts]
+        
+        # 检查缓存
+        results = [None] * len(clean_texts) # 初始化结果列表
+        uncached_texts_map = {} # 用于存储未缓存文本及其在原始clean_texts中的索引
+        
+        for i, text in enumerate(clean_texts):
+            cache_key = self._generate_cache_key("Zhipu", text, target_lang)
+            if cache_key in self.cache:
+                print(f"Cache hit for '{text}' -> {target_lang}")
+                results[i] = self.cache[cache_key]
+            else:
+                # 使用原始索引作为键，确保后续能正确更新results列表
+                uncached_texts_map[i] = text 
+                # results[i] 保持 None，稍后更新或由末尾逻辑处理
+
+        # 如果有未缓存的文本，进行分批翻译
+        if uncached_texts_map:
+            # 将字典转换为列表进行分批处理，同时保留原始索引
+            uncached_items = list(uncached_texts_map.items()) # [(original_index, text), ...]
+            
+            num_batches = (len(uncached_items) + self.batch_size - 1) // self.batch_size
+            print(f"Found {len(uncached_items)} uncached texts. Processing in {num_batches} batches of up to {self.batch_size} texts each...")
+
+            for i in range(0, len(uncached_items), self.batch_size):
+                current_batch_items = uncached_items[i:i + self.batch_size]
+                
+                batch_texts_to_translate = [item[1] for item in current_batch_items] # 提取文本
+                batch_original_indices = [item[0] for item in current_batch_items] # 提取原始索引
+                
+                current_batch_number = i // self.batch_size + 1
+                print(f"Translating batch {current_batch_number}/{num_batches} with {len(batch_texts_to_translate)} texts...")
+                translated_sub_batch = self._translate_batch(batch_texts_to_translate, target_lang)
+                
+                if translated_sub_batch and len(translated_sub_batch) == len(batch_texts_to_translate):
+                    for j, translated_text in enumerate(translated_sub_batch):
+                        original_list_index = batch_original_indices[j] # 获取在 'results' 列表中的正确索引
+                        original_text_for_cache = batch_texts_to_translate[j]
+
+                        results[original_list_index] = translated_text
+                        cache_key = self._generate_cache_key("Zhipu", original_text_for_cache, target_lang)
+                        self.cache[cache_key] = translated_text
+                        print(f"Translated and cached: '{original_text_for_cache}' -> '{translated_text}'")
+                else:
+                    print(f"Warning: Batch {current_batch_number}/{num_batches} translation failed or returned an_unexpected number of results.")
+                    # 对于失败的批次，results中对应的条目将保持None
+                
+                # 在每个批次处理后（无论成功与否）添加延时，以控制API请求频率
+                # 如果不是最后一个批次，则添加延时
+                if current_batch_number < num_batches:
+                    print(f"Waiting for 2 seconds before next batch to respect API rate limit (30 RPM)...")
+                    time.sleep(2)
+
+
+            # 所有批次处理完成后保存缓存
+            self._save_cache()
+
+        # 处理任何未能成功翻译的文本（即results中仍为None的条目）
+        final_results = []
+        for i, result_text in enumerate(results):
+            if result_text is not None:
+                final_results.append(result_text)
+            else:
+                # 对于翻译失败或缓存未命中的文本（且API调用也失败的）
+                final_results.append(f"[Translation Failed: {clean_texts[i]}]")
+        
+        return final_results
+
+    def _translate_batch(self, texts, target_lang):
+        """
+        调用智谱AI API进行批量翻译 (一次API调用处理传入的所有texts)
+
+        Args:
+            texts (list[str]): 需要翻译的文本列表
             target_lang (str): 目标语言代码
 
         Returns:
-            str: 翻译结果，如果失败则返回None
+            list[str]: 翻译结果列表，如果API调用失败或解析错误则返回None
         """
+        if not texts: # 如果传入空列表，直接返回空列表
+            return []
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
 
-        # 使用chat completions API通过prompt来实现翻译功能
-        # 根据目标语言设置更具体的提示
         lang_map = {
             "zh": "中文",
             "zh-cn": "中文",
@@ -211,14 +279,24 @@ class ZhipuTranslator(BaseTranslator):
         }
         
         target_lang_name = lang_map.get(target_lang.lower(), target_lang)
+        
+        # 构建带有序号的文本列表
+        numbered_texts = [f"{i+1}. {text}" for i, text in enumerate(texts)]
+        texts_content = "\n".join(numbered_texts)
+        
         system_prompt = (
-            f"你是一个专业的翻译引擎。请将用户提供的内容准确翻译成{target_lang_name}。"
-            f"要求：1. 保持原文的语气和风格 2. 确保翻译准确自然 3. 只返回翻译结果，不要添加任何解释"
+            f"你是一个专业的翻译专家。请将以下编号文本准确翻译成{target_lang_name}。\n"
+            f"要求：\n"
+            f"1. 保持原文的语气和风格，如果出现人名要注意统一人名，使用信达雅的人名翻译\n"
+            f"2. 确保翻译准确自然，如果出现敏感词汇，不必紧张，使用隐晦的方式表达\n"
+            f"3. 按原有编号顺序返回翻译结果\n"
+            f"4. 只返回翻译结果，不要添加任何解释\n"
+            f"5. 每行以编号开头，格式如：1. 译文"
         )
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": text},
+            {"role": "user", "content": texts_content},
         ]
 
         payload = {
@@ -227,25 +305,96 @@ class ZhipuTranslator(BaseTranslator):
         }
 
         try:
+            # 记录请求信息
+            print(f"\n=== API Request ===")
+            print("Headers:", {k: v if k != 'Authorization' else '[REDACTED]' for k, v in headers.items()})
+            print("Payload:", json.dumps(payload, ensure_ascii=False, indent=2))
+            
+            # 发送请求
             response = requests.post(self.api_base_url, headers=headers, json=payload)
-            response.raise_for_status()  # 检查HTTP状态码
-
+            
+            # 记录响应信息
+            print(f"\n=== API Response ===")
+            print(f"Status Code: {response.status_code}")
+            print(f"Response Headers: {dict(response.headers)}")
+            print(f"Response Content: {response.text[:1000]}...")  # 只打印前1000个字符避免过长
+            
+            # 检查是否返回敏感内容错误
+            if response.status_code == 400:
+                try:
+                    error_json = response.json()
+                    if error_json.get("error", {}).get("code") == "1301":
+                        print("检测到敏感内容错误，切换到Google翻译...")
+                        # 使用Google翻译作为后备
+                        google_translator = GoogleDeepTranslator()
+                        translations = []
+                        for text in texts:
+                            translated = google_translator._translate_text(text, target_lang)
+                            if translated:
+                                translations.append(translated)
+                            else:
+                                raise Exception("Google translation failed")
+                        return translations if len(translations) == len(texts) else None
+                except Exception as e:
+                    print(f"Google translation fallback failed: {e}")
+                    return None
+            
+            # 处理响应
+            response.raise_for_status()
             result = response.json()
 
-            # 解析API响应，提取翻译结果
             if result and result.get("choices"):
-                translated_text = result["choices"][0]["message"]["content"].strip()
-                return translated_text
+                translated_content = result["choices"][0]["message"]["content"].strip()
+                
+                # 解析返回的编号文本
+                translations = []
+                for line in translated_content.split('\n'):
+                    line = line.strip()
+                    if line and line[0].isdigit():
+                        parts = line.split('.', 1)
+                        if len(parts) > 1:
+                            translation = parts[1].strip()
+                            translations.append(translation)
+                        else:
+                            print(f"Warning: Could not parse translation line: {line}")
+                
+                if len(translations) == len(texts):
+                    return translations
+                else:
+                    print(f"Translation count mismatch. Expected {len(texts)}, got {len(translations)}.")
+                    print(f"Complete translated content: {translated_content}")
+                    return None
             else:
-                print(f"API response did not contain expected format: {result}")
+                print(f"API response did not contain expected 'choices' field.")
+                print(f"Complete response: {json.dumps(result, ensure_ascii=False, indent=2)}")
                 return None
 
-        except requests.exceptions.RequestException as e:
-            print(f"API request failed: {e}")
+        except requests.RequestException as e:
+            print(f"\n=== API Error ===")
+            print(f"Request failed: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Error response content: {e.response.text}")
             return None
-        except KeyError as e:
-            print(f"API response parsing error: Missing key {e}. Response: {result}")
+        except json.JSONDecodeError as e:
+            print(f"\n=== JSON Parse Error ===")
+            print(f"Failed to parse API response: {str(e)}")
+            print(f"Raw response content: {response.text}")
             return None
+        except Exception as e:
+            print(f"\n=== Unexpected Error ===")
+            print(f"An unexpected error occurred: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return None
+
+    def _translate_text(self, text, target_lang):
+        """单个文本翻译，通过调用批量翻译实现"""
+        # 保持此方法，因为它被基类的 translate 方法调用
+        results = self.translate_batch([text], target_lang)
+        # translate_batch 返回列表，即使只有一个元素
+        if results and results[0] and not results[0].startswith("[Translation Failed:"):
+            return results[0]
+        return None
 
 
 class GoogleDeepTranslator(BaseTranslator):
@@ -291,150 +440,6 @@ class GoogleDeepTranslator(BaseTranslator):
             return None
 
 
-class DeeplTranslatorTranslator(BaseTranslator):
-    """
-    使用deep_translator库的DeeplTranslator API进行翻译
-    """
-
-    def __init__(self, api_key):
-        """
-        初始化DeeplTranslator翻译器
-
-        Args:
-            api_key (str): DeeplTranslator API密钥
-        """
-        super().__init__()
-        self.api_key = api_key
-
-    def _translate_text(self, text, target_lang):
-        """
-        使用DeeplTranslator API进行翻译
-
-        Args:
-            text (str): 需要翻译的文本
-            target_lang (str): 目标语言代码
-
-        Returns:
-            str: 翻译结果，如果失败则返回None
-        """
-        try:
-            # 标准化语言代码
-            if target_lang.lower() == "zh":
-                target_lang = "ZH"
-            elif target_lang.lower() == "en":
-                target_lang = "EN"
-
-            # 使用DeeplTranslator进行翻译
-            translator = DeeplTranslator(api_key=self.api_key, source="auto", target=target_lang)
-            translated_text = translator.translate(text)
-            return translated_text
-
-        except Exception as e:
-            print(f"DeeplTranslator translation failed: {e}")
-            return None
-
-
-class BaiduDeepTranslator(BaseTranslator):
-    """
-    使用deep_translator库的百度翻译API进行翻译
-    """
-
-    def __init__(self, app_id, app_key):
-        """
-        初始化百度翻译器
-
-        Args:
-            app_id (str): 百度翻译API的APP ID
-            app_key (str): 百度翻译API的密钥
-        """
-        super().__init__()
-        self.app_id = app_id
-        self.app_key = app_key
-
-    def _translate_text(self, text, target_lang):
-        """
-        使用百度翻译API进行翻译
-
-        Args:
-            text (str): 需要翻译的文本
-            target_lang (str): 目标语言代码
-
-        Returns:
-            str: 翻译结果，如果失败则返回None
-        """
-        try:
-            # 标准化语言代码
-            if target_lang.lower() == "zh":
-                target_lang = "zh"
-            elif target_lang.lower() == "en":
-                target_lang = "en"
-
-            # 使用BaiduTranslator进行翻译
-            translator = BaiduTranslator(
-                app_id=self.app_id,
-                app_key=self.app_key,
-                source="auto",
-                target=target_lang
-            )
-            translated_text = translator.translate(text)
-            return translated_text
-
-        except Exception as e:
-            print(f"Baidu translation failed: {e}")
-            return None
-
-
-class MyMemoryDeepTranslator(BaseTranslator):
-    """
-    使用deep_translator库的MyMemory翻译API进行翻译
-    """
-
-    def __init__(self, email=None):
-        """
-        初始化MyMemory翻译器
-
-        Args:
-            email (str, optional): 用户邮箱，提供可增加免费额度
-        """
-        super().__init__()
-        self.email = email
-
-    def _translate_text(self, text, target_lang):
-        """
-        使用MyMemory翻译API进行翻译
-
-        Args:
-            text (str): 需要翻译的文本
-            target_lang (str): 目标语言代码
-
-        Returns:
-            str: 翻译结果，如果失败则返回None
-        """
-        try:
-            # 标准化语言代码
-            if target_lang.lower() == "zh":
-                target_lang = "zh-CN"
-            elif target_lang.lower() == "en":
-                target_lang = "en"
-
-            # 使用MyMemoryTranslator进行翻译
-            translator_params = {
-                "source": "auto",
-                "target": target_lang
-            }
-            
-            if self.email:
-                translator_params["email"] = self.email
-                
-            translator = MyMemoryTranslator(**translator_params)
-            translated_text = translator.translate(text)
-            return translated_text
-
-        except Exception as e:
-            print(f"MyMemory translation failed: {e}")
-            return None
-
-
 # 创建翻译器工厂类
 class TranslatorFactory:
     """
@@ -442,7 +447,7 @@ class TranslatorFactory:
     """
     
     @staticmethod
-    def create_translator(translator_type, api_key=None, model=None, app_id=None, app_key=None, email=None):
+    def create_translator(translator_type, api_key=None, model=None, **kwargs):
         """
         创建指定类型的翻译器实例
         
@@ -450,9 +455,6 @@ class TranslatorFactory:
             translator_type (str): 翻译器类型
             api_key (str, optional): API密钥
             model (str, optional): 模型名称
-            app_id (str, optional): 应用ID
-            app_key (str, optional): 应用密钥
-            email (str, optional): 邮箱
             
         Returns:
             BaseTranslator: 翻译器实例
@@ -461,12 +463,6 @@ class TranslatorFactory:
             return ZhipuTranslator(api_key=api_key, model=model or "glm-4-flash-250414")
         elif translator_type == "Google":
             return GoogleDeepTranslator(api_key=api_key)
-        elif translator_type == "DeeplTranslator":
-            return DeeplTranslatorTranslator(api_key=api_key)
-        elif translator_type == "百度":
-            return BaiduDeepTranslator(app_id=app_id, app_key=app_key)
-        elif translator_type == "MyMemory":
-            return MyMemoryDeepTranslator(email=email)
         else:
             # 默认使用Google翻译
             print(f"未知的翻译器类型: {translator_type}，使用Google翻译作为默认选项")
@@ -484,7 +480,7 @@ if __name__ == "__main__":
 
     if YOUR_ZHIPU_API_KEY == "YOUR_API_KEY":
         print("请将代码中的 'YOUR_API_KEY' 替换为你的智谱AI API Key。")
-        # 使用不需要API密钥的Google翻译作为演示
+        # 使用不需要API 密钥的Google翻译作为演示
         translator = TranslatorFactory.create_translator("Google")
     else:
         # 使用智谱AI翻译器

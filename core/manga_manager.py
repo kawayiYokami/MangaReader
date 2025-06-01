@@ -93,22 +93,6 @@ class MangaManager(QObject):
                     translator_type=translator_type,
                     api_key=config.google_api_key.value
                 )
-            elif translator_type == "DeepL":
-                return TranslatorFactory.create_translator(
-                    translator_type=translator_type,
-                    api_key=config.deepl_api_key.value
-                )
-            elif translator_type == "百度":
-                return TranslatorFactory.create_translator(
-                    translator_type=translator_type,
-                    app_id=config.baidu_app_id.value,
-                    app_key=config.baidu_app_key.value
-                )
-            elif translator_type == "MyMemory":
-                return TranslatorFactory.create_translator(
-                    translator_type=translator_type,
-                    email=config.mymemory_email.value
-                )
             else:
                 log.warning(f"未知的翻译器类型: {translator_type}，使用Google翻译作为默认选项")
                 return TranslatorFactory.create_translator("Google")

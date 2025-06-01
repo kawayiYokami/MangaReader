@@ -8,7 +8,7 @@ OCR测试窗口
 
 import os
 import sys
-import cv2 # 新增导入cv2
+import cv2
 import numpy as np
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
@@ -22,9 +22,8 @@ from PySide6.QtGui import QPixmap, QFont, QImage
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, project_root)
 
-from core.ocr_manager import OCRManager, OCRResult
-from core.translator import TranslatorFactory
-from core.manga_text_replacer import MangaTextReplacer, create_manga_translation_dict
+from core.ocr_manager import OCRResult
+from core.image_translator import ImageTranslator, create_image_translator
 from core.config import config
 from utils import manga_logger as log
 from qfluentwidgets import (
@@ -48,22 +47,18 @@ class OCRTestWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.ocr_manager = None
-        self.translator = None
-        
-        self.manga_text_replacer = None
+        # 图像处理相关
+        self.image_translator = None
         self.current_image_path = None
-        self.cached_image_data = None # 新增：缓存图片数据
-        self.original_pixmap = None # 初始化原始图片数据
-        self.bbox_scale_factor = 1.0  # 新增：文本框缩放比例，默认为1.0
+        self.cached_image_data = None
+        self.original_pixmap = None
         self.current_results = []
-        self.current_translations = {}  # 存储当前的翻译结果
-        self.init_ui()
-        self.init_ui()
-        self.init_ocr()
-        self.init_translator()
+        self.current_translations = {}
+        self._color_cache = {}  # 用于存储文本组的颜色
         
-        self.init_manga_text_replacer()
+        # 初始化组件
+        self.init_ui()
+        self.init_translator()
     def init_ui(self):
         """初始化界面"""
         self.setWindowTitle("OCR测试工具")
@@ -145,10 +140,7 @@ class OCRTestWindow(QMainWindow):
         self.translate_button.setEnabled(False)
         self.translate_button.clicked.connect(self.start_translation)
         
-        self.save_button = QPushButton("💾 保存结果")
-        self.save_button.setMinimumHeight(40)
-        self.save_button.setEnabled(False)
-        self.save_button.clicked.connect(self.save_results)
+
         
         
         
@@ -170,7 +162,7 @@ class OCRTestWindow(QMainWindow):
         
         button_layout2 = QHBoxLayout()
         button_layout2.addWidget(self.manga_replace_button)
-        button_layout2.addWidget(self.save_button)
+
         
         layout.addLayout(button_layout1)
         layout.addLayout(button_layout2)
@@ -218,101 +210,44 @@ class OCRTestWindow(QMainWindow):
         
         return widget
     
-    def init_ocr(self):
-        """初始化OCR管理器"""
-        try:
-            self.ocr_manager = OCRManager()
-            
-            # 连接信号
-            self.ocr_manager.model_loaded.connect(self.on_model_loaded)
-            self.ocr_manager.model_load_error.connect(self.on_model_load_error)
-            self.ocr_manager.ocr_started.connect(self.on_ocr_started)
-            self.ocr_manager.ocr_finished.connect(self.on_ocr_finished)
-            self.ocr_manager.ocr_error.connect(self.on_ocr_error)
-            self.ocr_manager.ocr_progress.connect(self.on_ocr_progress)
-            
-            # 加载模型
-            self.ocr_manager.load_model()
-            
-        except Exception as e:
-            self.status_label.setText(f"OCR引擎初始化失败: {str(e)}")
-            self.status_label.setStyleSheet("color: red; font-weight: bold;")
-    
     def init_translator(self):
         """初始化翻译器"""
         try:
-            # 从配置中获取翻译器设置
+            # 获取翻译器类型和配置
             translator_type = config.translator_type.value
-            
+            translator_kwargs = {}
+
+            # 根据不同的翻译器类型，准备相应的参数
             if translator_type == "智谱":
                 api_key = config.zhipu_api_key.value
                 model = config.zhipu_model.value
-                
                 if not api_key:
                     log.warning("智谱API密钥未配置，翻译功能将不可用")
                     return
-                
-                self.translator = TranslatorFactory.create_translator(
-                    translator_type="智谱",
-                    api_key=api_key,
-                    model=model
-                )
-                log.info(f"翻译器初始化成功: {translator_type} ({model})")
-            else:
-                # 使用其他翻译器
-                if translator_type == "Google":
-                    api_key = config.google_api_key.value
-                    self.translator = TranslatorFactory.create_translator(
-                        translator_type="Google",
-                        api_key=api_key if api_key else None
-                    )
-                elif translator_type == "DeepL":
-                    api_key = config.deepl_api_key.value
-                    if not api_key:
-                        log.warning("DeepL API密钥未配置，翻译功能将不可用")
-                        return
-                    self.translator = TranslatorFactory.create_translator(
-                        translator_type="DeepL",
-                        api_key=api_key
-                    )
-                elif translator_type == "百度":
-                    app_id = config.baidu_app_id.value
-                    app_key = config.baidu_app_key.value
-                    if not app_id or not app_key:
-                        log.warning("百度翻译APP ID或APP Key未配置，翻译功能将不可用")
-                        return
-                    self.translator = TranslatorFactory.create_translator(
-                        translator_type="百度",
-                        app_id=app_id,
-                        app_key=app_key
-                    )
-                elif translator_type == "MyMemory":
-                    email = config.mymemory_email.value
-                    self.translator = TranslatorFactory.create_translator(
-                        translator_type="MyMemory",
-                        email=email if email else None
-                    )
-                else:
-                    # 默认使用Google翻译
-                    self.translator = TranslatorFactory.create_translator("Google")
-                
-                log.info(f"翻译器初始化成功: {translator_type}")
-                
-        except Exception as e:
-            log.error(f"翻译器初始化失败: {str(e)}")
-            self.translator = None
-    
-    
+                translator_kwargs.update({"api_key": api_key, "model": model})
             
-    
-    def init_manga_text_replacer(self):
-        """初始化漫画文本替换器"""
-        try:
-            self.manga_text_replacer = MangaTextReplacer()
-            log.info("漫画文本替换器初始化成功")
+            elif translator_type == "Google":
+                api_key = config.google_api_key.value
+                if api_key:  # Google API密钥是可选的
+                    translator_kwargs["api_key"] = api_key
+            
+            else:
+                log.warning(f"未知的翻译器类型: {translator_type}，使用Google翻译作为默认选项")
+                translator_type = "Google"
+            
+            # 创建图片翻译器实例
+            self.image_translator = ImageTranslator(
+                translator_type=translator_type,
+                **translator_kwargs
+            )
+            
+            # 更新状态标签
+            self.status_label.setText(f"翻译引擎: {translator_type}")
+            
         except Exception as e:
-            log.error(f"漫画文本替换器初始化失败: {str(e)}")
-            self.manga_text_replacer = None
+            log.error(f"初始化翻译器失败: {e}")
+            self.status_label.setText("翻译引擎: 初始化失败")
+            self.image_translator = None
     
     def open_image(self):
         """打开图片文件"""
@@ -349,19 +284,16 @@ class OCRTestWindow(QMainWindow):
                 QMessageBox.warning(self, "错误", "无法读取图片数据进行OCR")
                 self.current_image_path = None
                 self.cached_image_data = None
-                return
-            
-            # 启用OCR按钮
-            if self.ocr_manager and self.ocr_manager.is_ready():
+                return                # 启用OCR和漫画替换按钮
+            if self.image_translator:
                 self.ocr_button.setEnabled(True)
+                self.manga_replace_button.setEnabled(True)
             
             # 清空之前的结果
             self.text_result.clear()
             self.translation_result.clear()
             self.details_result.clear()
-            self.save_button.setEnabled(False)
             self.translate_button.setEnabled(False)
-            self.manga_replace_button.setEnabled(False)
             self.current_translations = {}
             
             self.statusBar().showMessage(f"已加载图片: {os.path.basename(file_path)}")
@@ -402,202 +334,195 @@ class OCRTestWindow(QMainWindow):
     
     def start_ocr(self):
         """开始OCR识别"""
-        if self.cached_image_data is None or not self.ocr_manager or not self.ocr_manager.is_ready():
-            QMessageBox.warning(self, "警告", "请先选择图片并等待OCR引擎准备就绪")
-            return
-        
-        # 开始识别，使用缓存的图片数据
-        self.ocr_manager.recognize_image_data(self.cached_image_data)
-    
-    def start_translation(self):
-        """开始翻译OCR结果（使用结构化文本）"""
-        if not self.current_results:
-            QMessageBox.warning(self, "警告", "请先进行OCR识别")
-            return
-        
-        if not self.translator:
-            QMessageBox.warning(self, "警告", "翻译器未初始化，请检查翻译设置")
+        if self.cached_image_data is None or not self.image_translator:
+            QMessageBox.warning(self, "警告", "请先选择图片并等待翻译器准备就绪")
             return
         
         try:
-            # 显示进度
+            # 更新UI状态
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 0)
+            self.ocr_button.setEnabled(False)
+            self.statusBar().showMessage("正在进行OCR识别...")
+            
+            # 使用ImageTranslator执行OCR
+            self.current_results = self.image_translator.get_ocr_results(self.cached_image_data)
+            
+            # 过滤纯数字和符号文本
+            self.current_results = self.image_translator.ocr_manager.filter_numeric_and_symbols(self.current_results)
+            
+            # 对OCR结果进行结构性文本合并
+            if self.current_results:
+                self.current_results = self.image_translator.ocr_manager.get_structured_text(self.current_results)
+            
+            if self.current_results:
+                # 显示主要文本结果
+                full_text = "\n".join([r['text'] for r in self.current_results])
+                self.text_result.setText(full_text)
+                
+                # 显示详细OCR信息
+                details = []
+                for i, result in enumerate(self.current_results, 1):
+                    # 获取第一个OCR结果的边界框作为示例
+                    bbox = result['ocr_results'][0].bbox if result['ocr_results'] else []
+                    bbox_str = "\n    ".join([f"点{j+1}: ({x}, {y})" 
+                                            for j, (x, y) in enumerate(bbox)])
+                    
+                    # 收集所有OCR结果的置信度
+                    confidences = [ocr.confidence for ocr in result['ocr_results']]
+                    avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+                    
+                    details.append(
+                        f"\n文本组 {i}: '{result['text']}'\n"
+                        f"  平均置信度: {avg_confidence:.2f}\n"
+                        f"  类型: {result['direction'] if 'direction' in result else '未知'}\n"
+                        f"  包含 {len(result['ocr_results'])} 个OCR结果\n"
+                        f"  示例文本框坐标:\n    {bbox_str}"
+                    )
+                
+                self.details_result.setText("\n".join(details))
+                
+                # 在图像上绘制OCR框并显示
+                self._draw_ocr_boxes(self.current_results)
+                
+                # 启用后续操作按钮
+                self.translate_button.setEnabled(True)
+            else:
+                self.text_result.setText("未识别到任何文本。")
+                self.details_result.setText("未识别到任何文本。")
+            
+            # 恢复UI状态
+            self.progress_bar.setVisible(False)
+            self.ocr_button.setEnabled(True)
+            self.statusBar().showMessage(
+                f"OCR识别完成，共识别到 {len(self.current_results or [])} 个文本区域"
+            )
+            
+        except Exception as e:
+            error_msg = f"OCR识别失败: {str(e)}"
+            self.progress_bar.setVisible(False)
+            self.ocr_button.setEnabled(True)
+            QMessageBox.critical(self, "OCR错误", error_msg)
+            self.statusBar().showMessage("OCR识别失败")
+            log.error(error_msg)
+    
+    def start_translation(self):
+        """开始翻译OCR结果"""
+        if not self.current_results or not self.image_translator:
+            QMessageBox.warning(self, "警告", "请先进行OCR识别")
+            return
+            
+        try:
+            # 更新UI状态
             self.progress_bar.setVisible(True)
             self.progress_bar.setRange(0, 0)
             self.translate_button.setEnabled(False)
-            self.statusBar().showMessage("正在翻译...")
+            self.statusBar().showMessage("正在翻译识别结果...")
+
+            # 使用ImageTranslator批量翻译文本
+            success_count = 0
+            translated_texts = []
+            total = len(self.current_results)
             
-            # 获取结构化文本（合并后的文本框）
-            structured_texts = self.ocr_manager.get_structured_text(self.current_results)
-            
-            # 在详细信息区域显示结构化文本信息
-            details_info = []
-            for i, item in enumerate(structured_texts, 1):
-                details_info.append(f"结构化文本块 #{i}:")
-                details_info.append(f"  - 文本内容: {item['text']}")
-                details_info.append(f"  - 方向: {item.get('direction', 'auto')}")
-                details_info.append(f"  - 包含OCR结果数: {len(item['ocr_results'])}")
-                details_info.append("")
-            self.details_result.setText("\n".join(details_info))
-            
-            # 翻译每个结构化文本块
-            display_translated_texts = [] # 用于显示在UI上的翻译结果
-            pure_translated_texts = []    # 存储纯粹的翻译结果，用于创建翻译字典
-            
-            for item in structured_texts:
-                full_text = item['text']
-                if not full_text.strip():
-                    # 跳过空文本
-                    continue
-                
-                translated = ""
+            # 处理结构化文本列表
+            for i, result in enumerate(self.current_results, 1):
                 try:
-                    # 翻译完整文本块
-                    translated = self.translator.translate(full_text, target_lang="zh")
-                    
-                    # 将翻译结果应用到所有相关的OCRResult对象
-                    for ocr_result in item['ocr_results']:
-                        ocr_result.translated_text = translated
-                    
-                    display_translated_texts.append(translated)  # 只显示译文
-                    pure_translated_texts.append(translated)
+                    # 从结构化文本中获取完整文本
+                    original_text = result['text']  # 结构化文本中的完整文本
+                    # 翻译单个文本
+                    translated = self.image_translator.translate_text(original_text)
+                    translated_texts.append(f"{i}. {original_text} -> {translated}")
+                    success_count += 1
                 except Exception as e:
-                    log.error(f"翻译文本块失败: {full_text}, 错误: {e}")
-                    # 翻译失败时使用原文
-                    for ocr_result in item['ocr_results']:
-                        ocr_result.translated_text = full_text
-                    display_translated_texts.append("[翻译失败]")  # 只显示翻译失败的标记
-                    pure_translated_texts.append(full_text) # 翻译失败时，纯翻译结果使用原文
-            
+                    log.error(f"翻译失败 [{i}/{total}]: {original_text} - {str(e)}")
+                    translated_texts.append(f"{i}. {original_text} -> [翻译失败]")
+
             # 显示翻译结果
-            self.translation_result.setText("\n".join(display_translated_texts))
+            self.translation_result.setText("\n".join(translated_texts))
             
-            # 创建翻译字典用于漫画文本替换
-            # 使用结构化文本和纯翻译列表
-            self.current_translations = create_manga_translation_dict(
-                structured_texts,
-                pure_translated_texts
+            # 更新UI状态
+            self.manga_replace_button.setEnabled(success_count > 0)
+            self.progress_bar.setVisible(False)
+            self.translate_button.setEnabled(True)
+            
+            # 更新状态栏信息
+            status_msg = (
+                f"翻译完成，成功率: {success_count}/{total} "
+                f"({(success_count/total*100):.1f}%)"
             )
+            self.statusBar().showMessage(status_msg)
+            log.info(status_msg)
             
-            # 启用漫画文本替换按钮
-            if self.manga_text_replacer and self.current_translations:
-                self.manga_replace_button.setEnabled(True)
-            
-            # 隐藏进度条
-            self.progress_bar.setVisible(False)
-            self.translate_button.setEnabled(True)
-            self.statusBar().showMessage("翻译完成")
         except Exception as e:
+            error_msg = f"翻译过程发生错误: {str(e)}"
             self.progress_bar.setVisible(False)
             self.translate_button.setEnabled(True)
-            error_msg = f"翻译失败: {str(e)}"
-            self.translation_result.setText(error_msg)
             QMessageBox.critical(self, "翻译错误", error_msg)
             self.statusBar().showMessage("翻译失败")
-    
-    
+            log.error(error_msg)
     
     def start_manga_replacement(self):
         """开始漫画文本替换"""
-        if not self.current_results:
-            QMessageBox.warning(self, "警告", "请先进行OCR识别")
+        if not self.image_translator or self.cached_image_data is None:
+            QMessageBox.warning(self, "警告", "请先选择图片")
             return
-        
-        if not self.current_translations:
-            QMessageBox.warning(self, "警告", "请先进行翻译")
-            return
-        
-        if not self.manga_text_replacer:
-            QMessageBox.warning(self, "警告", "漫画文本替换器未初始化")
-            return
-        
-        if self.cached_image_data is None:
-            QMessageBox.warning(self, "警告", "没有可用的图像数据")
-            return
-        
+            
         try:
-            # 显示进度
+            # 更新UI状态
             self.progress_bar.setVisible(True)
             self.progress_bar.setRange(0, 0)
             self.manga_replace_button.setEnabled(False)
-            self.statusBar().showMessage("正在进行漫画文本替换...")
+            self.statusBar().showMessage("正在执行漫画文本替换...")
             
-            # 获取结构化文本
-            structured_texts = self.ocr_manager.get_structured_text(self.current_results)
+            # 准备OCR选项，如果有现成的OCR结果就复用
+            ocr_options = None
+            if self.current_results:
+                ocr_options = {
+                    "results": self.current_results,
+                    "reuse_results": True  # 标记复用OCR结果
+                }
             
-            # 使用新的API直接传入结构化文本进行替换
-            replaced_image_data = self.manga_text_replacer.process_manga_image(
-                self.cached_image_data.copy(),
-                structured_texts,
-                self.current_translations,
+            # 使用ImageTranslator执行替换
+            replaced_image = self.image_translator.translate_image(
+                self.cached_image_data,
                 target_language="zh",
-                inpaint_background=True
+                ocr_options=ocr_options
             )
             
-            if replaced_image_data is not None:
-                # 在替换后的图像上绘制边界框以显示替换位置
-                debug_image = replaced_image_data.copy()
-                # 遍历结构化文本块，绘制边界框
-                for text_block in structured_texts:
-                    # 收集所有OCR结果的边界点
-                    bbox_points = []
-                    for ocr_result in text_block['ocr_results']:
-                        bbox_points.extend(ocr_result.bbox)
-                    
-                    if bbox_points:
-                        # 计算边界框
-                        points = np.array(bbox_points)
-                        x_min = min(p[0] for p in bbox_points)
-                        y_min = min(p[1] for p in bbox_points)
-                        x_max = max(p[0] for p in bbox_points)
-                        y_max = max(p[1] for p in bbox_points)
-                        
-                        rect_points = np.array([
-                            [x_min, y_min],
-                            [x_max, y_min],
-                            [x_max, y_max],
-                            [x_min, y_max]
-                        ], dtype=np.int32)
-                        
-                        cv2.polylines(debug_image, [rect_points], isClosed=True, color=(0, 255, 0), thickness=2)
+            if replaced_image is not None:
+                # 显示替换后的图像
+                self._display_result_image(replaced_image)
                 
-                self._display_result_image(debug_image)  # 显示带边界框的替换结果
-                self.statusBar().showMessage("漫画文本替换完成")
-                self.save_button.setEnabled(True)
-                self._save_manga_replaced_image(replaced_image_data)  # 保存不带边界框的原始替换结果
+                # 如果有原始图像路径，保存结果
+                if self.current_image_path:
+                    base_name = os.path.basename(self.current_image_path)
+                    name, ext = os.path.splitext(base_name)
+                    output_dir = os.path.join(os.path.dirname(self.current_image_path), "output")
+                    os.makedirs(output_dir, exist_ok=True)
+                    
+                    # 生成输出路径
+                    output_path = os.path.join(output_dir, f"{name}_replaced{ext}")
+                    if cv2.imwrite(output_path, replaced_image):
+                        msg = f"替换后的图片已保存至: {output_path}"
+                        log.info(msg)
+                        self.statusBar().showMessage(msg)
+                    else:
+                        raise RuntimeError("保存替换后的图片失败")
             else:
-                QMessageBox.warning(self, "警告", "漫画文本替换失败，请检查日志")
-                self.statusBar().showMessage("漫画文本替换失败")
-            
-            # 隐藏进度条
+                raise RuntimeError("图像处理失败，未能生成替换结果")
+                
+            # 恢复UI状态
             self.progress_bar.setVisible(False)
             self.manga_replace_button.setEnabled(True)
+            
         except Exception as e:
+            error_msg = f"漫画文本替换失败: {str(e)}"
             self.progress_bar.setVisible(False)
             self.manga_replace_button.setEnabled(True)
-            error_msg = f"漫画文本替换失败: {str(e)}"
-            QMessageBox.critical(self, "漫画替换错误", error_msg)
+            QMessageBox.critical(self, "替换错误", error_msg)
             self.statusBar().showMessage("漫画文本替换失败")
-
-    def _save_manga_replaced_image(self, image_data):
-        """保存漫画替换后的图片"""
-        if image_data is None:
-            return
-        
-        if self.current_image_path:
-            base_name = os.path.basename(self.current_image_path)
-            name, ext = os.path.splitext(base_name)
-            output_dir = "output"
-            os.makedirs(output_dir, exist_ok=True)
-            output_path = os.path.join(output_dir, f"{name}_replaced{ext}")
-            
-            try:
-                cv2.imwrite(output_path, image_data)
-                log.info(f"漫画替换后的图片已保存: {output_path}")
-            except Exception as e:
-                log.error(f"保存漫画替换后的图片失败: {e}")
-        else:
-            log.warning("没有当前图片路径，无法保存替换后的图片。")
-
+            log.error(error_msg)
+    
     def _display_result_image(self, image_data):
         """显示处理结果图像"""
         try:
@@ -614,214 +539,106 @@ class OCRTestWindow(QMainWindow):
             log.error(f"显示结果图像时发生错误: {str(e)}")
             QMessageBox.critical(self, "显示错误", f"显示结果图像时发生错误: {str(e)}")
 
-    def open_translation_settings(self):
-        """打开翻译设置窗口"""
-        settings_window = TranslationSettingsWindow(self)
-        if settings_window.exec() == QDialog.Accepted:
-            # 如果设置被保存，重新初始化翻译器
-            self.init_translator()
-            # 重新检查翻译按钮状态
-            self.translate_button.setEnabled(self.translator is not None and len(self.current_results) > 0)
-            log.info("翻译设置已更新，翻译器已重新初始化。")
-
-    def save_results(self):
-        """保存OCR和翻译结果到文件"""
-        if not self.current_results:
-            QMessageBox.warning(self, "警告", "没有OCR结果可保存")
-            return
-        
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "保存结果",
-            "ocr_translation_results.txt",
-            "文本文件 (*.txt);;所有文件 (*)"
-        )
-        
-        if file_path:
-            try:
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write("--- OCR 识别结果 ---\n")
-                    for i, result in enumerate(self.current_results):
-                        f.write(f"文本 {i+1}: {result.text}\n")
-                        f.write(f"  置信度: {result.confidence:.2f}\n")
-                        f.write(f"  边界框: {result.bbox}\n")
-                        if result.translated_text:
-                            f.write(f"  翻译: {result.translated_text}\n")
-                        f.write("\n")
-                    
-                    f.write("\n--- 结构化文本和翻译结果 ---\n")
-                    f.write(self.translation_result.toPlainText())
-                    f.write("\n\n--- 详细OCR信息 ---\n")
-                    f.write(self.details_result.toPlainText())
-                
-                QMessageBox.information(self, "保存成功", f"结果已保存到: {file_path}")
-                self.statusBar().showMessage(f"结果已保存到: {file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "保存错误", f"保存文件时发生错误: {str(e)}")
-                self.statusBar().showMessage("保存失败")
-
-    def on_model_loaded(self):
-        """OCR模型加载完成回调"""
-        self.status_label.setText("OCR引擎状态: 已加载模型")
-        self.status_label.setStyleSheet("color: green; font-weight: bold;")
-        # 如果已经加载了图片，启用OCR按钮
-        if self.current_image_path:
-            self.ocr_button.setEnabled(True)
-        log.info("OCR模型加载完成。")
-
-    def on_model_load_error(self, error_msg):
-        """OCR模型加载错误回调"""
-        self.status_label.setText(f"OCR引擎状态: 模型加载失败 ({error_msg})")
-        self.status_label.setStyleSheet("color: red; font-weight: bold;")
-        self.ocr_button.setEnabled(False)
-        log.error(f"OCR模型加载失败: {error_msg}")
-
-    def on_ocr_started(self):
-        """OCR识别开始回调"""
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0) # 设置为不确定模式
-        self.ocr_button.setEnabled(False)
-        self.translate_button.setEnabled(False)
-        self.save_button.setEnabled(False)
-        self.manga_replace_button.setEnabled(False)
-        self.text_result.clear()
-        self.translation_result.clear()
-        self.details_result.clear()
-        self.statusBar().showMessage("正在进行OCR识别...")
-        log.info("OCR识别开始。")
-
-    def on_ocr_finished(self, results):
-        """OCR识别完成回调"""
-        self.progress_bar.setVisible(False)
-        self.ocr_button.setEnabled(True)
-        self.statusBar().showMessage("OCR识别完成")
-        log.info(f"OCR识别完成，识别到 {len(results)} 个文本区域。")
-        
-        self.current_results = results
-        
-        # 显示纯文本结果
-        if results:
-            # 使用OCRManager的get_text_only方法获取合并后的文本
-            full_text = self.ocr_manager.get_text_only(results)
-            self.text_result.setText(full_text)
-            self.save_button.setEnabled(True)
-            
-            # 启用翻译按钮
-            if self.translator:
-                self.translate_button.setEnabled(True)
-            
-            # 获取结构化文本
-            structured_texts = self.ocr_manager.get_structured_text(results)
-
-            # 显示详细结果
-            details = []
-            
-            # 先显示结构化文本信息
-            details.append("=== 结构化文本信息 ===")
-            for i, item in enumerate(structured_texts, 1):
-                bbox_points = []
-                for ocr_result in item['ocr_results']:
-                    bbox_points.extend(ocr_result.bbox)
-                x_min = min(p[0] for p in bbox_points)
-                y_min = min(p[1] for p in bbox_points)
-                x_max = max(p[0] for p in bbox_points)
-                y_max = max(p[1] for p in bbox_points)
-                
-                details.append(f"\n结构化文本块 #{i}:")
-                details.append(f"  - 文本内容: {item['text']}")
-                details.append(f"  - 方向: {item.get('direction', 'auto')}")
-                details.append(f"  - 包含OCR结果数: {len(item['ocr_results'])}")
-                details.append(f"  - 文本框范围: ({x_min}, {y_min}) -> ({x_max}, {y_max})")
-
-            # 再显示原始OCR结果信息
-            details.append("\n=== 原始OCR结果 ===")
-            for i, r in enumerate(results):
-                # 格式化文本框坐标为更易读的形式
-                bbox_str = "\n    ".join([f"点{j+1}: ({x}, {y})" for j, (x, y) in enumerate(r.bbox)])
-                details.append(f"\n文本 {i+1}: '{r.text}'\n"
-                             f"  置信度: {r.confidence:.2f}\n"
-                             f"  方向: {r.direction}\n"
-                             f"  列: {r.column}\n"
-                             f"  行: {r.row}\n"
-                             f"  合并数: {r.merged_count}\n"
-                             f"  文本框坐标:\n    {bbox_str}")
-            
-            # 设置详细信息文本
-            self.details_result.setText("\n".join(details))
-            
-            # 绘制文本框到图像上并显示
-            self._draw_ocr_boxes(results)
-        else:
-            self.text_result.setText("未识别到任何文本。")
-            self.details_result.setText("未识别到任何文本。")
-            self.save_button.setEnabled(False)
-            self.translate_button.setEnabled(False)
-            self.manga_replace_button.setEnabled(False)
-            self.image_label.setPixmap(self.original_pixmap.scaled(
-                self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)) # 恢复原始图片显示
-            
-    def on_ocr_error(self, error_msg):
-        """OCR识别错误回调"""
-        self.progress_bar.setVisible(False)
-        self.ocr_button.setEnabled(True)
-        self.translate_button.setEnabled(False)
-        self.save_button.setEnabled(False)
-        self.manga_replace_button.setEnabled(False)
-        self.statusBar().showMessage("OCR识别失败")
-        QMessageBox.critical(self, "OCR错误", error_msg)
-        log.error(f"OCR识别错误: {error_msg}")
-
-    def on_ocr_progress(self, progress_msg):
-        """OCR进度回调"""
-        self.statusBar().showMessage(progress_msg)
-
     def _draw_ocr_boxes(self, ocr_results):
-        """在图像上绘制OCR文本框"""
+        """在图像上绘制OCR文本框，并为每个文本区域添加半透明彩色背景，保持文本居中对齐"""
         if self.cached_image_data is None or not ocr_results:
             return
 
-        # 复制原始图像数据，避免修改原图
-        display_image = self.cached_image_data.copy()
+        # 创建图像副本以进行绘制
+        result_image = self.cached_image_data.copy()
         
-        # 获取结构化文本
-        structured_texts = self.ocr_manager.get_structured_text(ocr_results)
-
-        # 为每个结构化文本块绘制边界框
-        for item in structured_texts:
-            # 收集该文本块中所有OCR结果的边界点
+        # 生成不同的颜色用于不同的文本区域
+        colors = self._generate_distinct_colors(len(ocr_results))
+        
+        # 为每个文本区域绘制半透明背景和边框
+        for i, result in enumerate(ocr_results):
+            color = colors[i]  # 当前文本区域的颜色
+            
+            # 从结果中获取所有OCR结果的边界框点
             all_points = []
-            for ocr_result in item['ocr_results']:
+            for ocr_result in result['ocr_results']:
                 all_points.extend(ocr_result.bbox)
             
-            if not all_points:
-                continue
+            if all_points:
+                # 转换为numpy数组以便计算
+                points = np.array(all_points).reshape(-1, 2)
                 
-            # 计算文本块的边界框
-            x_min = min(p[0] for p in all_points)
-            y_min = min(p[1] for p in all_points)
-            x_max = max(p[0] for p in all_points)
-            y_max = max(p[1] for p in all_points)
-            
-            # 创建矩形边界框的四个顶点
-            rect_points = np.array([
-                [x_min, y_min],  # 左上
-                [x_max, y_min],  # 右上
-                [x_max, y_max],  # 右下
-                [x_min, y_max]   # 左下
-            ], dtype=np.int32)
-            
-            # 直接绘制矩形边界框
-            cv2.polylines(display_image, [rect_points], isClosed=True, color=(0, 255, 0), thickness=2)
+                # 计算包含所有点的最小矩形
+                x_min = int(np.min(points[:, 0]))
+                y_min = int(np.min(points[:, 1]))
+                x_max = int(np.max(points[:, 0]))
+                y_max = int(np.max(points[:, 1]))
 
-        # 将OpenCV图像转换为QPixmap显示
-        h, w, ch = display_image.shape
-        bytes_per_line = ch * w
-        q_image = QImage(display_image.data, w, h, bytes_per_line, QImage.Format_RGB888).rgbSwapped()
-        pixmap = QPixmap.fromImage(q_image)
+                # 计算文本区域的宽度和高度
+                width = x_max - x_min
+                height = y_max - y_min
+
+                # 对于每个子文本框，计算其在文本区域内的相对位置
+                for ocr_result in result['ocr_results']:
+                    points = np.array(ocr_result.bbox).reshape(-1, 2)
+                    sub_x_min = int(np.min(points[:, 0]))
+                    sub_x_max = int(np.max(points[:, 0]))
+                    sub_width = sub_x_max - sub_x_min
+
+                    # 计算子文本框的水平中心点
+                    sub_center_x = (sub_x_min + sub_x_max) // 2
+                    # 计算整个文本区域的水平中心点
+                    center_x = (x_min + x_max) // 2
+                    # 计算需要的水平偏移量
+                    offset_x = center_x - sub_center_x
+
+                    # 如果是竖排文本（direction为'vertical'），特殊处理
+                    if result.get('direction') == 'vertical':
+                        # 对于竖排文本，我们保持垂直对齐
+                        points[:, 0] += offset_x
+                
+                # 创建一个与原图相同大小的透明遮罩
+                overlay = result_image.copy()
+                
+                # 绘制半透明背景矩形
+                cv2.rectangle(overlay, (x_min, y_min), (x_max, y_max), color, -1)
+                
+                # 应用透明度（alpha为0.3表示30%不透明度）
+                alpha = 0.3
+                cv2.addWeighted(overlay, alpha, result_image, 1 - alpha, 0, result_image)
+                
+                # 绘制实线边框
+                cv2.rectangle(result_image, (x_min, y_min), (x_max, y_max), color, 2)
+
+        # 显示处理后的图像
+        self._display_result_image(result_image)
+    
+    def open_translation_settings(self):
+        """打开翻译设置窗口"""
+        dialog = TranslationSettingsWindow(self)
+        if dialog.exec() == QDialog.Accepted:
+            # 如果用户更改了设置并点击确定，重新初始化翻译器
+            self.init_translator()
+            if self.image_translator:
+                self.status_label.setText(f"翻译引擎: {config.translator_type.value}")
+            else:
+                self.status_label.setText("翻译引擎: 未就绪")
+    
+    def _generate_distinct_colors(self, n):
+        """生成n个有区分度的颜色"""
+        if n in self._color_cache:
+            return self._color_cache[n]
         
-        # 更新显示，让QLabel自动处理缩放
-        self.image_label.setPixmap(pixmap.scaled(
-            self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        import colorsys
+        colors = []
+        for i in range(n):
+            # 使用HSV色彩空间来生成均匀分布的颜色
+            hue = i / n
+            sat = 0.7  # 适中的饱和度
+            val = 0.95  # 较高的亮度
+            # 转换到RGB色彩空间
+            rgb = colorsys.hsv_to_rgb(hue, sat, val)
+            # 转换为BGR并缩放到0-255 范围
+            bgr = (int(rgb[2] * 255), int(rgb[1] * 255), int(rgb[0] * 255))
+            colors.append(bgr)
+        
+        self._color_cache[n] = colors
+        return colors
 
 
 def run_as_standalone():

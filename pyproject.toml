@@ -18,6 +18,7 @@ dependencies = [
     "requests==2.32.3",
     "screeninfo==0.8.1",
     "zhconv==1.4.3",
+    "langdetect==1.0.9",
     # OnnxOCR dependencies
     "flask",
     "gunicorn",

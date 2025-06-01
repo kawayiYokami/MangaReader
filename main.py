@@ -18,6 +18,7 @@ from qfluentwidgets import (
 from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets import NavigationItemPosition, FluentWindow, SubtitleLabel, setFont
 from views.manga_browser_interface import MangaBrowserInterface
+from views.manga_translation_interface import MangaTranslationInterface
 from views.settings_interface import SettingsInterface
 import sys
 from core.config import config
@@ -53,6 +54,13 @@ class MainWindow(SplitFluentWindow):
         self.manga_browser_interface.setObjectName("mangaBrowserInterface")
         self.addSubInterface(
             self.manga_browser_interface, FIF.LIBRARY, "漫画", isTransparent=True
+        )
+
+        # 添加漫画翻译页面
+        self.manga_translation_interface = MangaTranslationInterface(self)
+        self.manga_translation_interface.setObjectName("mangaTranslationInterface")
+        self.addSubInterface(
+            self.manga_translation_interface, FIF.EDIT, "漫画翻译", isTransparent=True # <--- 确保使用 FIF.EDIT
         )
 
         # 添加设置页面

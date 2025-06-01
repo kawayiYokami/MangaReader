@@ -89,9 +89,7 @@ class OCRWorker(QThread):
                             text = str(text_info)
                             confidence = 1.0
                         
-                        # 尝试判断文本方向 (横向或竖向)
-                        # 假设 bbox 是 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-                        # 计算文本框的宽度和高度
+                        # 简化文本方向判断逻辑
                         # 找到最小/最大 x, y 坐标
                         x_coords = [p[0] for p in bbox]
                         y_coords = [p[1] for p in bbox]
@@ -104,16 +102,8 @@ class OCRWorker(QThread):
                         width = max_x - min_x
                         height = max_y - min_y
 
-                        direction = None
-                        if width > 0 and height > 0:
-                            # 简单的判断：如果宽度远大于高度，认为是横向；反之认为是竖向
-                            # 可以根据实际情况调整阈值
-                            if width / height > 1.5:  # 经验值，可调整
-                                direction = 'horizontal'
-                            elif height / width > 1.5: # 经验值，可调整
-                                direction = 'vertical'
-                            else:
-                                direction = 'unknown' # 或根据需要设置为默认方向
+                        # 宽大于高为横向，其他情况默认为竖向
+                        direction = 'horizontal' if width > height else 'vertical'
 
                         ocr_result = OCRResult(text, bbox, confidence, direction=direction)
                         ocr_results.append(ocr_result)
@@ -209,14 +199,12 @@ class OCRManager(QObject):
             return
         
         try:
-            # 读取图像
-            image = cv2.imread(image_path)
+            # 使用imdecode来支持Unicode路径
+            image_data = np.fromfile(image_path, dtype=np.uint8)
+            image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
             if image is None:
-                error_msg = f"无法读取图像文件: {image_path}"
-                log.error(error_msg)
-                self.ocr_error.emit(error_msg)
-                return
-            
+                raise ValueError(f"无法读取图像文件: {image_path}")
+                
             self.recognize_image_data(image, options)
             
         except Exception as e:
@@ -279,10 +267,14 @@ class OCRManager(QObject):
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"图像文件不存在: {image_path}")
         
-        # 读取图像
-        image = cv2.imread(image_path)
-        if image is None:
-            raise ValueError(f"无法读取图像文件: {image_path}")
+        # 使用imdecode来支持Unicode路径
+        try:
+            image_data = np.fromfile(image_path, dtype=np.uint8)
+            image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+            if image is None:
+                raise ValueError(f"无法读取图像文件: {image_path}")
+        except Exception as e:
+            raise ValueError(f"读取图像文件失败: {image_path}, 错误: {e}")
         
         return self.recognize_image_data_sync(image, options)
     
@@ -401,7 +393,7 @@ class OCRManager(QObject):
             # 绘制OCR结果
             result_image = draw_ocr(image_rgb, boxes, texts, scores)
             
-            # 保存图像
+            # 转换为PIL图像并保存
             pil_image = Image.fromarray(result_image)
             pil_image.save(output_path)
             
@@ -590,6 +582,7 @@ class OCRManager(QObject):
             结构化文本字典列表，每个字典包含：
             - text: 合并后的文本
             - ocr_results: 相关的OCR结果对象列表（包含所有原始OCR结果）
+            - direction: 文本方向('horizontal' 或 'vertical')
         """
         if not ocr_results:
             return []
@@ -614,16 +607,28 @@ class OCRManager(QObject):
                 # 检查边界框是否重叠
                 orig_bbox = orig.bbox
                 
-                # 计算两个框的边界
-                merged_left = min(p[0] for p in bbox)
-                merged_right = max(p[0] for p in bbox)
-                merged_top = min(p[1] for p in bbox)
-                merged_bottom = max(p[1] for p in bbox)
+                # 计算两个框的边界并放大1.1倍
+                # 计算合并框的中心点
+                merged_center_x = (min(p[0] for p in bbox) + max(p[0] for p in bbox)) / 2
+                merged_center_y = (min(p[1] for p in bbox) + max(p[1] for p in bbox)) / 2
+                # 计算合并框的宽度和高度并放大1.1倍
+                merged_width = (max(p[0] for p in bbox) - min(p[0] for p in bbox)) * 1.1
+                merged_height = (max(p[1] for p in bbox) - min(p[1] for p in bbox)) * 1.1
+                # 计算放大后的边界
+                merged_left = merged_center_x - merged_width / 2
+                merged_right = merged_center_x + merged_width / 2
+                merged_top = merged_center_y - merged_height / 2
+                merged_bottom = merged_center_y + merged_height / 2
                 
-                orig_left = min(p[0] for p in orig_bbox)
-                orig_right = max(p[0] for p in orig_bbox)
-                orig_top = min(p[1] for p in orig_bbox)
-                orig_bottom = max(p[1] for p in orig_bbox)
+                # 对原始框也进行同样的处理
+                orig_center_x = (min(p[0] for p in orig_bbox) + max(p[0] for p in orig_bbox)) / 2
+                orig_center_y = (min(p[1] for p in orig_bbox) + max(p[1] for p in orig_bbox)) / 2
+                orig_width = (max(p[0] for p in orig_bbox) - min(p[0] for p in orig_bbox)) * 1.1
+                orig_height = (max(p[1] for p in orig_bbox) - min(p[1] for p in orig_bbox)) * 1.1
+                orig_left = orig_center_x - orig_width / 2
+                orig_right = orig_center_x + orig_width / 2
+                orig_top = orig_center_y - orig_height / 2
+                orig_bottom = orig_center_y + orig_height / 2
                 
                 # 检查重叠
                 if not (merged_right < orig_left or 
@@ -633,8 +638,15 @@ class OCRManager(QObject):
                     associated_results.append(orig)
                     used_originals.add(id(orig))
             
+            # 确定文本方向
+            # 使用合并后的文本框尺寸判断方向
+            width = max(p[0] for p in bbox) - min(p[0] for p in bbox)
+            height = max(p[1] for p in bbox) - min(p[1] for p in bbox)
+            direction = 'horizontal' if width > height else 'vertical'
+            
             structure = {
                 'text': result.text,
+                'direction': direction,  # 添加方向信息
                 'ocr_results': associated_results if associated_results else [result]
             }
             structured_texts.append(structure)
@@ -642,11 +654,47 @@ class OCRManager(QObject):
         # 检查是否有未处理的原始结果
         for orig in ocr_results:
             if id(orig) not in used_originals:
+                # 计算单个结果的方向
+                bbox = orig.bbox
+                width = max(p[0] for p in bbox) - min(p[0] for p in bbox)
+                height = max(p[1] for p in bbox) - min(p[1] for p in bbox)
+                direction = 'horizontal' if width > height else 'vertical'
+                
                 structure = {
                     'text': orig.text,
+                    'direction': direction,  # 添加方向信息
                     'ocr_results': [orig]
                 }
                 structured_texts.append(structure)
                 used_originals.add(id(orig))
         
         return structured_texts
+
+    def filter_numeric_and_symbols(self, ocr_results: List[OCRResult]) -> List[OCRResult]:
+        """
+        过滤掉纯数字和符号的OCR结果
+        
+        Args:
+            ocr_results: OCR识别结果列表
+            
+        Returns:
+            过滤后的OCR结果列表
+        """
+        import re
+        
+        def is_pure_numeric_or_symbol(text: str) -> bool:
+            # 移除所有空白字符
+            text = ''.join(text.split())
+            # 检查是否只包含数字和常见符号
+            pattern = r'^[\d\s,.。:：\-_/\\+=\(\)\[\]【】［］（）\{\}]*$'
+            return bool(re.match(pattern, text))
+        
+        filtered_results = [result for result in ocr_results 
+                          if not is_pure_numeric_or_symbol(result.text)]
+        
+        removed_count = len(ocr_results) - len(filtered_results)
+        if removed_count > 0:
+            log.info(f"过滤纯数字和符号文本: {len(ocr_results)} -> {len(filtered_results)} "
+                    f"(移除了 {removed_count} 个纯数字/符号文本)")
+        
+        return filtered_results

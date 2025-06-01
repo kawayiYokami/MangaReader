@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from core.ocr_manager import OCRResult
+from core.config import config
 from utils import manga_logger as log
 
 
@@ -61,7 +62,7 @@ class MangaTextReplacement:
     # 适配属性
     max_width: Optional[int] = None
     max_height: Optional[int] = None
-    padding: int = 2  # 内边距
+    padding: int = 0  # 将内边距改为0
 
 
 class MangaTextReplacer:
@@ -69,35 +70,47 @@ class MangaTextReplacer:
     
     def __init__(self):
         """初始化漫画文本替换器"""
-        self.default_font_path = self._get_default_font_path()
         self.font_cache = {}  # 字体缓存
+        self.font_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'font')
         log.info("MangaTextReplacer初始化完成")
-    
+
     def _get_default_font_path(self) -> str:
         """获取默认字体路径"""
-        font_paths = [
-            # Windows系统字体 - 优先选择适合漫画的字体
-            "C:/Windows/Fonts/simkai.ttf",  # 楷体
+        # 首先尝试从配置获取字体
+        font_name = config.font_name.value
+        if font_name:
+            font_path = os.path.join(self.font_dir, font_name)
+            if os.path.exists(font_path):
+                log.info(f"使用配置的字体: {font_path}")
+                return font_path
+            else:
+                log.warning(f"配置的字体不存在: {font_path}")
+
+        # 如果配置的字体不可用，尝试使用系统字体
+        # 首先使用项目字体目录中的字体
+        system_fonts = []
+        if os.path.exists(self.font_dir):
+            for f in os.listdir(self.font_dir):
+                if f.lower().endswith(('.ttf', '.otf')):
+                    system_fonts.append(os.path.join(self.font_dir, f))
+        
+        # 添加系统字体路径
+        system_fonts.extend([
+            # Windows系统字体
+            "C:/Windows/Fonts/simkai.ttf",    # 楷体
             "C:/Windows/Fonts/simhei.ttf",    # 黑体
             "C:/Windows/Fonts/msyh.ttc",      # 微软雅黑
             "C:/Windows/Fonts/simsun.ttc",    # 宋体
-            "C:/Windows/Fonts/arial.ttf",     # Arial
-            "C:/Windows/Fonts/calibri.ttf",   # Calibri
-            # 项目内置字体
-            os.path.join(os.path.dirname(os.path.dirname(__file__)), "OnnxOCR", "onnxocr", "fonts", "simfang.ttf"),
             # Linux系统字体
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
             "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             # macOS系统字体
-            "/System/Library/Fonts/Arial.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
             "/System/Library/Fonts/PingFang.ttc"
-        ]
+        ])
         
-        for font_path in font_paths:
+        for font_path in system_fonts:
             if os.path.exists(font_path):
-                log.info(f"使用字体: {font_path}")
+                log.info(f"使用系统字体: {font_path}")
                 return font_path
         
         log.warning("未找到合适的字体文件，将使用PIL默认字体")
@@ -110,15 +123,22 @@ class MangaTextReplacer:
             return self.font_cache[cache_key]
         
         try:
-            if self.default_font_path:
-                font = ImageFont.truetype(self.default_font_path, size)
+            font_path = self._get_default_font_path()
+            if font_path:
+                try:
+                    font = ImageFont.truetype(font_path, size)
+                    log.info(f"成功加载字体: {font_path} (大小: {size}px)")
+                except Exception as e:
+                    log.error(f"加载字体 {font_path} 失败: {e}")
+                    font = ImageFont.load_default()
             else:
                 font = ImageFont.load_default()
+                log.warning("使用PIL默认字体")
             
             self.font_cache[cache_key] = font
             return font
         except Exception as e:
-            log.warning(f"加载字体失败: {e}")
+            log.error(f"获取字体时出错: {e}")
             font = ImageFont.load_default()
             self.font_cache[cache_key] = font
             return font
@@ -190,12 +210,6 @@ class MangaTextReplacer:
             # 然后验证列宽是否合适
             max_font_size_by_width = int(column_width * 0.95)  # 留一点边距
             font_size = min(font_size, max_font_size_by_width)
-            
-            print(f"   📏 垂直文本字体计算:")
-            print(f"      总宽度: {width}px, 列数: {column_count}")
-            print(f"      每列宽度: {column_width}px")
-            print(f"      总字符数: {len(text)}, 每列字符数: {chars_per_column}")
-            print(f"      计算字体大小: {font_size}px")
         
         # 确保字体大小在合理范围内
         return max(8, min(font_size, 1000))  # 恢复合理的字体大小范围
@@ -390,30 +404,16 @@ class MangaTextReplacer:
                     font_size=font_size,
                     line_spacing=line_spacing,
                     char_spacing=char_spacing,
-                    max_width=int(width * 0.9),
-                    max_height=int(height * 0.9),
+                    max_width=int(width),
+                    max_height=int(height),
                     column_count=column_count,  # 使用OCR结果数量作为列数
                     stroke_color=(255, 255, 255),  # 白边
                     stroke_width=2  # 白边宽度
                 )
                 
                 replacements.append(replacement)
-                
-                # 详细的调试输出
-                print(f"\n📝 创建漫画文本替换 #{len(replacements)}")
-                print(f"   原文: '{original_text}' ({len(original_text)} 字符)")
-                print(f"   译文: '{translated_text}' ({len(translated_text)} 字符)")
-                print(f"   文本方向: {original_direction.value} -> {target_direction.value}")
-                print(f"   文本框尺寸: {width}x{height} 像素")
-                print(f"   列数: {column_count}")
-                print(f"   字体大小: {font_size}px")
-                print(f"   行间距: {line_spacing}, 字符间距: {char_spacing}px")
-                print(f"   对齐方式: {alignment.value}")
-                print(f"   最大尺寸: {replacement.max_width}x{replacement.max_height}")
-                print(f"   字体颜色: 黑色 {replacement.font_color}")
-                print(f"   描边颜色: 白色 {replacement.stroke_color}, 宽度: {replacement.stroke_width}px")
-                
-                log.debug(f"创建漫画替换: '{original_text}' -> '{translated_text}' "
+                             
+                print(f"创建漫画替换: '{original_text}' -> '{translated_text}' "
                          f"({original_direction.value} -> {target_direction.value})")
         
         log.info(f"创建了 {len(replacements)} 个漫画文本替换")
@@ -435,9 +435,10 @@ class MangaTextReplacer:
                                   target_language: str,
                                   original_direction: TextDirection) -> TextDirection:
         """确定目标文本方向"""
-        # 漫画文本强制使用垂直排列，这是漫画的传统排版方式
-        # 无论原文是什么方向，译文都使用垂直排列
-        return TextDirection.VERTICAL
+        # 必须严格保持垂直文本的方向，如果是垂直的就保持垂直
+        if original_direction == TextDirection.VERTICAL:
+            return TextDirection.VERTICAL
+        return TextDirection.HORIZONTAL
     
     def _determine_alignment(self, direction: TextDirection,
                            target_language: str) -> TextAlignment:
@@ -455,14 +456,14 @@ class MangaTextReplacer:
         if direction == TextDirection.HORIZONTAL:
             # 水平文本的行间距
             if target_language in ["zh", "zh-cn", "ja", "ko"]:
-                line_spacing = 1.3  # 中日韩文字需要更大的行间距
+                line_spacing = 1.2  # 中日韩文字
             else:
-                line_spacing = 1.2  # 拉丁文字
-            char_spacing = 0.0
+                line_spacing = 1.1  # 拉丁文字
+            char_spacing = font_size * 0.1  # 字体大小的10%作为字符间距
         else:
-            # 垂直文本 - 减少字符间距避免视觉空格
+            # 垂直文本
             line_spacing = 1.1
-            char_spacing = font_size * 0.05  # 减少字符间距
+            char_spacing = font_size * 0.2  # 字体大小的20%作为字符间距
         
         return line_spacing, char_spacing
     
@@ -515,7 +516,6 @@ class MangaTextReplacer:
             x_max = min(image.shape[1], int(x_max))
             y_max = min(image.shape[0], int(y_max))
             
-            print(f"   🎨 涂白区域: ({x_min}, {y_min}) 到 ({x_max}, {y_max})")
             
             # 直接将文本区域涂白
             result = image.copy()
@@ -585,10 +585,13 @@ class MangaTextReplacer:
         if replacement.alignment == TextAlignment.MIDDLE:
             start_y = y + (max_height - total_height) // 2
         elif replacement.alignment == TextAlignment.BOTTOM:
-            start_y = y + max_height - total_height
+            start_y = y + (max_height - total_height)
         else: # TOP
             start_y = y
-            
+        
+        # 微调Y坐标，考虑字体本身的行间距
+        start_y = max(y, start_y - (line_height * 0.1))
+        
         current_y = start_y
         for line in lines:
             # 水平对齐
@@ -613,47 +616,102 @@ class MangaTextReplacer:
             draw.text((start_x, current_y), line, font=font, fill=replacement.font_color)
             current_y += line_height
 
+    def _convert_ellipsis_for_vertical(self, text: str) -> str:
+        """将水平省略号转换为垂直省略号
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            转换后的文本，将...替换为⋮
+        """
+        return text.replace('...', '⋮')
+
     def _draw_vertical_text(self, draw: ImageDraw.Draw,
                            replacement: MangaTextReplacement,
                            font: ImageFont.FreeTypeFont,
                            x: int, y: int, max_width: int, max_height: int) -> None:
-        """绘制垂直文本
+        """绘制垂直文本"""
+        print(f"\n=== 开始绘制垂直文本 ===")
+        print(f"原始文本: {replacement.translated_text}")
+        print(f"绘制区域: x={x}, y={y}, 最大宽度={max_width}, 最大高度={max_height}")
         
-        支持多列文本绘制，会根据文本框的宽度自动计算每列的宽度，
-        并尽可能均匀地将文本分布在各列中。
-        """
         # 使用传入的列数
         column_count = replacement.column_count
+        print(f"列数: {column_count}")
+        
+        # 处理省略号
+        processed_text = self._convert_ellipsis_for_vertical(replacement.translated_text)
         # 分割文本到对应的列数（从右到左的顺序）
-        text_columns = self._split_text_into_columns(replacement.translated_text, column_count)
+        text_columns = self._split_text_into_columns(processed_text, column_count)
         text_columns.reverse()  # 反转列的顺序，使其从右到左
         
-        # 计算每列的宽度
-        column_width = max_width / column_count
-        char_width = font.getbbox("中")[2] - font.getbbox("中")[0]  # 使用中文字符作为基准
-        char_height = font.getbbox("中")[3] - font.getbbox("中")[1]
+        # 根据字体大小计算字符尺寸和间距
+        char_bbox = font.getbbox("中")  # 使用中文字符作为基准
+        char_width = char_bbox[2] - char_bbox[0]
+        char_height = char_bbox[3] - char_bbox[1]
+        print(f"字符尺寸: 宽度={char_width}, 高度={char_height}")
         
-        for col_index, column_text in enumerate(text_columns):  # 现在从右到左遍历
-            current_x = x + (column_width * col_index) + (column_width - char_width) / 2
-            current_y = y
+        # 计算每列的宽度
+        min_column_width = char_width * 1.1  # 字符宽度
+        column_width = min(min_column_width, max_width / column_count)
+        
+        # 计算所有列实际占用的总宽度
+        total_columns_width = column_width * column_count
+        # 计算剩余空间
+        remaining_space = max_width - total_columns_width
+        # 计算起始X坐标（整体居中）
+        start_x = x + (remaining_space / 2)
+        
+        print(f"列宽: 最小={min_column_width}, 实际={column_width}")
+        print(f"总列宽: {total_columns_width}, 剩余空间: {remaining_space}")
+        print(f"整体起始X: {start_x}")
+
+        for col_index, column_text in enumerate(text_columns):
+            print(f"\n--- 列 {col_index + 1}/{len(text_columns)} ---")
+            print(f"列文本: {column_text}")
             
-            for char in column_text:
+            # 计算列的X坐标（考虑整体居中）
+            current_x = start_x + (column_width * col_index) + (column_width - char_width) / 2
+            current_y = y
+            print(f"列起始坐标: x={current_x}, y={current_y}")
+            
+            # 预先计算整列文本的总高度
+            total_height = len(column_text) * (char_height + char_height * 0.2)
+            print(f"列总高度: {total_height}")
+            
+            # 根据对齐方式计算初始 Y 偏移
+            initial_y_offset = 0
+            if replacement.alignment == TextAlignment.MIDDLE:
+                initial_y_offset = (max_height - total_height) / 2
+                print(f"中间对齐Y偏移: {initial_y_offset}")
+            elif replacement.alignment == TextAlignment.BOTTOM:
+                initial_y_offset = max_height - total_height
+                print(f"底部对齐Y偏移: {initial_y_offset}")
+            else:
+                print("顶部对齐，无Y偏移")
+            
+            # 应用初始 Y 偏移到当前 Y 坐标
+            current_y = y + initial_y_offset
+            print(f"应用Y偏移后的起始Y坐标: {current_y}")
+            
+            for i, char in enumerate(column_text):
                 if char == '\n':
                     continue
+
+                # 获取当前字符的具体尺寸
+                char_bbox = font.getbbox(char)
+                this_char_height = char_bbox[3] - char_bbox[1]
+                this_char_width = char_bbox[2] - char_bbox[0]
+                print(f"字符 '{char}' at {i}: 位置=({current_x}, {current_y}), 尺寸={this_char_width}x{this_char_height}")
+
+                # 计算基于字体大小的字符间距
+                char_spacing = char_height * 0.2
                 
-                # 计算字符绘制位置
-                char_y_offset = 0
-                if replacement.alignment == TextAlignment.MIDDLE:
-                    total_height = len(column_text) * (char_height + replacement.char_spacing)
-                    char_y_offset = (max_height - total_height) / 2
-                elif replacement.alignment == TextAlignment.BOTTOM:
-                    total_height = len(column_text) * (char_height + replacement.char_spacing)
-                    char_y_offset = max_height - total_height
-                
-                # 绘制文本描边
+                # 绘制文本描边和文本
                 if replacement.stroke_width > 0 and replacement.stroke_color:
                     draw.text(
-                        (current_x, current_y + char_y_offset),
+                        (current_x, current_y),
                         char, 
                         font=font,
                         fill=replacement.stroke_color,
@@ -661,21 +719,18 @@ class MangaTextReplacer:
                         stroke_fill=replacement.stroke_color
                     )
                 
-                # 绘制文本
                 draw.text(
-                    (current_x, current_y + char_y_offset),
+                    (current_x, current_y),
                     char,
                     font=font,
                     fill=replacement.font_color
                 )
                 
                 # 移动到下一个字符位置
-                current_y += char_height + replacement.char_spacing
-                
-                # 如果超出最大高度，重置到下一列
-                if current_y + char_height > y + max_height:
-                    current_x += column_width
-                    current_y = y
+                current_y += this_char_height + char_spacing
+                print(f"下一字符Y坐标: {current_y}")
+
+        print("=== 垂直文本绘制完成 ===\n")
 
     def replace_manga_text(self, image: np.ndarray, 
                            replacements: List[MangaTextReplacement],
@@ -694,7 +749,7 @@ class MangaTextReplacer:
         result_image = image.copy()
         
         for replacement in replacements:
-            log.debug(f"处理替换: '{replacement.original_text}' -> '{replacement.translated_text}'")
+            print(f"处理替换: '{replacement.original_text}' -> '{replacement.translated_text}'")
             
             # 1. 修复背景（涂白）
             if inpaint_background:
@@ -762,7 +817,14 @@ class MangaTextReplacer:
             bbox = [[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max]]
             
             # 确定文本方向
-            original_direction = self._detect_text_direction(bbox)
+            if item.get('direction') == 'vertical':
+                original_direction = TextDirection.VERTICAL
+            elif item.get('direction') == 'horizontal':
+                original_direction = TextDirection.HORIZONTAL
+            else:
+                original_direction = self._detect_text_direction(bbox)
+                log.warning(f"未找到文本方向信息，使用检测到的方向: {original_direction}")
+
             target_direction = self._determine_target_direction(
                 original_text, translated_text, target_language, original_direction
             )
@@ -791,8 +853,8 @@ class MangaTextReplacer:
                 font_size=font_size,
                 line_spacing=line_spacing,
                 char_spacing=char_spacing,
-                max_width=int(width * 0.9),
-                max_height=int(height * 0.9),
+                max_width=int(width),
+                max_height=int(height),
                 column_count=column_count,
                 stroke_color=(255, 255, 255),
                 stroke_width=2
