@@ -8,55 +8,31 @@ from typing import List, Tuple, Optional, Dict, Any
 from PySide6.QtCore import QObject, Signal, QThread
 from utils import manga_logger as log
 from core.config import config
+from core.cache_factory import get_cache_factory_instance # Added
+from core.cache_interface import CacheInterface # Added
+from core.data_models import OCRResult # Import OCRResult from data_models
 
 # 导入OnnxOCR
 import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'OnnxOCR'))
 from onnxocr.onnx_paddleocr import ONNXPaddleOcr
 
-
-class OCRResult:
-    """OCR识别结果数据类"""
-    def __init__(self, text: str, bbox: List[List[int]], confidence: float,
-                 direction: Optional[str] = None, column: Optional[int] = None, row: Optional[int] = None,
-                 merged_count: int = 1, ocr_results: Optional[List[Any]] = None):
-        self.text = text  # 识别的文本
-        self.translated_texts = []  # 翻译后的文本列表
-        self.bbox = bbox  # 文本框坐标 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-        self.confidence = confidence  # 置信度
-        self.direction = direction  # 文本方向，例如 'horizontal' 或 'vertical'
-        self.column = column  # 文本所属的列
-        self.row = row  # 文本所属的行
-        self.merged_count = merged_count  # 合并计数，表示由多少个文本框合并而来
-        self.ocr_results = ocr_results if ocr_results is not None else []  # 原始OCR结果列表
-        
-    def __str__(self):
-        return f"OCRResult(text='{self.text}', confidence={self.confidence:.3f}, direction='{self.direction}', column={self.column}, row={self.row}, merged_count={self.merged_count})"
-        
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式"""
-        return {
-            'text': self.text,
-            'bbox': self.bbox,
-            'confidence': self.confidence,
-            'direction': self.direction,
-            'column': self.column,
-            'row': self.row,
-            'merged_count': self.merged_count
-        }
+# OCRResult class definition is removed from here
 
 
-class OCRWorker(QThread):
+class OCRWorker(QThread): # This worker will now also need file_path and page_num for caching
     """OCR工作线程"""
-    ocr_finished = Signal(list)  # 识别完成信号
+    ocr_finished = Signal(list, str, int)  #识别完成信号 (results, file_path, page_num)
     ocr_error = Signal(str)      # 识别错误信号
     ocr_progress = Signal(str)   # 进度信号
     
-    def __init__(self, ocr_engine, image_data, ocr_options):
+    def __init__(self, ocr_engine, image_data, ocr_options, file_path: str, page_num: int):
         super().__init__()
         self.ocr_engine = ocr_engine
         self.image_data = image_data
         self.ocr_options = ocr_options
+        self.file_path = file_path
+        self.page_num = page_num
         
     def run(self):
         """执行OCR识别"""
@@ -76,7 +52,7 @@ class OCRWorker(QThread):
             processing_time = end_time - start_time
             
             # 解析结果
-            ocr_results = []
+            ocr_results_list = []
             if result and len(result) > 0 and result[0]:
                 for line in result[0]:
                     if len(line) >= 2:
@@ -89,30 +65,22 @@ class OCRWorker(QThread):
                             text = str(text_info)
                             confidence = 1.0
                         
-                        # 简化文本方向判断逻辑
-                        # 找到最小/最大 x, y 坐标
                         x_coords = [p[0] for p in bbox]
                         y_coords = [p[1] for p in bbox]
-
-                        min_x = min(x_coords)
-                        min_y = min(y_coords)
-                        max_x = max(x_coords)
-                        max_y = max(y_coords)
-
+                        min_x, max_x = min(x_coords), max(x_coords)
+                        min_y, max_y = min(y_coords), max(y_coords)
                         width = max_x - min_x
                         height = max_y - min_y
-
-                        # 宽大于高为横向，其他情况默认为竖向
                         direction = 'horizontal' if width > height else 'vertical'
 
-                        ocr_result = OCRResult(text, bbox, confidence, direction=direction)
-                        ocr_results.append(ocr_result)
+                        ocr_result_obj = OCRResult(text, bbox, confidence, direction=direction)
+                        ocr_results_list.append(ocr_result_obj)
             
-            self.ocr_progress.emit(f"OCR识别完成，耗时 {processing_time:.2f}秒，识别到 {len(ocr_results)} 个文本区域")
-            self.ocr_finished.emit(ocr_results)
+            self.ocr_progress.emit(f"OCR识别完成，耗时 {processing_time:.2f}秒，识别到 {len(ocr_results_list)} 个文本区域")
+            self.ocr_finished.emit(ocr_results_list, self.file_path, self.page_num) # Emit with file_path and page_num
             
         except Exception as e:
-            error_msg = f"OCR识别过程中发生错误: {str(e)}"
+            error_msg = f"OCR识别过程中发生错误 (文件: {self.file_path}, 页码: {self.page_num}): {str(e)}"
             log.error(error_msg)
             self.ocr_error.emit(error_msg)
 
@@ -122,7 +90,8 @@ class OCRManager(QObject):
     
     # 信号定义
     ocr_started = Signal()                    # OCR开始信号
-    ocr_finished = Signal(list)               # OCR完成信号，传递OCRResult列表
+    ocr_finished = Signal(list)               # OCR完成信号，传递OCRResult列表 (original, for non-cached path or direct calls)
+    ocr_cache_loaded = Signal(list)           # OCR结果从缓存加载完成信号
     ocr_error = Signal(str)                   # OCR错误信号
     ocr_progress = Signal(str)                # OCR进度信号
     model_loaded = Signal()                   # 模型加载完成信号
@@ -133,12 +102,14 @@ class OCRManager(QObject):
         
         log.info("OCRManager初始化开始")
         
+        self.ocr_cache_manager: CacheInterface = get_cache_factory_instance().get_manager("ocr")
+        
         # OCR引擎实例
         self.ocr_engine = None
         self.is_model_loaded = False
         
         # 工作线程
-        self.ocr_worker = None
+        self.ocr_worker: Optional[OCRWorker] = None # Type hint
         
         # OCR配置选项
         self.ocr_options = {
@@ -178,46 +149,13 @@ class OCRManager(QObject):
         """检查OCR引擎是否准备就绪"""
         return self.is_model_loaded and self.ocr_engine is not None
     
-    def recognize_image(self, image_path: str, options: Optional[Dict[str, Any]] = None) -> None:
+    def recognize_image_with_cache(self, file_path: str, page_num: int, image_data: np.ndarray, options: Optional[Dict[str, Any]] = None) -> None:
         """
-        识别图像中的文字（异步）
-        
+        识别图像数据中的文字（异步），优先使用缓存。
         Args:
-            image_path: 图像文件路径
-            options: OCR选项，如 {'det': True, 'rec': True, 'cls': True}
-        """
-        if not self.is_ready():
-            error_msg = "OCR引擎未准备就绪，请先加载模型"
-            log.error(error_msg)
-            self.ocr_error.emit(error_msg)
-            return
-        
-        if not os.path.exists(image_path):
-            error_msg = f"图像文件不存在: {image_path}"
-            log.error(error_msg)
-            self.ocr_error.emit(error_msg)
-            return
-        
-        try:
-            # 使用imdecode来支持Unicode路径
-            image_data = np.fromfile(image_path, dtype=np.uint8)
-            image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
-            if image is None:
-                raise ValueError(f"无法读取图像文件: {image_path}")
-                
-            self.recognize_image_data(image, options)
-            
-        except Exception as e:
-            error_msg = f"读取图像文件时发生错误: {str(e)}"
-            log.error(error_msg)
-            self.ocr_error.emit(error_msg)
-    
-    def recognize_image_data(self, image_data: np.ndarray, options: Optional[Dict[str, Any]] = None) -> None:
-        """
-        识别图像数据中的文字（异步）
-        
-        Args:
-            image_data: 图像数据（numpy数组）
+            file_path: 原始漫画文件路径 (用于生成缓存键)
+            page_num: 当前页码 (用于生成缓存键)
+            image_data: 图像数据 (numpy数组)
             options: OCR选项
         """
         if not self.is_ready():
@@ -225,22 +163,39 @@ class OCRManager(QObject):
             log.error(error_msg)
             self.ocr_error.emit(error_msg)
             return
+
+        try:
+            cache_key = self.ocr_cache_manager.generate_key(file_path, page_num)
+            cached_results = self.ocr_cache_manager.get(cache_key)
+
+            if cached_results is not None:
+                log.info(f"OCR结果从缓存加载: {file_path} (页码 {page_num})")
+                self.ocr_cache_loaded.emit(cached_results)
+                return
+        except Exception as e: # Catch errors during key generation or cache get
+            log.error(f"检查或获取OCR缓存时出错 (文件: {file_path}, 页码: {page_num}): {e}")
+            # Proceed to OCR without cache if error occurs here
+
+        log.info(f"未找到OCR缓存或缓存无效，开始识别: {file_path} (页码 {page_num})")
         
         # 停止之前的识别任务
         if self.ocr_worker and self.ocr_worker.isRunning():
-            self.ocr_worker.terminate()
-            self.ocr_worker.wait()
+            log.info("检测到正在运行的OCR任务，正在终止...")
+            self.ocr_worker.terminate() # Request termination
+            if not self.ocr_worker.wait(3000): # Wait up to 3 seconds
+                 log.warning("OCR工作线程未能及时终止。")
+                 # Depending on requirements, could force quit or raise error
         
         # 合并选项
-        ocr_options = self.ocr_options.copy()
+        current_ocr_options = self.ocr_options.copy()
         if options:
-            ocr_options.update(options)
+            current_ocr_options.update(options)
         
         # 创建工作线程
-        self.ocr_worker = OCRWorker(self.ocr_engine, image_data, ocr_options)
+        self.ocr_worker = OCRWorker(self.ocr_engine, image_data, current_ocr_options, file_path, page_num)
         
         # 连接信号
-        self.ocr_worker.ocr_finished.connect(self._on_ocr_finished)
+        self.ocr_worker.ocr_finished.connect(self._on_ocr_finished_and_cache) # Connect to new slot
         self.ocr_worker.ocr_error.connect(self._on_ocr_error)
         self.ocr_worker.ocr_progress.connect(self._on_ocr_progress)
         
@@ -249,8 +204,80 @@ class OCRManager(QObject):
         
         # 启动线程
         self.ocr_worker.start()
-    
-    def recognize_image_sync(self, image_path: str, options: Optional[Dict[str, Any]] = None) -> List[OCRResult]:
+
+    # Keep original recognize_image_data if it's used elsewhere without caching context
+    # Or adapt it to call recognize_image_with_cache if file_path and page_num can be provided
+    def recognize_image_data(self, image_data: np.ndarray, options: Optional[Dict[str, Any]] = None,
+                             file_path_for_cache: Optional[str] = None, page_num_for_cache: Optional[int] = None) -> None:
+        """
+        识别图像数据中的文字（异步）。
+        如果提供了 file_path_for_cache 和 page_num_for_cache，则会尝试使用缓存。
+        """
+        if file_path_for_cache and page_num_for_cache is not None:
+            self.recognize_image_with_cache(file_path_for_cache, page_num_for_cache, image_data, options)
+        else:
+            # Fallback to non-cached version or simple OCR if no cache info
+            log.warning("recognize_image_data 调用时未提供缓存信息，将不使用缓存。")
+            if not self.is_ready():
+                self.ocr_error.emit("OCR引擎未准备就绪")
+                return
+
+            if self.ocr_worker and self.ocr_worker.isRunning():
+                self.ocr_worker.terminate()
+                self.ocr_worker.wait()
+            
+            current_ocr_options = self.ocr_options.copy()
+            if options:
+                current_ocr_options.update(options)
+            
+            # Create a dummy file_path and page_num if we must use the new OCRWorker signature
+            # This path won't be used for caching effectively if it's not the real one.
+            # This indicates a need to refactor callers or OCRWorker.
+            # For now, let's assume OCRWorker's file_path/page_num are for caching,
+            # so if no cache info, they can be dummy values.
+            temp_file_path = "unknown_source"
+            temp_page_num = -1
+
+            self.ocr_worker = OCRWorker(self.ocr_engine, image_data, current_ocr_options, temp_file_path, temp_page_num)
+            self.ocr_worker.ocr_finished.connect(self._on_ocr_finished_simple) # Connect to a slot that doesn't cache
+            self.ocr_worker.ocr_error.connect(self._on_ocr_error)
+            self.ocr_worker.ocr_progress.connect(self._on_ocr_progress)
+            self.ocr_started.emit()
+            self.ocr_worker.start()
+
+    def recognize_image(self, image_path: str, page_num: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> None:
+        """
+        识别图像文件中的文字（异步），如果提供了 page_num，则会尝试使用缓存。
+        Args:
+            image_path: 图像文件路径
+            page_num: 页码 (可选, 用于缓存)
+            options: OCR选项
+        """
+        if not self.is_ready():
+            self.ocr_error.emit("OCR引擎未准备就绪")
+            return
+        
+        if not os.path.exists(image_path):
+            self.ocr_error.emit(f"图像文件不存在: {image_path}")
+            return
+        
+        try:
+            img_data_np = np.fromfile(image_path, dtype=np.uint8)
+            image = cv2.imdecode(img_data_np, cv2.IMREAD_COLOR)
+            if image is None:
+                raise ValueError(f"无法读取图像文件: {image_path}")
+            
+            if page_num is not None:
+                self.recognize_image_with_cache(image_path, page_num, image, options)
+            else:
+                # Call the version that doesn't use cache or pass None for cache params
+                self.recognize_image_data(image, options, file_path_for_cache=None, page_num_for_cache=None)
+                
+        except Exception as e:
+            self.ocr_error.emit(f"读取或处理图像时出错 {image_path}: {str(e)}")
+
+
+    def recognize_image_sync(self, image_path: str, page_num: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> List[OCRResult]:
         """
         同步识别图像中的文字
         
@@ -278,59 +305,108 @@ class OCRManager(QObject):
         
         return self.recognize_image_data_sync(image, options)
     
-    def recognize_image_data_sync(self, image_data: np.ndarray, options: Optional[Dict[str, Any]] = None) -> List[OCRResult]:
+    def recognize_image_data_sync(self, image_data: np.ndarray,
+                                  file_path_for_cache: Optional[str] = None,
+                                  page_num_for_cache: Optional[int] = None,
+                                  original_archive_path: Optional[str] = None, # Added
+                                  options: Optional[Dict[str, Any]] = None) -> List[OCRResult]:
         """
-        同步识别图像数据中的文字
-        
+        同步识别图像数据中的文字，优先使用缓存。
         Args:
-            image_data: 图像数据（numpy数组）
+            image_data: 图像数据
+            file_path_for_cache: 用于缓存的实际图片文件路径 (例如解压后的临时文件路径)
+            page_num_for_cache: 页码
+            original_archive_path: 原始压缩包路径 (如果适用)，用于生成一致的缓存键和元数据
             options: OCR选项
-            
-        Returns:
-            OCRResult列表
         """
         if not self.is_ready():
             raise RuntimeError("OCR引擎未准备就绪，请先加载模型")
+
+        if file_path_for_cache and page_num_for_cache is not None:
+            try:
+                # Generate key using original_archive_path if available, otherwise file_path_for_cache
+                key_path = original_archive_path if original_archive_path else file_path_for_cache
+                cache_key = self.ocr_cache_manager.generate_key(
+                    file_path=key_path, # Use the determined path for key generation
+                    page_num=page_num_for_cache,
+                    # original_archive_path is implicitly handled by generate_key if key_path is original_archive_path
+                )
+                cached_results = self.ocr_cache_manager.get(cache_key)
+                if cached_results is not None:
+                    log_msg_cache = f"同步OCR结果从缓存加载: 键='{cache_key}', 实际文件='{file_path_for_cache}', 页码={page_num_for_cache}"
+                    if original_archive_path:
+                        log_msg_cache += f", 原始存档='{original_archive_path}'"
+                    log.info(log_msg_cache)
+                    return cached_results
+            except Exception as e:
+                log.error(f"同步检查或获取OCR缓存时出错 (实际文件: {file_path_for_cache}, 页码: {page_num_for_cache}, 原始存档: {original_archive_path}): {e}")
         
-        # 合并选项
-        ocr_options = self.ocr_options.copy()
+        current_ocr_options = self.ocr_options.copy()
         if options:
-            ocr_options.update(options)
+            current_ocr_options.update(options)
         
         try:
-            log.info("开始同步OCR识别...")
+            log_msg_ocr = f"开始同步OCR识别 (实际文件: {file_path_for_cache or 'N/A'}, 页码: {page_num_for_cache if page_num_for_cache is not None else 'N/A'}"
+            if original_archive_path:
+                log_msg_ocr += f", 原始存档: {original_archive_path}"
+            log_msg_ocr += ")..."
+            log.info(log_msg_ocr)
             start_time = time.time()
             
-            # 执行OCR识别
             result = self.ocr_engine.ocr(
                 image_data,
-                det=ocr_options.get('det', True),
-                rec=ocr_options.get('rec', True),
-                cls=ocr_options.get('cls', True)
+                det=current_ocr_options.get('det', True),
+                rec=current_ocr_options.get('rec', True),
+                cls=current_ocr_options.get('cls', True)
             )
             
             end_time = time.time()
             processing_time = end_time - start_time
             
-            # 解析结果
-            ocr_results = []
+            ocr_results_list = []
             if result and len(result) > 0 and result[0]:
                 for line in result[0]:
                     if len(line) >= 2:
                         bbox = line[0]
                         text_info = line[1]
-                        if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
-                            text = text_info[0]
-                            confidence = text_info[1]
-                        else:
-                            text = str(text_info)
-                            confidence = 1.0
+                        text = text_info[0] if isinstance(text_info, (list, tuple)) and len(text_info) >= 2 else str(text_info)
+                        confidence = text_info[1] if isinstance(text_info, (list, tuple)) and len(text_info) >= 2 else 1.0
                         
-                        ocr_result = OCRResult(text, bbox, confidence)
-                        ocr_results.append(ocr_result)
+                        x_coords = [p[0] for p in bbox]
+                        y_coords = [p[1] for p in bbox]
+                        min_x, max_x = min(x_coords), max(x_coords)
+                        min_y, max_y = min(y_coords), max(y_coords)
+                        width = max_x - min_x
+                        height = max_y - min_y
+                        direction = 'horizontal' if width > height else 'vertical'
+                        ocr_results_list.append(OCRResult(text, bbox, confidence, direction=direction))
             
-            log.info(f"同步OCR识别完成，耗时 {processing_time:.2f}秒，识别到 {len(ocr_results)} 个文本区域")
-            return ocr_results
+            log.info(f"同步OCR识别完成，耗时 {processing_time:.2f}秒，识别到 {len(ocr_results_list)} 个文本区域")
+
+            if file_path_for_cache and page_num_for_cache is not None and ocr_results_list: # Cache if results found
+                try:
+                    # Generate key using original_archive_path if available for consistency
+                    key_path_for_save = original_archive_path if original_archive_path else file_path_for_cache
+                    cache_key_to_save = self.ocr_cache_manager.generate_key(
+                        file_path=key_path_for_save,
+                        page_num=page_num_for_cache
+                        # original_archive_path is implicitly handled by generate_key if key_path_for_save is original_archive_path
+                    )
+                    self.ocr_cache_manager.set(
+                        cache_key_to_save,
+                        ocr_results_list,
+                        file_path=file_path_for_cache, # Actual image path that was OCR'd
+                        page_num=page_num_for_cache,
+                        original_archive_path=original_archive_path # For DB metadata consistency
+                    )
+                    log_msg_set = f"同步OCR结果已缓存: 键='{cache_key_to_save}', 实际文件='{file_path_for_cache}', 页码={page_num_for_cache}"
+                    if original_archive_path:
+                        log_msg_set += f", 原始存档='{original_archive_path}'"
+                    log.info(log_msg_set)
+                except Exception as e_cache_set:
+                    log.error(f"设置OCR缓存时出错 (实际文件: {file_path_for_cache}, 页码: {page_num_for_cache}, 原始存档: {original_archive_path}): {e_cache_set}")
+
+            return ocr_results_list
             
         except Exception as e:
             error_msg = f"同步OCR识别过程中发生错误: {str(e)}"
@@ -352,10 +428,26 @@ class OCRManager(QObject):
             log.info("停止OCR识别任务")
             self.ocr_worker.terminate()
             self.ocr_worker.wait()
-    
-    def _on_ocr_finished(self, results: List[OCRResult]):
-        """OCR完成回调"""
-        self.ocr_finished.emit(results)
+
+    def _on_ocr_finished_simple(self, results: List[OCRResult], file_path: str, page_num: int):
+        """OCR完成回调 - 不进行缓存"""
+        # file_path and page_num are from OCRWorker but not used here for caching
+        log.debug(f"OCR (simple, no cache) finished for {file_path} page {page_num}")
+        self.ocr_finished.emit(results) # Emit original signal
+
+    def _on_ocr_finished_and_cache(self, results: List[OCRResult], file_path: str, page_num: int):
+        """OCR完成回调，并将结果存入缓存"""
+        try:
+            if results: # Only cache if there are results
+                cache_key = self.ocr_cache_manager.generate_key(file_path, page_num)
+                self.ocr_cache_manager.set(cache_key, results, file_path=file_path, page_num=page_num)
+                log.info(f"OCR结果已缓存: {file_path} (页码 {page_num})")
+            else:
+                log.info(f"未识别到OCR结果，不进行缓存: {file_path} (页码 {page_num})")
+        except Exception as e:
+            log.error(f"缓存OCR结果时出错 (文件: {file_path}, 页码: {page_num}): {e}")
+        
+        self.ocr_finished.emit(results) # Emit original signal as well
     
     def _on_ocr_error(self, error_msg: str):
         """OCR错误回调"""

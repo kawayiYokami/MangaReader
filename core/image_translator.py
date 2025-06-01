@@ -94,12 +94,15 @@ class ImageTranslator:
         return (self.ocr_manager and self.ocr_manager.is_ready() and 
                 self.translator and self.manga_text_replacer)
     
-    def translate_image(self, 
+    def translate_image(self,
                        image_input: Union[str, np.ndarray],
                        target_language: str = "zh",
                        output_path: Optional[str] = None,
                        save_original: bool = False,
-                       ocr_options: Optional[Dict[str, Any]] = None) -> np.ndarray:
+                       ocr_options: Optional[Dict[str, Any]] = None,
+                       file_path_for_cache: Optional[str] = None,
+                       page_num_for_cache: Optional[int] = None,
+                       original_archive_path_for_cache: Optional[str] = None) -> np.ndarray:
         """
         翻译图片中的文字
         
@@ -109,6 +112,9 @@ class ImageTranslator:
             output_path: 输出图片路径(可选)
             save_original: 是否保存原图副本
             ocr_options: OCR选项
+            file_path_for_cache: 用于OCR缓存的图片文件路径 (通常是原始文件或解压后的临时文件)
+            page_num_for_cache: 用于OCR缓存的页码
+            original_archive_path_for_cache: 如果图片来自压缩包，此为原始压缩包路径，用于OCR缓存
             
         Returns:
             翻译后的图片数据(numpy数组)
@@ -119,19 +125,19 @@ class ImageTranslator:
         if not self.is_ready():
             raise RuntimeError("图片翻译器未准备就绪，请检查各组件初始化状态")
         
-        # 1. 加载图片
+        current_file_path_for_cache = file_path_for_cache
+        
         if isinstance(image_input, str):
             if not os.path.exists(image_input):
                 raise FileNotFoundError(f"图片文件不存在: {image_input}")
             
-            # 处理文件路径编码问题
             try:
-                # 使用imdecode直接读取，支持Unicode路径
                 image_data = cv2.imdecode(np.fromfile(image_input, dtype=np.uint8), cv2.IMREAD_COLOR)
                 if image_data is None:
                     raise ValueError(f"无法读取图片文件: {image_input}")
-                    
                 log.info(f"已加载图片: {image_input}")
+                if current_file_path_for_cache is None:
+                    current_file_path_for_cache = image_input
             except Exception as e:
                 raise ValueError(f"读取图片文件失败: {image_input}, 错误: {e}")
                 
@@ -140,34 +146,35 @@ class ImageTranslator:
             log.info("已加载图片数据")
         else:
             raise ValueError("image_input必须是文件路径或numpy数组")
-        
-        # 保存原图副本
+            
         if save_original and output_path:
             original_path = self._get_original_path(output_path)
-            if self._save_image(image_data, original_path):
-                log.info(f"原图已保存: {original_path}")
+            # 确保 original_path 使用 .webp 扩展名
+            original_path_webp = str(Path(original_path).with_suffix('.webp'))
+            if self._save_image(image_data, original_path_webp):
+                log.info(f"原图已保存: {original_path_webp}")
             else:
-                log.warning(f"原图保存失败: {original_path}")
+                log.warning(f"原图保存失败: {original_path_webp}")
         
         try:
-            # 2. OCR识别
             log.info("开始OCR识别...")
             ocr_results = self.ocr_manager.recognize_image_data_sync(
-                image_data, options=ocr_options
+                image_data,
+                file_path_for_cache=current_file_path_for_cache,
+                page_num_for_cache=page_num_for_cache,
+                original_archive_path=original_archive_path_for_cache,
+                options=ocr_options
             )
-            
             if not ocr_results:
                 log.warning("未识别到任何文本")
                 return image_data
             
             log.info(f"OCR识别完成，识别到 {len(ocr_results)} 个文本区域")
             
-            # 过滤纯数字和符号的文本
             ocr_results = self.ocr_manager.filter_numeric_and_symbols(ocr_results)
             
-            # 过滤低置信度的 OCR 结果
             filtered_ocr_results = [
-                result for result in ocr_results 
+                result for result in ocr_results
                 if result.confidence >= 0.75
             ]
             
@@ -178,17 +185,14 @@ class ImageTranslator:
                 log.warning("过滤后没有置信度足够高的文本区域")
                 return image_data
             
-            # 3. 获取结构化文本
             structured_texts = self.ocr_manager.get_structured_text(filtered_ocr_results)
             log.info(f"获取到 {len(structured_texts)} 个结构化文本块")
             
-            # 4. 翻译文本
             log.info("开始翻译...")
             translations = {}
             texts_to_translate = []
-            original_text_map = {}  # 用于记录原文和结构化文本的对应关系
+            original_text_map = {}
             
-            # 收集需要翻译的文本
             for i, item in enumerate(structured_texts):
                 full_text = item['text']
                 if not full_text.strip():
@@ -196,46 +200,34 @@ class ImageTranslator:
                 texts_to_translate.append(full_text)
                 original_text_map[full_text] = item
             
-            # 根据翻译器类型选择翻译方式
             if isinstance(self.translator, TranslatorFactory.create_translator("智谱").__class__):
-                # 使用智谱翻译器的批量翻译功能
                 log.info(f"使用智谱翻译器批量翻译 {len(texts_to_translate)} 个文本块...")
                 translated_texts = self.translator.translate_batch(texts_to_translate, target_lang=target_language)
                 
-                # 将翻译结果添加到映射
                 for original, translated in zip(texts_to_translate, translated_texts):
                     translations[original] = translated
-                    
-                    # 更新相关OCR结果的翻译文本
                     item = original_text_map[original]
                     for ocr_result in item['ocr_results']:
                         ocr_result.translated_text = translated
-                    
                     log.debug(f"翻译: '{original}' -> '{translated}'")
             else:
-                # 使用其他翻译器逐个翻译
                 for full_text in texts_to_translate:
                     try:
                         translated = self.translator.translate(full_text, target_lang=target_language)
                         translations[full_text] = translated
-                        
-                        # 更新相关OCR结果的翻译文本
                         item = original_text_map[full_text]
                         for ocr_result in item['ocr_results']:
                             ocr_result.translated_text = translated
-                            
                         log.debug(f"翻译: '{full_text}' -> '{translated}'")
                     except Exception as e:
                         log.error(f"翻译失败: {full_text}, 错误: {e}")
-                        translations[full_text] = full_text  # 翻译失败时使用原文
+                        translations[full_text] = full_text
             
             log.info(f"翻译完成，共翻译 {len(translations)} 个文本块")
             
-            # 5. 创建翻译字典，将翻译结果按原顺序排列
             translated_texts = [translations.get(item['text'], item['text']) for item in structured_texts]
             translation_dict = create_manga_translation_dict(structured_texts, translated_texts)
             
-            # 6. 文本替换
             log.info("开始文本替换...")
             result_image = self.manga_text_replacer.process_manga_image(
                 image_data,
@@ -247,12 +239,13 @@ class ImageTranslator:
             
             log.info("文本替换完成")
             
-            # 7. 保存结果
             if output_path:
-                if self._save_image(result_image, output_path):
-                    log.info(f"翻译结果已保存: {output_path}")
+                # 确保 output_path 使用 .webp 扩展名
+                output_path_webp = str(Path(output_path).with_suffix('.webp'))
+                if self._save_image(result_image, output_path_webp):
+                    log.info(f"翻译结果已保存: {output_path_webp}")
                 else:
-                    log.error(f"保存翻译结果失败: {output_path}")
+                    log.error(f"保存翻译结果失败: {output_path_webp}")
             
             return result_image
             
@@ -283,7 +276,7 @@ class ImageTranslator:
         
         # 生成输出文件名
         input_path = Path(image_path)
-        output_filename = f"{input_path.stem}_translated_{target_language}{input_path.suffix}"
+        output_filename = f"{input_path.stem}_translated_{target_language}.webp" # 固定使用 .webp
         output_path = os.path.join(output_dir, output_filename)
         
         # 执行翻译
@@ -356,7 +349,10 @@ class ImageTranslator:
     def batch_translate_images_optimized(self,
                                  image_inputs: List[Union[str, np.ndarray]],
                                  output_paths: Optional[List[str]] = None,
-                                 target_language: str = "zh") -> List[np.ndarray]:
+                                 target_language: str = "zh",
+                                 file_paths_for_cache: Optional[List[str]] = None,
+                                 page_nums_for_cache: Optional[List[int]] = None,
+                                 original_archive_paths_for_cache: Optional[List[Optional[str]]] = None) -> List[np.ndarray]:
         """
         优化的批量翻译功能，一次性处理所有图片的 OCR 和翻译
         
@@ -364,6 +360,9 @@ class ImageTranslator:
             image_inputs: 输入图片路径或图片数据列表
             output_paths: 输出图片路径列表（可选）
             target_language: 目标语言代码
+            file_paths_for_cache: 用于OCR缓存的图片文件路径列表
+            page_nums_for_cache: 用于OCR缓存的页码列表
+            original_archive_paths_for_cache: 原始压缩包路径列表 (如果适用)，用于OCR缓存
             
         Returns:
             翻译后的图片数据列表
@@ -371,13 +370,11 @@ class ImageTranslator:
         if not self.is_ready():
             raise RuntimeError("图片翻译器未准备就绪，请检查各组件初始化状态")
         
-        # 1. 加载所有图片
         images_data = []
         for img_input in image_inputs:
             if isinstance(img_input, str):
                 if not os.path.exists(img_input):
                     raise FileNotFoundError(f"图片文件不存在: {img_input}")
-                # 使用imdecode处理Unicode文件名
                 img_data = cv2.imdecode(np.fromfile(img_input, dtype=np.uint8), cv2.IMREAD_COLOR)
                 if img_data is None:
                     raise ValueError(f"无法读取图片文件: {img_input}")
@@ -390,16 +387,39 @@ class ImageTranslator:
         log.info(f"已加载 {len(images_data)} 张图片")
         
         try:
-            # 2. 对所有图片进行 OCR 识别
             log.info("开始批量 OCR 识别...")
             all_ocr_results = []
             all_structured_texts = []
             
+            use_cache = (
+                file_paths_for_cache is not None and
+                page_nums_for_cache is not None and
+                original_archive_paths_for_cache is not None and
+                len(file_paths_for_cache) == len(images_data) and
+                len(page_nums_for_cache) == len(images_data) and
+                len(original_archive_paths_for_cache) == len(images_data)
+            )
+            
+            if not use_cache:
+                log.warning("批量翻译未提供完整的缓存信息 (文件路径、页码、原始存档路径列表均需提供且长度匹配)，将不使用OCR缓存。")
+
             for i, img_data in enumerate(images_data):
-                # OCR 识别
-                ocr_results = self.ocr_manager.recognize_image_data_sync(img_data)
+                current_file_path = file_paths_for_cache[i] if use_cache and file_paths_for_cache else None
+                current_page_num = page_nums_for_cache[i] if use_cache and page_nums_for_cache else None
+                current_original_archive_path = original_archive_paths_for_cache[i] if use_cache and original_archive_paths_for_cache else None
+
+                ocr_results = self.ocr_manager.recognize_image_data_sync(
+                    img_data,
+                    file_path_for_cache=current_file_path,
+                    page_num_for_cache=current_page_num,
+                    original_archive_path=current_original_archive_path
+                )
                 if not ocr_results:
-                    log.warning(f"图片 {i+1} 未识别到任何文本")
+                    log_message = f"图片 {i+1} 未识别到任何文本 (文件: {current_file_path or 'N/A'}, 页码: {current_page_num if current_page_num is not None else 'N/A'}"
+                    if current_original_archive_path:
+                        log_message += f", 原始存档: {current_original_archive_path}"
+                    log_message += ")"
+                    log.warning(log_message)
                     all_ocr_results.append([])
                     all_structured_texts.append([])
                     continue
@@ -477,16 +497,15 @@ class ImageTranslator:
                     raise ValueError("输出路径数量必须与输入图片数量相同")
                     
                 for i, (result_image, output_path) in enumerate(zip(result_images, output_paths)):
-                    # 使用imencode保存图片以支持Unicode文件名
                     try:
-                        ext = os.path.splitext(output_path)[1]
-                        _, encoded_img = cv2.imencode(ext, result_image)
-                        if encoded_img is not None and encoded_img.tofile(output_path):
-                            log.info(f"第 {i + 1} 页翻译结果已保存: {output_path}")
+                        # 确保 output_path 使用 .webp 扩展名
+                        output_path_webp = str(Path(output_path).with_suffix('.webp'))
+                        if self._save_image(result_image, output_path_webp): # 移除 png_compression_level 参数
+                            log.info(f"第 {i + 1} 页翻译结果已保存: {output_path_webp}")
                         else:
-                            log.error(f"保存第 {i + 1} 页翻译结果失败: {output_path}")
+                            log.error(f"保存第 {i + 1} 页翻译结果失败: {output_path_webp}")
                     except Exception as e:
-                        log.error(f"保存第 {i + 1} 页翻译结果时出错: {output_path} - {e}")
+                        log.error(f"保存第 {i + 1} 页翻译结果时发生未预料的错误: {output_path_webp} - {e}")
             
             log.info(f"批量翻译全部完成，共处理 {len(result_images)} 页")
             return result_images
@@ -495,9 +514,12 @@ class ImageTranslator:
             log.error(f"批量翻译过程中发生错误: {e}")
             raise RuntimeError(f"批量翻译失败: {e}")
     
-    def get_ocr_results(self, image_input: Union[str, np.ndarray]) -> List[OCRResult]:
+    def get_ocr_results(self,
+                        image_input: Union[str, np.ndarray],
+                        file_path_for_cache: Optional[str] = None, # Added for caching
+                        page_num_for_cache: Optional[int] = None) -> List[OCRResult]: # Added for caching
         """
-        仅执行OCR识别，返回识别结果
+        仅执行OCR识别，返回识别结果，支持使用缓存
         
         Args:
             image_input: 输入图片路径或图片数据
@@ -569,24 +591,34 @@ class ImageTranslator:
             return False
     
     def _save_image(self, image: np.ndarray, file_path: str) -> bool:
-        """使用imencode保存图片，支持Unicode文件名
-        
+        """使用imencode将图片保存为WebP格式，支持Unicode文件名。
+
         Args:
-            image: 图片数据
-            file_path: 保存路径
-            
+            image: 图片数据 (numpy数组)
+            file_path: 保存路径 (应为 .webp 后缀)
+
         Returns:
             bool: 是否保存成功
         """
         try:
-            ext = os.path.splitext(file_path)[1]
-            _, encoded_img = cv2.imencode(ext, image)
-            if encoded_img is not None:
-                encoded_img.tofile(file_path)
+            # 确保文件路径使用 .webp 扩展名
+            file_path_webp = str(Path(file_path).with_suffix('.webp'))
+            
+            params = [cv2.IMWRITE_WEBP_QUALITY, config.webp_quality.value]
+            log.info(f"使用WebP质量 {config.webp_quality.value} 保存图片: {file_path_webp}")
+
+            # 使用imencode来处理Unicode文件名
+            result, encoded_image = cv2.imencode(".webp", image, params)
+            if result:
+                with open(file_path_webp, "wb") as f:
+                    f.write(encoded_image)
+                log.info(f"图片成功保存到: {file_path_webp}")
                 return True
-            return False
+            else:
+                log.error(f"图片编码失败: {file_path_webp}")
+                return False
         except Exception as e:
-            log.error(f"保存图片失败: {e}")
+            log.error(f"保存图片时发生错误: {file_path_webp}, 错误: {e}")
             return False
 
 

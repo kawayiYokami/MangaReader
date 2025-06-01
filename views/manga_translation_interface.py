@@ -9,12 +9,13 @@ from typing import List, Any, Optional, Tuple
 
 from PySide6.QtCore import Qt, Slot, QUrl, QThread
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
-from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QFileDialog, QTableWidget, 
+from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QFileDialog, QTableWidget,
                                QTableWidgetItem, QAbstractItemView, QHeaderView)
 from qfluentwidgets import (ScrollArea, StrongBodyLabel, SubtitleLabel, setFont, PushButton, ToolButton, LineEdit,
                             ComboBox, ProgressBar, TextEdit, FluentIcon as FIF, InfoBar, InfoBarPosition, MessageBox)
 
 # 项目内部导入
+from core.config import config # Added import for config
 from core.batch_translation_worker import BatchTranslationWorker, TranslationTaskItem # Worker will need updates
 from utils import manga_logger as log
 
@@ -83,7 +84,7 @@ class MangaTranslationInterface(QWidget):
         self.add_archive_button = PushButton("添加压缩包 (CBZ/CBR/ZIP)", self)
         self.add_archive_button.setIcon(FIF.DOCUMENT)
         self.add_archive_button.clicked.connect(self._on_add_archive_clicked)
-        
+
         buttons_layout = QHBoxLayout()
         buttons_layout.addWidget(self.add_files_button)
         buttons_layout.addWidget(self.add_folder_button)
@@ -111,7 +112,34 @@ class MangaTranslationInterface(QWidget):
         target_lang_layout.addWidget(self.target_lang_label)
         target_lang_layout.addWidget(self.target_lang_combo, 1)
         self.control_panel_layout.addLayout(target_lang_layout)
+
+        # WebP Quality Level ComboBox
+        webp_quality_layout = QHBoxLayout()
+        self.webp_quality_label = StrongBodyLabel("WebP质量:", self) # 重命名标签
+        self.webp_quality_combo = ComboBox(self) # 重命名下拉框变量
+        self.webp_quality_combo.addItem("较低 (约 50)", userData=50)
+        self.webp_quality_combo.addItem("中等 (约 75)", userData=75)
+        self.webp_quality_combo.addItem("较高 (约 90)", userData=90)
+        self.webp_quality_combo.addItem("最高 (100)", userData=100)
         
+        # Set default selection based on config
+        current_webp_quality = config.webp_quality.value
+        default_quality_index = 2 # 默认为 "较高 (约 90)"
+        default_quality_value = 90
+
+        for i in range(self.webp_quality_combo.count()):
+            if self.webp_quality_combo.itemData(i) == current_webp_quality:
+                self.webp_quality_combo.setCurrentIndex(i)
+                break
+        else: # if no match found, default to "较高 (约 90)"
+            self.webp_quality_combo.setCurrentIndex(default_quality_index)
+            config.webp_quality.value = default_quality_value # Ensure config reflects this default if not set
+
+        self.webp_quality_combo.currentIndexChanged.connect(self._on_webp_quality_changed) # 连接到新的处理函数
+        webp_quality_layout.addWidget(self.webp_quality_label)
+        webp_quality_layout.addWidget(self.webp_quality_combo, 1)
+        self.control_panel_layout.addLayout(webp_quality_layout)
+
         output_dir_layout = QHBoxLayout()
         self.output_dir_label = StrongBodyLabel("输出目录:", self)
         self.output_dir_edit = LineEdit(self)
@@ -134,7 +162,7 @@ class MangaTranslationInterface(QWidget):
         self.start_translation_button.setObjectName("startTranslationButton")
         self.start_translation_button.setIcon(FIF.PLAY)
         self.start_translation_button.clicked.connect(self._on_start_translation_clicked)
-        
+
         self.cancel_translation_button = PushButton("取消翻译", self)
         self.cancel_translation_button.setIcon(FIF.CANCEL)
         self.cancel_translation_button.clicked.connect(self._on_cancel_translation_clicked)
@@ -143,7 +171,7 @@ class MangaTranslationInterface(QWidget):
         self.clear_task_list_button = PushButton("清空任务列表", self)
         self.clear_task_list_button.setIcon(FIF.DELETE)
         self.clear_task_list_button.clicked.connect(self._on_clear_task_list_clicked)
-        
+
         self.control_panel_layout.addWidget(self.start_translation_button)
         self.control_panel_layout.addWidget(self.cancel_translation_button)
         self.control_panel_layout.addWidget(self.clear_task_list_button)
@@ -152,7 +180,7 @@ class MangaTranslationInterface(QWidget):
         status_title = SubtitleLabel("状态与日志", self)
         setFont(status_title, 16)
         self.control_panel_layout.addWidget(status_title)
-        
+
         self.overall_progress_label = StrongBodyLabel("整体进度:", self)
         self.control_panel_layout.addWidget(self.overall_progress_label)
         self.overall_progress_bar = ProgressBar(self)
@@ -180,13 +208,13 @@ class MangaTranslationInterface(QWidget):
         self.task_list_container_layout = QVBoxLayout(self.task_list_widget_container)
         self.task_list_container_layout.setContentsMargins(10, 10, 10, 10)
         self.task_list_container_layout.setSpacing(10)
-        
+
         task_list_title = SubtitleLabel("翻译任务队列", self)
         setFont(task_list_title, 18)
         self.task_list_container_layout.addWidget(task_list_title)
 
         self.task_table = QTableWidget(self)
-        self.task_table.setColumnCount(3) 
+        self.task_table.setColumnCount(3)
         self.task_table.setHorizontalHeaderLabels(["文件/任务", "状态", "详情/结果"])
         self.task_table.verticalHeader().setVisible(False)
         self.task_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -249,7 +277,7 @@ class MangaTranslationInterface(QWidget):
             task_display_name = file_name
             if p.is_dir(): task_display_name = f"[文件夹] {file_name}"
             elif p.suffix.lower() in ['.zip', '.cbz', '.cbr']: task_display_name = f"[压缩包] {file_name}"
-            
+
             name_item = QTableWidgetItem(task_display_name)
             name_item.setData(Qt.ItemDataRole.UserRole, path_str)
             status_item = QTableWidgetItem("待处理")
@@ -258,7 +286,7 @@ class MangaTranslationInterface(QWidget):
             self.task_table.setItem(row, 1, status_item)
             self.task_table.setItem(row, 2, details_item)
             new_tasks_count += 1
-        
+
         if new_tasks_count > 0:
             self._handle_log_message(f"添加了 {new_tasks_count} 个新任务到列表。")
             InfoBar.success("任务添加成功", f"已添加 {new_tasks_count} 个项目到任务列表。", duration=3000, parent=self, position=InfoBarPosition.TOP_RIGHT)
@@ -279,6 +307,13 @@ class MangaTranslationInterface(QWidget):
         supported_archive_formats = "*.cbz *.cbr *.zip"
         files, _ = QFileDialog.getOpenFileNames(self, "选择一个或多个漫画压缩包", "", f"漫画压缩包 ({supported_archive_formats});;所有文件 (*.*)")
         if files: self._add_tasks_from_paths(files)
+
+    @Slot(int)
+    def _on_webp_quality_changed(self, index: int): # 重命名方法
+        selected_quality = self.webp_quality_combo.itemData(index) # 使用新的下拉框变量
+        if selected_quality is not None:
+            config.webp_quality.value = selected_quality # 更新 config.webp_quality
+            self._handle_log_message(f"WebP质量已设置为: {self.webp_quality_combo.currentText()} (级别 {selected_quality})")
 
     @Slot()
     def _on_select_output_dir(self):
@@ -305,12 +340,25 @@ class MangaTranslationInterface(QWidget):
             InfoBar.warning("翻译进行中", "已有翻译任务在运行。", duration=3000, parent=self)
             return
 
+        # 清空并重新创建主缓存目录
+        try:
+            if os.path.exists(self.cache_dir):
+                self._handle_log_message(f"正在清空主缓存目录: {self.cache_dir}")
+                shutil.rmtree(self.cache_dir)
+                self._handle_log_message("主缓存目录清空完成。")
+            os.makedirs(self.cache_dir, exist_ok=True)
+            self._handle_log_message(f"主缓存目录已创建: {self.cache_dir}")
+        except Exception as e:
+            self._handle_log_message(f"错误：清空或创建主缓存目录失败: {e}")
+            InfoBar.error("缓存错误", f"无法初始化缓存目录: {e}", duration=5000, parent=self)
+            return
+
         final_zip_output_dir_str = self.output_dir_edit.text()
         if not final_zip_output_dir_str:
             InfoBar.warning("设置输出目录", "请先选择翻译结果的输出目录。", duration=3000, parent=self)
             self.select_output_dir_button.setFocus()
             return
-        
+
         final_zip_output_path = Path(final_zip_output_dir_str)
         if not final_zip_output_path.exists() or not final_zip_output_path.is_dir():
             InfoBar.error("输出目录无效", f"指定的输出目录不存在或不是有效文件夹: {final_zip_output_dir_str}", duration=4000, parent=self)
@@ -320,62 +368,95 @@ class MangaTranslationInterface(QWidget):
             InfoBar.warning("任务列表为空", "请先添加任务。", duration=3000, parent=self)
             return
 
-        all_input_image_paths_for_batch: List[Tuple[str, int]] = [] # (image_path_str, original_ui_row_index)
+        # 修改：存储 (image_path: str, original_archive_source: Optional[str]) 元组
+        tasks_to_process: List[Tuple[str, Optional[str]]] = []
+        added_paths_set = set() # 用于去重实际处理的图片路径
+
         first_item_name_for_zip = ""
-        
-        # --- 1. 收集所有需要处理的图片 ---
+
+        # --- 1. 收集所有需要处理的图片及其原始来源（如果是压缩包） ---
         for ui_row_index in range(self.task_table.rowCount()):
             name_item = self.task_table.item(ui_row_index, 0)
-            original_path_str = name_item.data(Qt.ItemDataRole.UserRole)
-            original_path = Path(original_path_str)
+            original_item_path_str = name_item.data(Qt.ItemDataRole.UserRole) # 这是UI任务列表中的原始路径
+            original_item_path = Path(original_item_path_str)
 
             if not first_item_name_for_zip:
-                first_item_name_for_zip = original_path.stem
+                first_item_name_for_zip = original_item_path.stem
 
             image_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
-            current_row_images = []
+            current_row_images_with_source: List[Tuple[str, Optional[str]]] = []
 
-            if original_path.is_file():
-                if original_path.suffix.lower() in image_extensions:
-                    current_row_images.append(str(original_path))
-                elif original_path.suffix.lower() in ['.zip', '.cbz', '.cbr']:
-                    extraction_cache_dir = os.path.join(self.cache_dir, original_path.stem)
+            if original_item_path.is_file():
+                if original_item_path.suffix.lower() in image_extensions:
+                    # 独立图片文件
+                    current_row_images_with_source.append((str(original_item_path), None))
+                elif original_item_path.suffix.lower() in ['.zip', '.cbz', '.cbr']:
+                    # 压缩包文件
+                    extraction_cache_dir = os.path.join(self.cache_dir, original_item_path.stem)
                     os.makedirs(extraction_cache_dir, exist_ok=True)
-                    self._handle_log_message(f"正在解压 {original_path.name} 到 {extraction_cache_dir}")
+                    self._handle_log_message(f"正在解压 {original_item_path.name} 到 {extraction_cache_dir}")
                     try:
-                        with zipfile.ZipFile(original_path, 'r') as zip_ref:
-                            # 按顺序处理压缩包中的图片
-                            archive_image_files = []
-                            for member_name in sorted(zip_ref.namelist()):
-                                member_path = Path(extraction_cache_dir) / member_name
+                        with zipfile.ZipFile(original_item_path, 'r') as zip_ref:
+                            archive_image_files_temp = [] # 临时存储解压出的图片路径
+                            self._handle_log_message(f"开始遍历压缩包成员...")
+                            for member_info in sorted(zip_ref.infolist(), key=lambda x: x.filename):
+                                member_name = member_info.filename
+                                self._handle_log_message(f"正在检查成员: {member_name}")
+                                if member_info.is_dir():
+                                    self._handle_log_message(f"跳过目录条目: {member_name}")
+                                    continue
+                                extracted_path = os.path.abspath(os.path.join(extraction_cache_dir, member_name))
+                                if not extracted_path.startswith(os.path.abspath(extraction_cache_dir)):
+                                    self._handle_log_message(f"警告: 跳过潜在的恶意文件路径: {member_name}")
+                                    continue
                                 if Path(member_name).suffix.lower() in image_extensions and not member_name.startswith('__MACOSX'):
-                                    zip_ref.extract(member_name, path=extraction_cache_dir)
-                                    archive_image_files.append(str(member_path))
-                            current_row_images.extend(archive_image_files)
-                        self._update_task_status_in_table(f"row{ui_row_index}", "解压完成", "")
+                                    self._handle_log_message(f"成员 {member_name} 是图片文件，尝试解压...")
+                                    try:
+                                        zip_ref.extract(member_info, extraction_cache_dir)
+                                        full_member_path = os.path.join(extraction_cache_dir, member_name)
+                                        if os.path.isfile(full_member_path):
+                                            archive_image_files_temp.append(full_member_path)
+                                            self._handle_log_message(f"成功解压并添加图片: {member_name} -> {full_member_path}")
+                                        else:
+                                            self._handle_log_message(f"警告: 解压的文件不是有效图片文件或不存在: {member_name}")
+                                    except Exception as e_extract:
+                                        self._handle_log_message(f"解压文件失败: {member_name} - {e_extract}")
+                                else:
+                                    self._handle_log_message(f"成员 {member_name} 不是图片文件或被跳过 (例如 __MACOSX)")
+                            
+                            self._handle_log_message(f"压缩包成员遍历完成。找到 {len(archive_image_files_temp)} 张图片。")
+                            # 为从压缩包解压的每张图片添加原始压缩包路径
+                            for extracted_img_path in archive_image_files_temp:
+                                current_row_images_with_source.append((extracted_img_path, original_item_path_str))
+                        self._update_task_status_in_table(f"row{ui_row_index}", "解压完成", f"找到 {len(archive_image_files_temp)} 张图片")
                     except Exception as e_zip:
-                        self._handle_log_message(f"解压 {original_path.name} 失败: {e_zip}")
-                        self._update_task_status_in_table(f"row{ui_row_index}", "解压失败", str(e_zip))
+                        self._handle_log_message(f"处理压缩包 {original_item_path.name} 失败: {e_zip}")
+                        self._update_task_status_in_table(f"row{ui_row_index}", "处理失败", str(e_zip))
                         continue
                 else:
                     self._update_task_status_in_table(f"row{ui_row_index}", "格式不支持", "")
                     continue
-            elif original_path.is_dir():
-                folder_images = []
-                for item_path in sorted(list(original_path.rglob('*'))):
+            elif original_item_path.is_dir():
+                # 文件夹
+                folder_images_temp = []
+                for item_path in sorted(list(original_item_path.rglob('*'))):
                     if item_path.is_file() and item_path.suffix.lower() in image_extensions:
-                        folder_images.append(str(item_path))
-                if folder_images:
-                    current_row_images.extend(folder_images)
+                        folder_images_temp.append(str(item_path))
+                if folder_images_temp:
+                    for img_in_folder_path in folder_images_temp:
+                        current_row_images_with_source.append((img_in_folder_path, None))
                     self._update_task_status_in_table(f"row{ui_row_index}", "扫描完成", "")
                 else:
                     self._update_task_status_in_table(f"row{ui_row_index}", "无图片", "")
                     continue
-            
-            for img_path in current_row_images:
-                all_input_image_paths_for_batch.append((img_path, ui_row_index))
 
-        if not all_input_image_paths_for_batch:
+            # 将当前行收集到的图片路径及其来源添加到 tasks_to_process，并使用集合去重
+            for img_path, archive_source in current_row_images_with_source:
+                if img_path not in added_paths_set:
+                    tasks_to_process.append((img_path, archive_source))
+                    added_paths_set.add(img_path)
+
+        if not tasks_to_process:
             InfoBar.warning("无有效图片", "未能从任务列表中找到任何有效的图片进行翻译。", duration=3000, parent=self)
             return
 
@@ -390,30 +471,36 @@ class MangaTranslationInterface(QWidget):
         target_lang_text = self.target_lang_combo.currentText()
         target_lang_code = target_lang_text.split(" (")[1][:-1] if "(" in target_lang_text else target_lang_text
 
-        for img_overall_idx, (input_img_path_str, original_ui_row_idx) in enumerate(all_input_image_paths_for_batch):
-            task_id = f"row{original_ui_row_idx}_img{img_overall_idx + 1}"
-            output_filename = f"{img_overall_idx + 1:0{3}d}.png"
-            task_output_path = str(os.path.join(self.cache_dir, 'translated', output_filename))
+        for img_overall_idx, (input_img_path_str, archive_source_path) in enumerate(tasks_to_process):
+            task_id = f"img_{img_overall_idx + 1:0{3}d}"
+            task_output_path = str(os.path.join(self.cache_dir, 'translated', f"{task_id}.webp")) # 改为 .webp
             os.makedirs(os.path.join(self.cache_dir, 'translated'), exist_ok=True)
+
+            is_archive_member = archive_source_path is not None
 
             prepared_tasks.append(TranslationTaskItem(
                 task_id=task_id,
                 input_path=input_img_path_str,
                 output_path=task_output_path,
                 source_lang=source_lang,
-                target_lang=target_lang_code
+                target_lang=target_lang_code,
+                page_index=img_overall_idx,
+                is_archive=is_archive_member,
+                original_archive_path=archive_source_path
             ))
-            self._update_task_status_in_table(f"row{original_ui_row_idx}", "准备中...", "")
+            # 更新UI状态，这里可能需要更精细的逻辑来关联原始任务项和图片
+            # 暂时不更新原始任务项的状态，只在日志中体现
+            # self._update_task_status_in_table(f"row{original_ui_row_idx}", "准备中...", "")
 
         # --- 5. Start Translation ---
         title = "开始翻译任务"
-        content = (f"即将开始翻译 {len(all_input_image_paths_for_batch)} 张图片。\n"
+        content = (f"即将开始翻译 {len(tasks_to_process)} 张图片。\n" # 使用去重后的数量
                    f"源语言: {source_lang_text}\n"
                    f"目标语言: {target_lang_text}\n"
                    f"输出为一个ZIP文件到: {final_zip_output_dir_str}\n"
                    f"ZIP文件名: {base_zip_name}.zip\n\n是否继续？")
         msg_box = MessageBox(title, content, self.window())
-        
+
         if not msg_box.exec():
             self._handle_log_message("用户取消了翻译操作。")
             return
@@ -425,7 +512,8 @@ class MangaTranslationInterface(QWidget):
             base_zip_name=base_zip_name,
             default_source_lang=source_lang,
             default_target_lang=target_lang_code,
-            translator_engine="智谱"
+            translator_engine="智谱",
+            save_to_disk=True # 确保 save_to_disk 为 True
         )
         self.translation_thread = QThread(self)
         self.translation_worker.moveToThread(self.translation_thread)
@@ -436,7 +524,8 @@ class MangaTranslationInterface(QWidget):
         self.translation_worker.overall_progress.connect(self._handle_overall_progress)
         self.translation_worker.all_tasks_finished.connect(self._handle_all_tasks_finished_zip)
         self.translation_worker.log_message.connect(self._handle_log_message)
-        
+        self.translation_worker.single_page_translated.connect(self._handle_single_page_translated) # 连接 single_page_translated 信号
+
         self.translation_thread.started.connect(self.translation_worker.run)
         self.translation_thread.finished.connect(self.translation_thread.deleteLater)
         self.translation_worker.all_tasks_finished.connect(self.translation_worker.deleteLater)
@@ -456,19 +545,23 @@ class MangaTranslationInterface(QWidget):
         if self.translation_worker:
             self._handle_log_message("正在发送取消请求...")
             self.translation_worker.cancel()
-            self.cancel_translation_button.setEnabled(False) 
+            self.cancel_translation_button.setEnabled(False)
 
-    @Slot(object) # task_id (e.g., "row0_img1")
+    @Slot(object) # task_id (e.g., "img_001")
     def _handle_task_started(self, task_id: Any):
-        self._update_task_status_in_table(task_id, "处理中...", "")
+        # 修改：根据 task_id 更新UI状态，可能需要查找对应的原始任务项
+        # 暂时只在日志中体现
+        self._handle_log_message(f"任务开始: {task_id}")
+
 
     @Slot(object, bool, str) # task_id, success, result_message (path to .png in temp or error)
     def _handle_task_finished(self, task_id: Any, success: bool, result_message: str):
         status = "翻译成功" if success else "翻译失败"
-        # result_message for individual png is its path in temp dir, or error string
-        # The UI table's "Details/Result" column for the main item might show aggregated info later
-        # For now, just update status based on individual image progress
-        self._update_task_status_in_table(task_id, status, Path(result_message).name if success else result_message)
+        details = Path(result_message).name if success else result_message
+        # 修改：根据 task_id 更新UI状态，可能需要查找对应的原始任务项
+        # 暂时只在日志中体现
+        self._handle_log_message(f"任务结束: {task_id} - 状态: {status} - 详情: {details}")
+
 
     @Slot(int, str)
     def _handle_overall_progress(self, percentage: int, message: str):
@@ -487,7 +580,7 @@ class MangaTranslationInterface(QWidget):
         self.start_translation_button.setEnabled(True)
         self.cancel_translation_button.setEnabled(False)
         self.clear_task_list_button.setEnabled(True)
-        
+
         if self.translation_thread and self.translation_thread.isRunning():
             self.translation_thread.quit()
             self.translation_thread.wait(3000)
@@ -495,81 +588,47 @@ class MangaTranslationInterface(QWidget):
         self.translation_thread = None
         self.translation_worker = None
 
-    @Slot(str)
+    @Slot(int, object) # page_index, translated_image_data
+    def _handle_single_page_translated(self, page_index: int, translated_image_data):
+        """
+        处理单页翻译完成信号 (批量翻译模式下，此信号主要用于日志或调试)
+        """
+        # 在批量翻译模式下，这个信号主要用于内部处理或日志，不直接更新UI显示单页
+        self._handle_log_message(f"单页翻译完成 (批量模式): 页码 {page_index}")
+
+
     def _handle_log_message(self, message: str):
+        """处理来自工作线程的日志信息"""
         self.log_output_text.append(message)
-        log.info(f"[UI_LOG] {message}") 
+        # 自动滚动到底部
+        self.log_output_text.verticalScrollBar().setValue(self.log_output_text.verticalScrollBar().maximum())
+
 
     def _update_task_status_in_table(self, task_id_or_row_id: Any, status: str, details: str = ""):
-        main_task_row_index = -1
-        
-        task_id_str = str(task_id_or_row_id)
-        is_sub_task_signal = "_img" in task_id_str # e.g. "row0_img1"
+        """
+        根据 task_id 或原始行ID更新任务列表中的状态和详情
+        注意：在批量翻译模式下，task_id 是基于整体顺序的，与原始UI行ID不同。
+        此方法可能需要调整逻辑以适应新的 task_id 结构，或者仅用于更新原始任务项的状态。
+        暂时只用于更新原始任务项（文件/文件夹/压缩包）的状态。
+        """
+        if isinstance(task_id_or_row_id, str) and task_id_or_row_id.startswith("row"):
+             try:
+                 row_index = int(task_id_or_row_id[3:])
+                 if 0 <= row_index < self.task_table.rowCount():
+                     self.task_table.item(row_index, 1).setText(status)
+                     self.task_table.item(row_index, 2).setText(details)
+             except ValueError:
+                 log.MangaLogger.get_instance().logger.warning(f"无效的行ID格式: {task_id_or_row_id}")
+        # TODO: 如果需要根据新的 task_id (img_001等) 更新UI，需要建立 task_id 到原始UI行的映射
 
-        if task_id_str.startswith("row"):
-            try:
-                main_task_id_part = task_id_str.split("_")[0] 
-                main_task_row_index = int(main_task_id_part.replace("row", ""))
-            except ValueError:
-                self._handle_log_message(f"错误：无法从task_id '{task_id_str}'解析行号。")
-                return
-
-        if 0 <= main_task_row_index < self.task_table.rowCount():
-            status_item = self.task_table.item(main_task_row_index, 1)
-            if not status_item:
-                status_item = QTableWidgetItem()
-                self.task_table.setItem(main_task_row_index, 1, status_item)
-
-            details_item = self.task_table.item(main_task_row_index, 2)
-            if not details_item:
-                details_item = QTableWidgetItem()
-                self.task_table.setItem(main_task_row_index, 2, details_item)
-
-            current_status_text = status_item.text()
-            # Avoid overwriting a final state like "解压失败" or "格式不支持" with "处理中"
-            # from a sub-task signal if the main task itself had an issue.
-            final_states = ["解压失败", "格式不支持", "无图片", "翻译完成", "压缩完成"] # Add more as needed
-
-            if is_sub_task_signal:
-                if current_status_text not in final_states and not current_status_text.startswith("处理中 (部分)"):
-                     status_item.setText("处理中 (部分)...")
-
-                if status == "翻译失败": # For individual image failure
-                    img_num = task_id_str.split("_img")[-1]
-                    new_detail_msg = f"图片 {img_num} 失败: {details}"
-                    current_details = details_item.text()
-                    if new_detail_msg not in current_details:
-                         details_item.setText(f"{current_details}; {new_detail_msg}" if current_details else new_detail_msg)
-            else: # Signal for the main UI row (e.g., "解压完成", "准备中")
-                if current_status_text not in final_states or status in final_states : # Allow updating to another final state
-                    status_item.setText(status)
-                    details_item.setText(details) # Main task details usually overwrite
-        else:
-            self._handle_log_message(f"收到未知或过时任务ID的状态更新: {task_id_str}, 状态: {status}")
 
     def closeEvent(self, event):
+        """
+        窗口关闭事件处理，确保线程安全退出
+        """
         if self.translation_thread and self.translation_thread.isRunning():
-            if self.translation_worker:
-                self.translation_worker.cancel()
+            self.translation_worker.cancel()
             self.translation_thread.quit()
-            if not self.translation_thread.wait(3000): 
-                self._handle_log_message("警告：翻译线程未能及时关闭。")
+            self.translation_thread.wait(5000) # 等待最多5秒
+            log.MangaLogger.get_instance().logger.info("翻译线程已安全退出。")
         super().closeEvent(event)
-
-    def _add_sample_tasks_to_table(self):
-        pass # Intentionally empty
-
-if __name__ == '__main__':
-    import sys
-    from PySide6.QtWidgets import QApplication
-    from qfluentwidgets import FluentWindow, setTheme, Theme, FluentIcon
-
-    app = QApplication(sys.argv)
-    window = FluentWindow()
-    translate_interface = MangaTranslationInterface()
-    window.addSubInterface(translate_interface, FIF.EDIT, "漫画翻译") 
-    window.navigationInterface.setCurrentItem(translate_interface.objectName())
-    window.setWindowTitle("漫画翻译页面预览")
-    window.resize(1300, 850)
-    window.show()
-    sys.exit(app.exec())

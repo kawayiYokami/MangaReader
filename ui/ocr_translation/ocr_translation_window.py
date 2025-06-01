@@ -345,8 +345,12 @@ class OCRTestWindow(QMainWindow):
             self.ocr_button.setEnabled(False)
             self.statusBar().showMessage("正在进行OCR识别...")
             
-            # 使用ImageTranslator执行OCR
-            self.current_results = self.image_translator.get_ocr_results(self.cached_image_data)
+            # 使用ImageTranslator执行OCR，传入文件路径和页码（假定为0）以启用缓存
+            self.current_results = self.image_translator.get_ocr_results(
+                self.cached_image_data,
+                file_path_for_cache=self.current_image_path, # Pass current image path
+                page_num_for_cache=0 # Assume page 0 for single image test
+            )
             
             # 过滤纯数字和符号文本
             self.current_results = self.image_translator.ocr_manager.filter_numeric_and_symbols(self.current_results)
@@ -482,11 +486,13 @@ class OCRTestWindow(QMainWindow):
                     "reuse_results": True  # 标记复用OCR结果
                 }
             
-            # 使用ImageTranslator执行替换
+            # 使用ImageTranslator执行替换，传入文件路径和页码（假定为0）以启用缓存
             replaced_image = self.image_translator.translate_image(
                 self.cached_image_data,
                 target_language="zh",
-                ocr_options=ocr_options
+                ocr_options=ocr_options,
+                file_path_for_cache=self.current_image_path, # Pass current image path
+                page_num_for_cache=0 # Assume page 0 for single image test
             )
             
             if replaced_image is not None:

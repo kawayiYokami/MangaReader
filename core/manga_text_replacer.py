@@ -412,9 +412,8 @@ class MangaTextReplacer:
                 )
                 
                 replacements.append(replacement)
-                             
-                print(f"创建漫画替换: '{original_text}' -> '{translated_text}' "
-                         f"({original_direction.value} -> {target_direction.value})")
+                # print(f"创建漫画替换: '{original_text}' -> '{translated_text}' "
+                #          f"({original_direction.value} -> {target_direction.value})")
         
         log.info(f"创建了 {len(replacements)} 个漫画文本替换")
         return replacements
@@ -632,13 +631,13 @@ class MangaTextReplacer:
                            font: ImageFont.FreeTypeFont,
                            x: int, y: int, max_width: int, max_height: int) -> None:
         """绘制垂直文本"""
-        print(f"\n=== 开始绘制垂直文本 ===")
-        print(f"原始文本: {replacement.translated_text}")
-        print(f"绘制区域: x={x}, y={y}, 最大宽度={max_width}, 最大高度={max_height}")
+        # print(f"\n=== 开始绘制垂直文本 ===")
+        # print(f"原始文本: {replacement.translated_text}")
+        # print(f"绘制区域: x={x}, y={y}, 最大宽度={max_width}, 最大高度={max_height}")
         
         # 使用传入的列数
         column_count = replacement.column_count
-        print(f"列数: {column_count}")
+        # print(f"列数: {column_count}")
         
         # 处理省略号
         processed_text = self._convert_ellipsis_for_vertical(replacement.translated_text)
@@ -650,7 +649,7 @@ class MangaTextReplacer:
         char_bbox = font.getbbox("中")  # 使用中文字符作为基准
         char_width = char_bbox[2] - char_bbox[0]
         char_height = char_bbox[3] - char_bbox[1]
-        print(f"字符尺寸: 宽度={char_width}, 高度={char_height}")
+        # print(f"字符尺寸: 宽度={char_width}, 高度={char_height}")
         
         # 计算每列的宽度
         min_column_width = char_width * 1.1  # 字符宽度
@@ -663,37 +662,37 @@ class MangaTextReplacer:
         # 计算起始X坐标（整体居中）
         start_x = x + (remaining_space / 2)
         
-        print(f"列宽: 最小={min_column_width}, 实际={column_width}")
-        print(f"总列宽: {total_columns_width}, 剩余空间: {remaining_space}")
-        print(f"整体起始X: {start_x}")
+        # print(f"列宽: 最小={min_column_width}, 实际={column_width}")
+        # print(f"总列宽: {total_columns_width}, 剩余空间: {remaining_space}")
+        # print(f"整体起始X: {start_x}")
 
         for col_index, column_text in enumerate(text_columns):
-            print(f"\n--- 列 {col_index + 1}/{len(text_columns)} ---")
-            print(f"列文本: {column_text}")
+            # print(f"\n--- 列 {col_index + 1}/{len(text_columns)} ---")
+            # print(f"列文本: {column_text}")
             
             # 计算列的X坐标（考虑整体居中）
             current_x = start_x + (column_width * col_index) + (column_width - char_width) / 2
             current_y = y
-            print(f"列起始坐标: x={current_x}, y={current_y}")
+            # print(f"列起始坐标: x={current_x}, y={current_y}")
             
             # 预先计算整列文本的总高度
             total_height = len(column_text) * (char_height + char_height * 0.2)
-            print(f"列总高度: {total_height}")
+            # print(f"列总高度: {total_height}")
             
             # 根据对齐方式计算初始 Y 偏移
             initial_y_offset = 0
             if replacement.alignment == TextAlignment.MIDDLE:
                 initial_y_offset = (max_height - total_height) / 2
-                print(f"中间对齐Y偏移: {initial_y_offset}")
+                # print(f"中间对齐Y偏移: {initial_y_offset}")
             elif replacement.alignment == TextAlignment.BOTTOM:
                 initial_y_offset = max_height - total_height
-                print(f"底部对齐Y偏移: {initial_y_offset}")
-            else:
-                print("顶部对齐，无Y偏移")
+                # print(f"底部对齐Y偏移: {initial_y_offset}")
+            # else:
+                # print("顶部对齐，无Y偏移")
             
             # 应用初始 Y 偏移到当前 Y 坐标
             current_y = y + initial_y_offset
-            print(f"应用Y偏移后的起始Y坐标: {current_y}")
+            # print(f"应用Y偏移后的起始Y坐标: {current_y}")
             
             for i, char in enumerate(column_text):
                 if char == '\n':
@@ -703,7 +702,7 @@ class MangaTextReplacer:
                 char_bbox = font.getbbox(char)
                 this_char_height = char_bbox[3] - char_bbox[1]
                 this_char_width = char_bbox[2] - char_bbox[0]
-                print(f"字符 '{char}' at {i}: 位置=({current_x}, {current_y}), 尺寸={this_char_width}x{this_char_height}")
+                # print(f"字符 '{char}' at {i}: 位置=({current_x}, {current_y}), 尺寸={this_char_width}x{this_char_height}")
 
                 # 计算基于字体大小的字符间距
                 char_spacing = char_height * 0.2
@@ -712,7 +711,7 @@ class MangaTextReplacer:
                 if replacement.stroke_width > 0 and replacement.stroke_color:
                     draw.text(
                         (current_x, current_y),
-                        char, 
+                        char,
                         font=font,
                         fill=replacement.stroke_color,
                         stroke_width=replacement.stroke_width,
@@ -728,11 +727,11 @@ class MangaTextReplacer:
                 
                 # 移动到下一个字符位置
                 current_y += this_char_height + char_spacing
-                print(f"下一字符Y坐标: {current_y}")
+                # print(f"下一字符Y坐标: {current_y}")
 
-        print("=== 垂直文本绘制完成 ===\n")
+        # print("=== 垂直文本绘制完成 ===\n")
 
-    def replace_manga_text(self, image: np.ndarray, 
+    def replace_manga_text(self, image: np.ndarray,
                            replacements: List[MangaTextReplacement],
                            inpaint_background: bool = True) -> np.ndarray:
         """
@@ -749,7 +748,7 @@ class MangaTextReplacer:
         result_image = image.copy()
         
         for replacement in replacements:
-            print(f"处理替换: '{replacement.original_text}' -> '{replacement.translated_text}'")
+            # print(f"处理替换: '{replacement.original_text}' -> '{replacement.translated_text}'")
             
             # 1. 修复背景（涂白）
             if inpaint_background:

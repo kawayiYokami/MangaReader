@@ -22,6 +22,8 @@ from views.manga_translation_interface import MangaTranslationInterface
 from views.settings_interface import SettingsInterface
 import sys
 from core.config import config
+from core.cache_factory import get_cache_factory_instance # Added
+from utils import manga_logger as log # Added for logging shutdown
 
 
 class MainWindow(SplitFluentWindow):
@@ -91,6 +93,16 @@ class MainWindow(SplitFluentWindow):
         w, h = desktop.width(), desktop.height()
         self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
 
+    def closeEvent(self, event):
+        """重写 closeEvent 以确保在窗口关闭前执行清理操作"""
+        log.info("MainWindow closeEvent triggered. Closing cache managers...")
+        try:
+            get_cache_factory_instance().close_all_managers()
+            log.info("All cache managers closed successfully.")
+        except Exception as e:
+            log.error(f"Error closing cache managers: {e}")
+        super().closeEvent(event)
+
 
 if __name__ == "__main__":
     # 循环设置主题直到匹配
@@ -101,4 +113,8 @@ if __name__ == "__main__":
     w = MainWindow()
     w.show()
 
-    sys.exit(app.exec())
+    exit_code = app.exec()
+    # 虽然 closeEvent 应该处理，但作为双重保险或不同退出路径的备用
+    # log.info("Application exiting. Ensuring cache managers are closed...")
+    # get_cache_factory_instance().close_all_managers() # This might be redundant if closeEvent always fires
+    sys.exit(exit_code)

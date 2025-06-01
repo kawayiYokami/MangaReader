@@ -71,12 +71,14 @@ class ControlPanel(CardWidget):
         self.switch_button.setOnText("自动翻页")
         self.switch_button.setOffText("手动翻页")
         self.layout.addWidget(self.switch_button)
-        
+
         # 添加自动翻译开关（使用自带文本）
         self.translate_switch = SwitchButton()
         self.translate_switch.setOnText("翻译")
         self.translate_switch.setOffText("原文")
         self.layout.addWidget(self.translate_switch)
+# 移除连接翻译开关信号的代码，因为信号在 MangaViewer 中连接
+# self.translate_switch.checkedChanged.connect(self.on_translate_switch_changed)
 
         # 根据阅读方向更新滑动条方向
         if hasattr(self.parent, "reading_order"):
@@ -279,4 +281,3 @@ class ControlPanel(CardWidget):
                 self.parent.next_page()
         else:
             self.stop_auto_flip()
-

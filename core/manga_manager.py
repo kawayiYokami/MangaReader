@@ -2,10 +2,12 @@
 
 import os
 from PySide6.QtCore import QObject, Signal  # 导入 PySide6 的信号
-from core.manga_model import MangaInfo, MangaLoader  # 这些在您的代码中已导入
-from core.config import config  # 导入 config 对象
-from utils import manga_logger as log  # 这个在您的代码中已导入
-from core.translator import TranslatorFactory  # 导入翻译器工厂
+from core.manga_model import MangaInfo, MangaLoader
+from core.config import config
+from utils import manga_logger as log
+from core.translator import TranslatorFactory
+from core.cache_factory import get_cache_factory_instance # Added
+from core.cache_interface import CacheInterface # Added
 
 
 class MangaManager(QObject):
@@ -24,36 +26,40 @@ class MangaManager(QObject):
     current_manga_changed = Signal(object)
     view_mode_changed = Signal(int)
     page_changed = Signal(int)
-    manga_list_updated = Signal(list)  # 漫画列表更新信号
-    tags_cleared = Signal() # 新增：标签已清空信号
+    manga_list_updated = Signal(list)
+    tags_cleared = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
 
-        # 打印详细的初始化信息
         import inspect
         caller_frame = inspect.currentframe().f_back
         caller_info = inspect.getframeinfo(caller_frame)
         log.info(f"MangaManager初始化 - 调用者: {caller_info.filename}:{caller_info.lineno} 函数: {caller_info.function}")
-        log.info(f"父类类型: {self.parent.__class__}")
+        if self.parent: # Check if parent exists
+             log.info(f"父类类型: {self.parent.__class__}")
+        else:
+            log.info("MangaManager 没有父对象")
+
+
+        self.manga_list_cache_manager: CacheInterface = get_cache_factory_instance().get_manager("manga_list")
+        self.translation_cache_manager: CacheInterface = get_cache_factory_instance().get_manager("translation")
+        # self.ocr_cache_manager: CacheInterface = get_cache_factory_instance().get_manager("ocr") # If needed directly
 
         self.manga_list = []
         self.tags = set()
-        self.current_manga = None  # 当前漫画对象，不直接持久化
+        self.current_manga = None
 
-        # 访问 config 值时使用 .value
         log.info(
             f"MangaManager初始化完成，当前目录: {config.manga_dir.value}, 漫画数量: {len(self.manga_list)}"
         )
 
-        # 访问 config 值时使用 .value，并检查目录是否存在且有效
         if (
             config.manga_dir.value
             and os.path.exists(config.manga_dir.value)
             and os.path.isdir(config.manga_dir.value)
         ):
             self.scan_manga_files()
-        # 访问 config 值时使用 .value
         elif config.manga_dir.value:
             log.warning(f"配置文件中的漫画目录不存在或无效: {config.manga_dir.value}")
 
@@ -103,33 +109,19 @@ class MangaManager(QObject):
     def clear_translation_cache(self):
         """清空翻译缓存"""
         try:
-            # 删除app/config目录下的translation_cache.json文件
-            from core.translator import CACHE_FILE
-            if os.path.exists(CACHE_FILE):
-                os.remove(CACHE_FILE)
-                log.info(f"翻译缓存已清空: {CACHE_FILE}")
-            else:
-                log.info(f"翻译缓存文件不存在，无需清空: {CACHE_FILE}")
-                
-            # 兼容旧版缓存清理
-            cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cache", "translation")
-            if os.path.exists(cache_dir) and os.path.isdir(cache_dir):
-                for file in os.listdir(cache_dir):
-                    file_path = os.path.join(cache_dir, file)
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                log.info("旧版翻译缓存已清空")
+            self.translation_cache_manager.clear()
+            log.info("翻译缓存已通过 TranslationCacheManager 清空")
+            # 移除旧的兼容代码，因为它直接操作文件，与新管理器冲突
         except Exception as e:
-            log.error(f"清空翻译缓存时发生错误: {str(e)}")
+            log.error(f"通过 TranslationCacheManager 清空翻译缓存时发生错误: {str(e)}")
             
     def clear_manga_cache(self):
         """清空漫画扫描缓存"""
         try:
-            from core.manga_cache import manga_cache
-            manga_cache.clear_cache()
-            log.info("漫画扫描缓存已清空")
+            self.manga_list_cache_manager.clear()
+            log.info("漫画扫描缓存已通过 MangaListCacheManager 清空")
         except Exception as e:
-            log.error(f"清空漫画扫描缓存时发生错误: {str(e)}")
+            log.error(f"通过 MangaListCacheManager 清空漫画扫描缓存时发生错误: {str(e)}")
 
     def clear_all_data(self):
         """清空所有加载的漫画数据和缓存"""
@@ -165,52 +157,69 @@ class MangaManager(QObject):
         # self.tags.clear() # 移除此行
 
         try:
-            # 导入缓存模块
-            from core.manga_cache import manga_cache
+            # 使用新的 MangaListCacheManager
+            cache_key = self.manga_list_cache_manager.generate_key(config.manga_dir.value)
             
-            # 检查是否有缓存，且不强制重新扫描
-            cached_manga_list = None
+            cached_manga_data_list = None
             if not force_rescan:
-                cached_manga_list = manga_cache.get_manga_list(config.manga_dir.value)
+                cached_manga_data_list = self.manga_list_cache_manager.get(cache_key)
             
-            # 用于存放本次扫描或从缓存加载的漫画
-            current_scan_mangas = [] 
-            if cached_manga_list and not force_rescan:
-                log.info(f"从缓存加载漫画列表，共 {len(cached_manga_list)} 本漫画")
+            current_scan_mangas = []
+            if cached_manga_data_list and not force_rescan:
+                log.info(f"从缓存加载漫画列表数据，共 {len(cached_manga_data_list)} 条记录")
                 
-                # 从缓存创建MangaInfo对象
-                for manga_data in cached_manga_list:
-                    # 检查文件是否存在且未被修改
-                    if os.path.exists(manga_data["file_path"]) and not manga_cache.is_manga_modified(manga_data["file_path"]):
-                        manga = MangaInfo(manga_data["file_path"])
-                        manga.title = manga_data["title"]
-                        manga.tags = set(manga_data["tags"])
-                        manga.total_pages = manga_data["total_pages"]
-                        manga.is_valid = manga_data["is_valid"]
-                        manga.last_modified = manga_data["last_modified"]
-                        manga.pages = manga_data["pages"]
-                        current_scan_mangas.append(manga) 
+                for manga_data in cached_manga_data_list:
+                    file_path = manga_data.get("file_path")
+                    if not file_path:
+                        log.warning(f"缓存数据中缺少 file_path: {manga_data.get('title', 'N/A')}")
+                        continue
+
+                    # is_manga_modified is now part of MangaListCacheManager
+                    if os.path.exists(file_path) and not self.manga_list_cache_manager.is_manga_modified(file_path):
+                        try:
+                            manga = MangaInfo(file_path) # Recreate MangaInfo from path
+                            manga.title = manga_data.get("title", os.path.basename(file_path))
+                            manga.tags = set(manga_data.get("tags", []))
+                            manga.total_pages = manga_data.get("total_pages", 0)
+                            manga.is_valid = manga_data.get("is_valid", False) # Rely on cached validity
+                            manga.last_modified = manga_data.get("last_modified", 0)
+                            manga.pages = manga_data.get("pages", []) # Assuming pages are serializable
+                            # manga.is_translated = manga_data.get("is_translated", False) # If this field is used
+                            if manga.is_valid: # Double check validity if needed, or trust cache
+                                current_scan_mangas.append(manga)
+                            else:
+                                log.warning(f"从缓存加载的漫画 {file_path} 无效，将尝试重新加载。")
+                                fresh_manga = MangaLoader.load_manga(file_path)
+                                if fresh_manga and fresh_manga.is_valid:
+                                    current_scan_mangas.append(fresh_manga)
+                        except Exception as e_load:
+                            log.error(f"从缓存数据创建 MangaInfo 对象失败 ({file_path}): {e_load}, 将尝试重新加载。")
+                            fresh_manga = MangaLoader.load_manga(file_path)
+                            if fresh_manga and fresh_manga.is_valid:
+                                current_scan_mangas.append(fresh_manga)
                     else:
-                        # 文件已修改或不存在，需要重新加载
-                        manga = MangaLoader.load_manga(manga_data["file_path"])
+                        log.info(f"漫画文件已修改或不存在于缓存: {file_path}，将重新加载。")
+                        manga = MangaLoader.load_manga(file_path)
                         if manga and manga.is_valid:
-                            current_scan_mangas.append(manga) 
+                            current_scan_mangas.append(manga)
                         else:
-                            log.warning(f"无法加载漫画: {manga_data['file_path']}")
+                            log.warning(f"无法加载漫画: {file_path}")
             else:
-                # 没有缓存或强制重新扫描，执行完整扫描
-                log.info(f"开始扫描漫画目录: {config.manga_dir.value}")
+                log.info(f"开始扫描漫画目录 (无缓存或强制重新扫描): {config.manga_dir.value}")
                 manga_files = MangaLoader.find_manga_files(config.manga_dir.value)
 
-                for file_path in manga_files:
-                    manga = MangaLoader.load_manga(file_path)
+                for file_path_scan in manga_files:
+                    manga = MangaLoader.load_manga(file_path_scan)
                     if manga and manga.is_valid:
-                        current_scan_mangas.append(manga) 
+                        current_scan_mangas.append(manga)
                     else:
-                        log.warning(f"无法加载漫画: {file_path}")
-
-                # 更新缓存，只缓存当前目录的漫画
-                manga_cache.update_manga_list(config.manga_dir.value, current_scan_mangas)
+                        log.warning(f"无法加载漫画: {file_path_scan}")
+            
+            # 更新缓存，只缓存当前目录的漫画
+            # The `set` method of MangaListCacheManager expects a list of manga objects
+            # or serializable dicts. current_scan_mangas contains MangaInfo objects.
+            # The MangaListCacheManager's set method should handle serialization.
+            self.manga_list_cache_manager.set(cache_key, current_scan_mangas)
 
             # 合并新扫描到的漫画到主列表，并去重
             existing_manga_paths = {manga.file_path for manga in self.manga_list}
@@ -394,8 +403,8 @@ class MangaManager(QObject):
                 log.warning(f"漫画文件不存在: {manga.file_path}，将从列表中移除")
                 self.manga_list = [m for m in self.manga_list if m.file_path != manga.file_path]
                 # 更新缓存
-                from core.manga_cache import manga_cache
-                manga_cache.update_manga_list(config.manga_dir.value, self.manga_list)
+                cache_key_update = self.manga_list_cache_manager.generate_key(config.manga_dir.value)
+                self.manga_list_cache_manager.set(cache_key_update, self.manga_list)
                 self.current_manga = None
                 config.current_manga_path.value = ""
                 self.current_manga_changed.emit(None)
@@ -403,19 +412,20 @@ class MangaManager(QObject):
             
             # 检查漫画文件是否被修改，如果被修改则重新加载
             if manga:
-                from core.manga_cache import manga_cache
-                if manga_cache.is_manga_modified(manga.file_path):
+                # is_manga_modified is now part of MangaListCacheManager
+                if self.manga_list_cache_manager.is_manga_modified(manga.file_path):
                     log.info(f"漫画文件已修改，重新加载: {manga.file_path}")
                     updated_manga = MangaLoader.load_manga(manga.file_path)
                     if updated_manga and updated_manga.is_valid:
                         # 更新列表中的漫画对象
-                        for i, m in enumerate(self.manga_list):
-                            if m.file_path == manga.file_path:
+                        for i, m_loop in enumerate(self.manga_list): # Renamed m to m_loop to avoid conflict
+                            if m_loop.file_path == manga.file_path:
                                 self.manga_list[i] = updated_manga
-                                manga = updated_manga
+                                manga = updated_manga # Update the manga variable being processed
                                 break
                         # 更新缓存
-                        manga_cache.update_manga_list(config.manga_dir.value, self.manga_list)
+                        cache_key_update_modified = self.manga_list_cache_manager.generate_key(config.manga_dir.value)
+                        self.manga_list_cache_manager.set(cache_key_update_modified, self.manga_list)
             
             self.current_manga = manga
             config.current_manga_path.value = (

@@ -89,6 +89,18 @@ class Config(QConfig):
     translate_title = ConfigItem("Manga", "TranslateTitle", False)
     simplify_chinese = ConfigItem("Manga", "SimplifyChinese", False)
     merge_tags = ConfigItem("Manga", "MergeTags", True)
+    # png_compression_level = RangeConfigItem(
+    #     "Manga",
+    #     "PngCompressionLevel",
+    #     9,
+    #     validator=RangeValidator(0, 9)
+    # )
+    webp_quality = RangeConfigItem(
+        "Manga",
+        "WebpQuality",
+        80,  # 默认 WebP 质量为 80
+        validator=RangeValidator(0, 100)  # WebP 质量范围 0-100
+    )
 
     # ==================== MangaManager 状态 ====================
     manga_dir = ConfigItem("Manager", "MangaDirectory", "")
@@ -98,8 +110,8 @@ class Config(QConfig):
     # ==================== 日志设置 ====================
     log_level = OptionsConfigItem(
         "System", 
-        "LogLevel", 
-        "WARNING",
+        "LogLevel",
+        "DEBUG", # Change default log level to DEBUG for debugging
         validator=OptionsValidator(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     )
     
