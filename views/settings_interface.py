@@ -316,7 +316,7 @@ class MangaSettinsCard(GroupHeaderCardWidget):
         self.translate_switch.setChecked(config.translate_title.value)
         self.translate_switch.checkedChanged.connect(self._on_translate_changed)
         self.addGroup(
-            icon=FIF.LANGUAGE, title="翻译标题和作品", content="自动翻译漫画的标题和作品信息。", widget=self.translate_switch
+            icon=FIF.LANGUAGE, title="漫画阅读器，自动翻译总开关", content="特别说明，仍需要在阅读的时候单独打开这个漫画的翻译开关才会自动翻译。", widget=self.translate_switch
         )
 
         self.simplify_switch = SwitchButton(self)

@@ -12,6 +12,7 @@ from qfluentwidgets import (
     InfoBar,
     InfoBarPosition,
     SwitchButton,
+    CheckBox,
 )
 from core.manga_manager import MangaManager
 from PySide6.QtGui import QColor
@@ -64,10 +65,18 @@ class ControlPanel(CardWidget):
         self.page_label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.page_label)
 
-        # 添加Switch开关
+        # 添加自动翻页开关（使用自带文本）
         self.switch_button = SwitchButton()
         self.switch_button.checkedChanged.connect(self.on_switch_changed)
+        self.switch_button.setOnText("自动翻页")
+        self.switch_button.setOffText("手动翻页")
         self.layout.addWidget(self.switch_button)
+        
+        # 添加自动翻译开关（使用自带文本）
+        self.translate_switch = SwitchButton()
+        self.translate_switch.setOnText("翻译")
+        self.translate_switch.setOffText("原文")
+        self.layout.addWidget(self.translate_switch)
 
         # 根据阅读方向更新滑动条方向
         if hasattr(self.parent, "reading_order"):
@@ -270,3 +279,4 @@ class ControlPanel(CardWidget):
                 self.parent.next_page()
         else:
             self.stop_auto_flip()
+
