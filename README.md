@@ -13,7 +13,7 @@
 
 ### 安装
 
-**Python 版本要求**: 3.11.x (具体为 `>=3.11, <3.12`，根据项目 [`pyproject.toml:6`](pyproject.toml:6) 定义)。
+**Python 版本要求**: 3.11.x (具体为 `>=3.11, <3.12`，根据项目 [`pyproject.toml`](pyproject.toml:6) 定义)。
 请从 [https://www.python.org/downloads/](https://www.python.org/downloads/) 下载并安装 Python 3.11 的最新修订版。确保在安装时将 Python 添加到系统 PATH。
 
 **安装步骤**:
@@ -56,4 +56,10 @@ python main.py
 3. 执行翻译（单页或批量）
 4. 查看/保存结果
 
-### 业余娱乐项目
+## 🙏 致谢
+本项目的 OCR 功能依赖于优秀的 [OnnxOCR](https://github.com/jingsongliujing/OnnxOCR) 项目。
+如果您觉得它对您有帮助，请给原作者 [jingsongliujing/OnnxOCR](https://github.com/jingsongliujing/OnnxOCR) 点个 Star ⭐ 支持一下！
+
+
+## 📜 许可证
+本项目采用 [GNU General Public License v3.0](LICENSE) 授权。
