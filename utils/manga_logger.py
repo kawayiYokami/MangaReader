@@ -1,6 +1,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
+import os # 新增导入 os 模块
 from datetime import datetime
 
 
@@ -24,16 +25,25 @@ class MangaLogger:
     def __init__(self):
         from core.config import config
         self.logger = logging.getLogger("MangaViewer")
-        
-        # 创建控制台处理器
-        console_handler = logging.StreamHandler(sys.stdout)
-        
+
         # 创建格式化器
         formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+
+        # 创建控制台处理器
+        console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
-        
-        # 添加处理器到日志记录器
         self.logger.addHandler(console_handler)
+
+        # 创建文件处理器
+        log_dir = ".log"
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        log_file_path = os.path.join(log_dir, "manga_viewer.log")
+        # 设置日志文件大小为 10MB，保留5个备份文件
+        file_handler = RotatingFileHandler(log_file_path, maxBytes=10*1024*1024, backupCount=5, encoding='utf-8')
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
         
         # 从配置中设置日志等级
         self.set_level(config.log_level.value)

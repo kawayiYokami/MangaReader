@@ -7,7 +7,6 @@ from pathlib import Path
 
 from core.ocr_manager import OCRManager, OCRResult
 from core.translator import TranslatorFactory, ZhipuTranslator, GoogleDeepTranslator
-from core.translators.nllb_translator import NLLBTranslator # 导入需要的翻译器类
 from core.manga_text_replacer import MangaTextReplacer
 from core.config import config
 from utils import manga_logger as log

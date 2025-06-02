@@ -1,5 +1,5 @@
 # core/translators/nllb_translator.py
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+# from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import os
 import traceback
 from core.translator import BaseTranslator # Import BaseTranslator
@@ -31,173 +31,117 @@ class NLLBTranslator(BaseTranslator): # Inherit from BaseTranslator
                  cache_dir: str | None = None,
                  source_lang_code: str | None = None):
         super().__init__() # Call BaseTranslator's init
-        self.model_name = model_name if model_name else self.DEFAULT_MODEL_NAME
+    #     self.model_name = model_name if model_name else self.DEFAULT_MODEL_NAME
         
-        if cache_dir is None:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(os.path.dirname(script_dir))
-            self.cache_dir = os.path.join(project_root, "models")
-        else:
-            self.cache_dir = cache_dir
+    #     if cache_dir is None:
+    #         script_dir = os.path.dirname(os.path.abspath(__file__))
+    #         project_root = os.path.dirname(os.path.dirname(script_dir))
+    #         self.cache_dir = os.path.join(project_root, "models")
+    #     else:
+    #         self.cache_dir = cache_dir
             
-        self.source_lang_code = source_lang_code if source_lang_code else self.DEFAULT_SOURCE_LANG_CODE
+    #     self.source_lang_code = source_lang_code if source_lang_code else self.DEFAULT_SOURCE_LANG_CODE
         
-        self.tokenizer = None
-        self.model = None
-        self._load_model()
+    #     self.tokenizer = None
+    #     self.model = None
+    #     self._load_model()
 
-    def _load_model(self):
-        try:
-            log.info(f"正在从 '{self.model_name}' 加载 NLLB 分词器 (源语言: {self.source_lang_code})，缓存目录: {self.cache_dir if self.cache_dir else '默认'}")
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name,
-                src_lang=self.source_lang_code,
-                cache_dir=self.cache_dir
-            )
-            log.info(f"正在从 '{self.model_name}' 加载 NLLB 模型，缓存目录: {self.cache_dir if self.cache_dir else '默认'}")
-            self.model = AutoModelForSeq2SeqLM.from_pretrained(
-                self.model_name,
-                cache_dir=self.cache_dir
-            )
-            log.info(f"NLLB 模型 '{self.model_name}' 加载成功。")
-        except Exception as e:
-            log.error(f"加载 NLLB 模型 '{self.model_name}' 时出错: {e}")
-            log.error(traceback.format_exc())
-            self.tokenizer = None
-            self.model = None
+    # def _load_model(self):
+    #     try:
+    #         log.info(f"正在从 '{self.model_name}' 加载 NLLB 分词器 (源语言: {self.source_lang_code})，缓存目录: {self.cache_dir if self.cache_dir else '默认'}")
+    #         self.tokenizer = AutoTokenizer.from_pretrained(
+    #             self.model_name,
+    #             src_lang=self.source_lang_code,
+    #             cache_dir=self.cache_dir
+    #         )
+    #         log.info(f"正在从 '{self.model_name}' 加载 NLLB 模型，缓存目录: {self.cache_dir if self.cache_dir else '默认'}")
+    #         self.model = AutoModelForSeq2SeqLM.from_pretrained(
+    #             self.model_name,
+    #             cache_dir=self.cache_dir
+    #         )
+    #         log.info(f"NLLB 模型 '{self.model_name}' 加载成功。")
+    #     except Exception as e:
+    #         log.error(f"加载 NLLB 模型 '{self.model_name}' 时出错: {e}")
+    #         log.error(traceback.format_exc())
+    #         self.tokenizer = None
+    #         self.model = None
 
-    def _get_nllb_target_lang_code(self, target_lang: str | None) -> str:
-        """Maps general language codes to NLLB specific codes."""
-        if target_lang is None:
-            log.warning(f"NLLBTranslator: target_lang is None, defaulting to '{self.DEFAULT_NLLB_TARGET_LANG_CODE}'.")
-            return self.DEFAULT_NLLB_TARGET_LANG_CODE
-        return self.NLLB_LANG_CODE_MAP.get(target_lang.lower(), target_lang) # Fallback to target_lang itself
+    # def _get_nllb_target_lang_code(self, target_lang: str | None) -> str:
+    #     """Maps general language codes to NLLB specific codes."""
+    #     if target_lang is None:
+    #         log.warning(f"NLLBTranslator: target_lang is None, defaulting to '{self.DEFAULT_NLLB_TARGET_LANG_CODE}'.")
+    #         return self.DEFAULT_NLLB_TARGET_LANG_CODE
+    #     return self.NLLB_LANG_CODE_MAP.get(target_lang.lower(), target_lang) # Fallback to target_lang itself
 
-    def _translate_text(self, text: str, target_lang: str) -> str | None:
-        """
-        实际执行单个文本翻译的方法，由 BaseTranslator.translate 调用。
-        """
-        if not self.model or not self.tokenizer:
-            log.error(f"错误：NLLB 模型 '{self.model_name}' 未正确加载。")
-            return None
+    # def _translate_text(self, text: str, target_lang: str) -> str | None:
+    #     """
+    #     实际执行单个文本翻译的方法，由 BaseTranslator.translate 调用。
+    #     """
+    #     if not self.model or not self.tokenizer:
+    #         log.error(f"错误：NLLB 模型 '{self.model_name}' 未正确加载。")
+    #         return None
 
-        nllb_target_code = self._get_nllb_target_lang_code(target_lang)
-        log.debug(f"NLLB: _translate_text: '{text[:30]}...' from '{self.source_lang_code}' to '{target_lang}' (NLLB code: '{nllb_target_code}')")
+    #     nllb_target_code = self._get_nllb_target_lang_code(target_lang)
+    #     log.debug(f"NLLB: _translate_text: '{text[:30]}...' from '{self.source_lang_code}' to '{target_lang}' (NLLB code: '{nllb_target_code}')")
 
-        translated_texts = self._translate_batch_internal([text], nllb_target_lang_code=nllb_target_code)
+    #     translated_texts = self._translate_batch_internal([text], nllb_target_lang_code=nllb_target_code)
         
-        if translated_texts and not translated_texts[0].startswith("错误：") and not translated_texts[0].startswith("翻译错误:"):
-            return translated_texts[0]
-        else:
-            log.warning(f"NLLB 翻译失败 for text: {text[:30]}... to {target_lang}")
-            if translated_texts:
-                 log.warning(f"NLLB 翻译器内部错误: {translated_texts[0]}")
-            return None
+    #     if translated_texts and not translated_texts[0].startswith("错误：") and not translated_texts[0].startswith("翻译错误:"):
+    #         return translated_texts[0]
+    #     else:
+    #         log.warning(f"NLLB 翻译失败 for text: {text[:30]}... to {target_lang}")
+    #         if translated_texts:
+    #              log.warning(f"NLLB 翻译器内部错误: {translated_texts[0]}")
+    #         return None
 
-    def _translate_batch_internal(self, texts: list[str], nllb_target_lang_code: str) -> list[str]:
-        """
-        Internal method to translate a batch of texts using NLLB.
-        The `target_lang_code` here is the NLLB-specific code (e.g., "zho_Hans").
-        """
-        if not self.model or not self.tokenizer:
-            # This check is also in _translate_text, but good for direct calls if any
-            return [f"错误：NLLB 模型 '{self.model_name}' 未正确加载。" for _ in texts]
+    # def _translate_batch_internal(self, texts: list[str], nllb_target_lang_code: str) -> list[str]:
+    #     """
+    #     Internal method to translate a batch of texts using NLLB.
+    #     The `target_lang_code` here is the NLLB-specific code (e.g., "zho_Hans").
+    #     """
+    #     if not self.model or not self.tokenizer:
+    #         # This check is also in _translate_text, but good for direct calls if any
+    #         return [f"错误：NLLB 模型 '{self.model_name}' 未正确加载。" for _ in texts]
 
-        try:
-            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True) # Added truncation
+    #     try:
+    #         inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True) # Added truncation
 
-            try:
-                if not hasattr(self.tokenizer, 'convert_tokens_to_ids'):
-                     raise AttributeError("Tokenizer does not have 'convert_tokens_to_ids' method.")
+    #         try:
+    #             if not hasattr(self.tokenizer, 'convert_tokens_to_ids'):
+    #                  raise AttributeError("Tokenizer does not have 'convert_tokens_to_ids' method.")
                 
-                target_lang_token_id_or_list = self.tokenizer.convert_tokens_to_ids(nllb_target_lang_code)
+    #             target_lang_token_id_or_list = self.tokenizer.convert_tokens_to_ids(nllb_target_lang_code)
                 
-                if isinstance(target_lang_token_id_or_list, list):
-                    if not target_lang_token_id_or_list:
-                        raise ValueError(f"convert_tokens_to_ids returned an empty list for {nllb_target_lang_code}")
-                    forced_bos_token_id = target_lang_token_id_or_list[0]
-                elif isinstance(target_lang_token_id_or_list, int):
-                    forced_bos_token_id = target_lang_token_id_or_list
-                else:
-                    raise TypeError(f"convert_tokens_to_ids returned unexpected type {type(target_lang_token_id_or_list)} for {nllb_target_lang_code}")
+    #             if isinstance(target_lang_token_id_or_list, list):
+    #                 if not target_lang_token_id_or_list:
+    #                     raise ValueError(f"convert_tokens_to_ids returned an empty list for {nllb_target_lang_code}")
+    #                 forced_bos_token_id = target_lang_token_id_or_list[0]
+    #             elif isinstance(target_lang_token_id_or_list, int):
+    #                 forced_bos_token_id = target_lang_token_id_or_list
+    #             else:
+    #                 raise TypeError(f"convert_tokens_to_ids returned unexpected type {type(target_lang_token_id_or_list)} for {nllb_target_lang_code}")
 
-                if hasattr(self.tokenizer, 'unk_token_id') and forced_bos_token_id == self.tokenizer.unk_token_id:
-                    log.warning(f"警告: NLLB 目标语言代码 '{nllb_target_lang_code}' 被转换为 UNK token ID。可能是不支持的语言代码。")
-                    return [f"错误：NLLB Tokenizer 无法识别目标语言 '{nllb_target_lang_code}' (转换为UNK)。" for _ in texts]
+    #             if hasattr(self.tokenizer, 'unk_token_id') and forced_bos_token_id == self.tokenizer.unk_token_id:
+    #                 log.warning(f"警告: NLLB 目标语言代码 '{nllb_target_lang_code}' 被转换为 UNK token ID。可能是不支持的语言代码。")
+    #                 return [f"错误：NLLB Tokenizer 无法识别目标语言 '{nllb_target_lang_code}' (转换为UNK)。" for _ in texts]
 
-            except AttributeError as ae:
-                 log.error(f"错误: NLLB Tokenizer ({type(self.tokenizer)}) 不支持 convert_tokens_to_ids 方法: {ae}")
-                 return [f"错误：NLLB Tokenizer 无法设置目标语言 '{nllb_target_lang_code}' (方法缺失)。" for _ in texts]
-            except Exception as e_conv:
-                log.error(f"错误: 当转换目标语言代码 '{nllb_target_lang_code}' 为 ID 时出错: {e_conv}")
-                log.error(traceback.format_exc())
-                return [f"错误：NLLB Tokenizer 无法处理目标语言 '{nllb_target_lang_code}'。" for _ in texts]
+    #         except AttributeError as ae:
+    #              log.error(f"错误: NLLB Tokenizer ({type(self.tokenizer)}) 不支持 convert_tokens_to_ids 方法: {ae}")
+    #              return [f"错误：NLLB Tokenizer 无法设置目标语言 '{nllb_target_lang_code}' (方法缺失)。" for _ in texts]
+    #         except Exception as e_conv:
+    #             log.error(f"错误: 当转换目标语言代码 '{nllb_target_lang_code}' 为 ID 时出错: {e_conv}")
+    #             log.error(traceback.format_exc())
+    #             return [f"错误：NLLB Tokenizer 无法处理目标语言 '{nllb_target_lang_code}'。" for _ in texts]
             
-            translated_tokens = self.model.generate(
-                **inputs.to(self.model.device), # Ensure tensors are on the same device as model
-                forced_bos_token_id=forced_bos_token_id,
-                max_length=512
-            )
+    #         translated_tokens = self.model.generate(
+    #             **inputs.to(self.model.device), # Ensure tensors are on the same device as model
+    #             forced_bos_token_id=forced_bos_token_id,
+    #             max_length=512
+    #         )
             
-            translated_texts = self.tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
-            return translated_texts
-        except Exception as e:
-            log.error(f"使用 NLLB 模型 '{self.model_name}' 翻译时出错: {e}")
-            log.error(traceback.format_exc())
-            return [f"翻译错误: {str(e)}" for _ in texts]
-
-if __name__ == '__main__':
-    # Configure logger for standalone testing
-    from utils.manga_logger import MangaLogger
-    MangaLogger.initialize_logger(log_level="DEBUG")
-
-    log.info("\n--- NLLBTranslator 示例 ---")
-    
-    # Determine project root for cache_dir (assuming this script is in core/translators)
-    script_dir_main = os.path.dirname(os.path.abspath(__file__))
-    project_root_main = os.path.dirname(os.path.dirname(script_dir_main))
-    default_cache_dir_main = os.path.join(project_root_main, "models")
-
-    if not os.path.exists(default_cache_dir_main):
-        os.makedirs(default_cache_dir_main)
-    log.info(f"NLLB 测试模型将尝试下载到: {os.path.abspath(default_cache_dir_main)}")
-
-    log.info("\n测试 1: 日语到简体中文 (默认源, 指定目标 'zh')")
-    # Note: BaseTranslator's translate method will be used here.
-    # We are testing the NLLBTranslator instance as it would be used by the factory.
-    ja_to_zh_hans_translator = NLLBTranslator(cache_dir=default_cache_dir_main, source_lang_code="jpn_Jpan")
-    
-    if ja_to_zh_hans_translator.model and ja_to_zh_hans_translator.tokenizer:
-        japanese_texts = ["こんにちは、世界。", "これは漫画の翻訳テストです。"]
-        for text_ja in japanese_texts:
-            # BaseTranslator's translate method handles caching and calls _translate_text
-            chinese_translation = ja_to_zh_hans_translator.translate(text_ja, target_lang="zh") 
-            log.info(f"日语原文: {text_ja} -> 简体中文译文: {chinese_translation}")
-    else:
-        log.error("未能加载日语到简体中文的 NLLB 模型。")
-
-    log.info("\n测试 2: 日语到繁体中文 (指定目标 'zh-TW')")
-    # Re-instance for different source/target if tokenizer needs re-init with different src_lang,
-    # but here src_lang is the same. Target lang is handled by translate method.
-    if ja_to_zh_hans_translator.model and ja_to_zh_hans_translator.tokenizer: # reuse previous instance
-        japanese_texts_2 = ["このソフトウェアは素晴らしいです。"]
-        for text_ja2 in japanese_texts_2:
-            chinese_translation_hant = ja_to_zh_hans_translator.translate(text_ja2, target_lang="zh-TW")
-            log.info(f"日语原文: {text_ja2} -> 繁体中文译文: {chinese_translation_hant}")
-    else:
-        log.error("未能加载日语到繁体中文的 NLLB 模型 (复用实例失败)。")
-    
-    log.info("\n测试 3: 英文到简体中文 (新实例，源 'eng_Latn', 目标 'zh')")
-    en_to_zh_hans_translator = NLLBTranslator(
-        cache_dir=default_cache_dir_main,
-        source_lang_code="eng_Latn" 
-    )
-    if en_to_zh_hans_translator.model and en_to_zh_hans_translator.tokenizer:
-        english_texts = ["Hello world, this is a test for NLLB.", "Machine translation is advancing rapidly."]
-        for text_en in english_texts:
-            chinese_translation_from_en = en_to_zh_hans_translator.translate(text_en, target_lang="zh")
-            log.info(f"英文原文: {text_en} -> 简体中文译文 (来自英文): {chinese_translation_from_en}")
-    else:
-        log.error("未能加载英文到简体中文的 NLLB 模型。")
-
-    log.info("\n--- NLLBTranslator 示例结束 ---")
+    #         translated_texts = self.tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
+    #         return translated_texts
+    #     except Exception as e:
+    #         log.error(f"使用 NLLB 模型 '{self.model_name}' 翻译时出错: {e}")
+    #         log.error(traceback.format_exc())
+    #         return [f"翻译错误: {str(e)}" for _ in texts]

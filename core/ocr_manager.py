@@ -11,11 +11,7 @@ from core.config import config
 from core.cache_factory import get_cache_factory_instance # Added
 from core.cache_interface import CacheInterface # Added
 from core.data_models import OCRResult # Import OCRResult from data_models
-
-# 导入OnnxOCR
-import sys
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'OnnxOCR'))
-from onnxocr.onnx_paddleocr import ONNXPaddleOcr
+from OnnxOCR.onnxocr.onnx_paddleocr import ONNXPaddleOcr
 
 # OCRResult class definition is removed from here
 

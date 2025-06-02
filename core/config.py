@@ -106,7 +106,7 @@ class Config(QConfig):
     log_level = OptionsConfigItem(
         "System", 
         "LogLevel",
-        "DEBUG", 
+        "ERROR", 
         validator=OptionsValidator(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     )
     

@@ -50,9 +50,9 @@ class TranslationSettingsCard(GroupHeaderCardWidget):
         self.setBorderRadius(8)
 
         self.translator_combo = ComboBox(self)
-        self.translator_combo.addItems(["Google", "智谱", "NLLB"])
+        self.translator_combo.addItems(["Google", "智谱"])
         current_translator_type = config.translator_type.value
-        if current_translator_type not in ["Google", "智谱", "NLLB"]:
+        if current_translator_type not in ["Google", "智谱"]:
             config.translator_type.value = "Google" # Default to Google if invalid
             # self.manga_manager.save_config() # Save will be called at the end of init
         self.translator_combo.setCurrentText(config.translator_type.value)
