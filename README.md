@@ -13,31 +13,37 @@
 
 ### 安装
 
-python 版本是3.11.12
+**Python 版本要求**: 3.11.x (具体为 `>=3.11, <3.12`，根据项目 [`pyproject.toml:6`](pyproject.toml:6) 定义)。
+请从 [https://www.python.org/downloads/](https://www.python.org/downloads/) 下载并安装 Python 3.11 的最新修订版。确保在安装时将 Python 添加到系统 PATH。
 
+**安装步骤**:
 
-运行 update_ocr_font.bat
-或者手动克隆项目https://github.com/jingsongliujing/OnnxOCR.git到目录下
-
-```bash
-cd manga
-pip install uv
-uv venv
-uv pip install -r requirements.txt
-update_ocr_font.bat
-```
-
-### 配置
-1. 编辑 `config/config.json` 配置翻译服务：
-```json
-{
-  "translation_services": {
-    "zhipu_ai": {
-      "api_key": "YOUR_ZHIPU_API_KEY"
-    }
-  }
-}
-```
+1.  **安装 Git**: 如果尚未安装，请从 [https://git-scm.com/](https://git-scm.com/) 下载并安装。
+2.  **克隆项目并进入目录**:
+    ```bash
+    git clone https://github.com/kawayiYokami/MangaReader.git MangaReader
+    cd MangaReader
+    ```
+3.  **获取 `OnnxOCR` 子项目**:
+    ```bash
+    update_ocr_font.bat
+    ```
+4.  **安装 `uv` (Python 包管理器)**:
+    ```bash
+    pip install uv
+    ```
+5.  **创建虚拟环境**:
+    ```bash
+    uv venv
+    ```
+6.  **激活虚拟环境**:
+    *   Windows (CMD): `.\.venv\Scripts\activate.bat`
+    *   Windows (PowerShell): `.\.venv\Scripts\Activate.ps1`
+    *   Linux/macOS (bash/zsh): `source .venv/bin/activate`
+7.  **安装依赖**:
+    ```bash
+    uv pip install -r requirements.txt
+    ```
 
 ### 运行
 ```bash
