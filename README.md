@@ -12,8 +12,10 @@
 ## 🚀 快速开始
 
 ### 安装
+
+运行 update_ocr_font.bat
+
 ```bash
-git clone --recurse-submodules https://github.com/your-username/manga.git
 cd manga
 pip install uv
 uv venv
