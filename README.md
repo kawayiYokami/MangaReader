@@ -14,6 +14,8 @@
 
 ### 📦 安装
 
+python 3.11
+
 1. **克隆仓库**:
    ```bash
    git clone https://github.com/your-username/manga.git
@@ -89,10 +91,5 @@ manga/
 
 应用程序的默认配置定义在 <mcfile name="config.py" path="core/config.py"></mcfile> 文件中。您可以在此文件中调整默认的阅读顺序、显示模式等设置。例如，默认设置为双页、从左到右阅读。
 
-## 🤝 贡献
-
-欢迎任何形式的贡献！如果您有任何建议、功能请求或 Bug 报告，请随时提交 Issue 或 Pull Request。
-
-## 📄 许可证
-
-本项目采用 [MIT License](LICENSE) 许可。
+## 📜 许可证
+本项目采用 [GNU General Public License v3.0](LICENSE) 授权。
