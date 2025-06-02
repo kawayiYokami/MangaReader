@@ -26,7 +26,6 @@ kiwisolver==1.4.8
 langdetect==1.0.9
 lazy-loader==0.4
 lmdb==1.6.2
--e file:///E:/github/manga
 markupsafe==3.0.2
 matplotlib==3.10.3
 mpmath==1.3.0
