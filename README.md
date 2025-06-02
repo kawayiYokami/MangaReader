@@ -56,5 +56,4 @@ python main.py
 3. 执行翻译（单页或批量）
 4. 查看/保存结果
 
-## 📄 许可证
-[MIT License](LICENSE)
+### 业余娱乐项目
