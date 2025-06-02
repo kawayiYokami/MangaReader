@@ -193,7 +193,7 @@ class MangaTextReplacer:
             font_size = int(column_width / (chars_per_column * 0.8))  # 0.8是字符宽度比例因子
             
             # 验证高度是否合适
-            estimated_lines = max(1, math.ceil(chars_per_column / (column_width / font_size)))
+            estimated_lines = max(1, math.ceil(chars_per_column / (column_width / font_size if font_size > 0 else 1)))
             max_font_size_by_height = int(available_height / (estimated_lines * line_spacing))
             
             # 取较小值确保不会溢出
@@ -205,7 +205,7 @@ class MangaTextReplacer:
             chars_per_column = math.ceil(len(text) / column_count)  # 向上取整，确保有足够空间
             
             # 先根据高度计算每个字符可用的空间
-            font_size = int(available_height / chars_per_column)
+            font_size = int(available_height / chars_per_column if chars_per_column > 0 else available_height)
             
             # 然后验证列宽是否合适
             max_font_size_by_width = int(column_width * 0.95)  # 留一点边距
@@ -249,6 +249,7 @@ class MangaTextReplacer:
         # 计算行高
         bbox = font.getbbox("测试Ag")
         line_height = int((bbox[3] - bbox[1]) * line_spacing)
+        if line_height <= 0: line_height = font_size # Fallback
         max_lines = max(1, max_height // line_height)
         
         # 分割文本
@@ -322,7 +323,7 @@ class MangaTextReplacer:
         创建漫画文本替换信息列表
         
         Args:
-            ocr_results: OCR识别结果列表
+            ocr_results: OCR识别结果列表 (每个OCRResult代表一个独立的文本块)
             translations: 翻译结果字典 {原文: 译文}
             target_language: 目标语言代码
             
@@ -331,89 +332,64 @@ class MangaTextReplacer:
         """
         replacements = []
         
-        # 1. 收集所有文本框信息
-        text_boxes = {}  # 用于存储合并的文本框信息 {box_id: {bbox, texts, results}}
-        
-        for ocr_result in ocr_results:
-            bbox_key = tuple(map(tuple, ocr_result.bbox))  # 将bbox转换为可哈希的类型
-            if bbox_key not in text_boxes:
-                text_boxes[bbox_key] = {
-                    'bbox': ocr_result.bbox,
-                    'texts': [ocr_result.text.strip()],
-                    'results': [ocr_result],
-                    'confidence': [ocr_result.confidence]
-                }
-            else:
-                text_boxes[bbox_key]['texts'].append(ocr_result.text.strip())
-                text_boxes[bbox_key]['results'].append(ocr_result)
-                text_boxes[bbox_key]['confidence'].append(ocr_result.confidence)
-        
-        # 2. 为每个文本框创建替换信息
-        for box_key, box_info in text_boxes.items():
-            # 合并原始文本
-            original_text = '\n'.join(box_info['texts'])
-            
-            # 查找对应的翻译
+        for ocr_item in ocr_results:
+            original_text = ocr_item.text.strip()
             translated_text = translations.get(original_text)
+            
             if not translated_text:
                 translated_text = self._find_fuzzy_translation(original_text, translations)
             
-            # 只要找到了翻译就创建替换，无论是否与原文相同
-            if translated_text:
-                # 检测原文本方向
-                original_direction = self._detect_text_direction(box_info['bbox'])
-                
-                # 确定目标文本方向
-                target_direction = self._determine_target_direction(
-                    original_text, translated_text, target_language, original_direction
-                )
-                
-                # 计算边界框尺寸
-                points = np.array(box_info['bbox'])
-                width = np.max(points[:, 0]) - np.min(points[:, 0])
-                height = np.max(points[:, 1]) - np.min(points[:, 1])
-                
-                # 根据原始OCR结果数量确定列数
-                first_result = box_info['results'][0]
-                column_count = len(first_result.ocr_results)
-                
-                # 计算最优字体大小
-                font_size = self._calculate_optimal_font_size(
-                    translated_text, box_info['bbox'], target_direction,
-                    column_count=column_count
-                )
-                
-                # 确定对齐方式
-                alignment = self._determine_alignment(target_direction, target_language)
-                
-                # 计算行间距和字符间距
-                line_spacing, char_spacing = self._calculate_spacing(
-                    target_direction, target_language, font_size
-                )
-                
-                # 计算平均置信度
-                avg_confidence = sum(box_info['confidence']) / len(box_info['confidence'])
-                
-                replacement = MangaTextReplacement(
-                    original_text=original_text,
-                    translated_text=translated_text,
-                    bbox=box_info['bbox'],
-                    confidence=avg_confidence,
-                    direction=target_direction,
-                    alignment=alignment,
-                    font_size=font_size,
-                    line_spacing=line_spacing,
-                    char_spacing=char_spacing,
-                    max_width=int(width),
-                    max_height=int(height),
-                    column_count=column_count,  # 使用OCR结果数量作为列数
-                    stroke_color=(255, 255, 255),  # 白边
-                    stroke_width=2  # 白边宽度
-                )
-                
-                replacements.append(replacement)
-                # print(f"创建漫画替换: '{original_text}' -> '{translated_text}' "
-                #          f"({original_direction.value} -> {target_direction.value})")
+            if not translated_text:
+                # 如果找不到翻译，可以考虑是否跳过，或者使用原文
+                # log.warning(f"未找到原文 '{original_text}' 的翻译，跳过此文本块。")
+                continue
+
+            # 确定原始方向
+            if ocr_item.direction == 'vertical':
+                original_direction = TextDirection.VERTICAL
+            elif ocr_item.direction == 'horizontal':
+                original_direction = TextDirection.HORIZONTAL
+            else: # auto or None
+                original_direction = self._detect_text_direction(ocr_item.bbox)
+
+            target_direction = self._determine_target_direction(
+                original_text, translated_text, target_language, original_direction
+            )
+            
+            points = np.array(ocr_item.bbox)
+            width = np.max(points[:, 0]) - np.min(points[:, 0])
+            height = np.max(points[:, 1]) - np.min(points[:, 1])
+            
+            # column_count 现在基于 ocr_item.ocr_results (如果它是合并的结果)
+            column_count = ocr_item.merged_count if ocr_item.merged_count and ocr_item.merged_count > 0 else 1
+            
+            font_size = self._calculate_optimal_font_size(
+                translated_text, ocr_item.bbox, target_direction,
+                column_count=column_count
+            )
+            
+            alignment = self._determine_alignment(target_direction, target_language)
+            line_spacing, char_spacing = self._calculate_spacing(
+                target_direction, target_language, font_size
+            )
+            
+            replacement = MangaTextReplacement(
+                original_text=original_text,
+                translated_text=translated_text,
+                bbox=ocr_item.bbox,
+                confidence=ocr_item.confidence,
+                direction=target_direction,
+                alignment=alignment,
+                font_size=font_size,
+                line_spacing=line_spacing,
+                char_spacing=char_spacing,
+                max_width=int(width),
+                max_height=int(height),
+                column_count=column_count,
+                stroke_color=(255, 255, 255),
+                stroke_width=2
+            )
+            replacements.append(replacement)
         
         log.info(f"创建了 {len(replacements)} 个漫画文本替换")
         return replacements
@@ -476,11 +452,11 @@ class MangaTextReplacer:
         center = np.mean(points, axis=0)
         expanded_points = []
         for point in points:
-            direction = point - center
-            length = np.linalg.norm(direction)
+            direction_vec = point - center
+            length = np.linalg.norm(direction_vec)
             if length > 0:
-                direction = direction / length
-                expanded_point = point + direction * expand_pixels
+                direction_vec = direction_vec / length
+                expanded_point = point + direction_vec * expand_pixels
                 expanded_points.append(expanded_point)
             else:
                 expanded_points.append(point)
@@ -498,269 +474,215 @@ class MangaTextReplacer:
         """直接将文本区域涂白"""
         try:
             # 计算边界框，考虑文本周围留白
-            points = np.array(bbox)
-            x_min, y_min = np.min(points, axis=0)
-            x_max, y_max = np.max(points, axis=0)
+            points = np.array(bbox, dtype=np.int32)
+            x_coords = points[:, 0]
+            y_coords = points[:, 1]
             
-            # 添加额外的边距（根据文本框大小动态调整）
-            padding = min((x_max - x_min), (y_max - y_min)) * 0  # 使用10%的边距
-            x_min = x_min - padding
-            y_min = y_min - padding
-            x_max = x_max + padding
-            y_max = y_max + padding
+            x_min, x_max = np.min(x_coords), np.max(x_coords)
+            y_min, y_max = np.min(y_coords), np.max(y_coords)
             
-            # 确保坐标在图像范围内
-            x_min = max(0, int(x_min))
-            y_min = max(0, int(y_min))
-            x_max = min(image.shape[1], int(x_max))
-            y_max = min(image.shape[0], int(y_max))
+            # 扩展边界以确保完全覆盖
+            padding = 2  # 扩展2个像素
+            x_min = max(0, x_min - padding)
+            y_min = max(0, y_min - padding)
+            x_max = min(image.shape[1], x_max + padding)
+            y_max = min(image.shape[0], y_max + padding)
+
+            # 创建一个与原始图像相同类型的白色区域
+            white_patch = np.full((y_max - y_min, x_max - x_min, image.shape[2]), 
+                                  255, dtype=image.dtype)
             
+            # 将白色区域复制到图像的指定位置
+            inpainted_image = image.copy()
+            inpainted_image[y_min:y_max, x_min:x_max] = white_patch
             
-            # 直接将文本区域涂白
-            result = image.copy()
-            result[y_min:y_max, x_min:x_max] = [255, 255, 255]  # 白色
-            
-            return result
-            
+            return inpainted_image
+
         except Exception as e:
-            log.warning(f"背景涂白失败: {e}")
-            return image.copy()
-    
+            log.error(f"背景涂白失败: {e}", exc_info=True)
+            return image.copy() # 返回原始图像副本以避免崩溃
+
     def _draw_text_with_layout(self, image: np.ndarray, 
-                             replacement: MangaTextReplacement) -> np.ndarray:
+                               replacement: MangaTextReplacement) -> np.ndarray:
         """根据布局绘制文本"""
         try:
-            # 转换为PIL图像
             pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             draw = ImageDraw.Draw(pil_image)
-            
-            # 获取字体
             font = self._get_font(replacement.font_size)
             
-            # 计算文本区域
+            # 文本框的中心点
             points = np.array(replacement.bbox)
-            x_min, y_min = np.min(points, axis=0)
-            x_max, y_max = np.max(points, axis=0)
+            box_center_x = int(np.mean(points[:, 0]))
+            box_center_y = int(np.mean(points[:, 1]))
             
-            available_width = x_max - x_min - 2 * replacement.padding
-            available_height = y_max - y_min - 2 * replacement.padding
-            
+            # 文本框的宽度和高度
+            box_width = replacement.max_width
+            box_height = replacement.max_height
+
             if replacement.direction == TextDirection.HORIZONTAL:
                 self._draw_horizontal_text(
-                    draw, replacement, font,
-                    x_min + replacement.padding, y_min + replacement.padding,
-                    available_width, available_height
+                    draw, replacement, font, 
+                    box_center_x, box_center_y, box_width, box_height
                 )
-            else:
+            else: # VERTICAL
                 self._draw_vertical_text(
                     draw, replacement, font,
-                    x_min + replacement.padding, y_min + replacement.padding,
-                    available_width, available_height
+                    box_center_x, box_center_y, box_width, box_height
                 )
-            
-            # 转换回OpenCV格式
-            result_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
-            return result_image
-            
+
+            return cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
         except Exception as e:
-            log.error(f"绘制文本失败: {e}")
-            return image
-    
+            log.error(f"绘制文本时出错: {e}", exc_info=True)
+            return image # 返回原始图像
+
     def _draw_horizontal_text(self, draw: ImageDraw.Draw, 
-                            replacement: MangaTextReplacement,
-                            font: ImageFont.FreeTypeFont,
-                            x: int, y: int, max_width: int, max_height: int) -> None:
+                              replacement: MangaTextReplacement, 
+                              font: ImageFont.FreeTypeFont,
+                              box_center_x: int, box_center_y: int,
+                              box_width: int, box_height: int):
         """绘制水平文本"""
         # 分割文本为多行
         lines, line_height = self._wrap_text_for_box(
-            replacement.translated_text, max_width, max_height,
-            replacement.font_size, replacement.line_spacing
+            replacement.translated_text, 
+            box_width - 2 * replacement.padding, 
+            box_height - 2 * replacement.padding,
+            replacement.font_size, 
+            replacement.line_spacing
         )
         
-        # 计算总文本高度
-        total_height = len(lines) * line_height
+        total_text_height = len(lines) * line_height - (line_height * (1 - replacement.line_spacing) if len(lines) > 1 else 0)
         
-        # 垂直对齐
-        if replacement.alignment == TextAlignment.MIDDLE:
-            start_y = y + (max_height - total_height) // 2
+        # 计算起始Y坐标
+        if replacement.alignment == TextAlignment.TOP:
+            current_y = box_center_y - box_height // 2 + replacement.padding
         elif replacement.alignment == TextAlignment.BOTTOM:
-            start_y = y + (max_height - total_height)
-        else: # TOP
-            start_y = y
-        
-        # 微调Y坐标，考虑字体本身的行间距
-        start_y = max(y, start_y - (line_height * 0.1))
-        
-        current_y = start_y
+            current_y = box_center_y + box_height // 2 - total_text_height - replacement.padding
+        else: # CENTER
+            current_y = box_center_y - total_text_height // 2
+            
         for line in lines:
-            # 水平对齐
             bbox = font.getbbox(line)
             text_width = bbox[2] - bbox[0]
             
-            if replacement.alignment == TextAlignment.CENTER:
-                start_x = x + (max_width - text_width) // 2
+            # 计算起始X坐标
+            if replacement.alignment == TextAlignment.LEFT:
+                current_x = box_center_x - box_width // 2 + replacement.padding
             elif replacement.alignment == TextAlignment.RIGHT:
-                start_x = x + max_width - text_width
-            else: # LEFT
-                start_x = x
+                current_x = box_center_x + box_width // 2 - text_width - replacement.padding
+            else: # CENTER
+                current_x = box_center_x - text_width // 2
             
-            # 绘制文本描边
+            # 绘制描边
             if replacement.stroke_width > 0 and replacement.stroke_color:
-                draw.text((start_x, current_y), line, font=font, 
-                          fill=replacement.stroke_color, 
-                          stroke_width=replacement.stroke_width,
-                          stroke_fill=replacement.stroke_color)
-            
+                for dx in range(-replacement.stroke_width, replacement.stroke_width + 1):
+                    for dy in range(-replacement.stroke_width, replacement.stroke_width + 1):
+                        if dx != 0 or dy != 0: # 不在中心点绘制
+                            draw.text((current_x + dx, current_y + dy), line, 
+                                      font=font, fill=replacement.stroke_color)
             # 绘制文本
-            draw.text((start_x, current_y), line, font=font, fill=replacement.font_color)
+            draw.text((current_x, current_y), line, font=font, fill=replacement.font_color)
             current_y += line_height
 
     def _convert_ellipsis_for_vertical(self, text: str) -> str:
-        """将水平省略号转换为垂直省略号
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            转换后的文本，将...替换为⋮
-        """
-        return text.replace('...', '⋮')
+        """将水平省略号转换为垂直省略号"""
+        text = text.replace("...", "︙")
+        text = text.replace("…", "︙")
+        return text
 
     def _draw_vertical_text(self, draw: ImageDraw.Draw,
-                           replacement: MangaTextReplacement,
-                           font: ImageFont.FreeTypeFont,
-                           x: int, y: int, max_width: int, max_height: int) -> None:
+                            replacement: MangaTextReplacement,
+                            font: ImageFont.FreeTypeFont,
+                            box_center_x: int, box_center_y: int,
+                            box_width: int, box_height: int):
         """绘制垂直文本"""
-        # print(f"\n=== 开始绘制垂直文本 ===")
-        # print(f"原始文本: {replacement.translated_text}")
-        # print(f"绘制区域: x={x}, y={y}, 最大宽度={max_width}, 最大高度={max_height}")
-        
-        # 使用传入的列数
-        column_count = replacement.column_count
-        # print(f"列数: {column_count}")
-        
-        # 处理省略号
-        processed_text = self._convert_ellipsis_for_vertical(replacement.translated_text)
-        # 分割文本到对应的列数（从右到左的顺序）
-        text_columns = self._split_text_into_columns(processed_text, column_count)
-        text_columns.reverse()  # 反转列的顺序，使其从右到左
-        
-        # 根据字体大小计算字符尺寸和间距
-        char_bbox = font.getbbox("中")  # 使用中文字符作为基准
-        char_width = char_bbox[2] - char_bbox[0]
-        char_height = char_bbox[3] - char_bbox[1]
-        # print(f"字符尺寸: 宽度={char_width}, 高度={char_height}")
+        text_to_draw = self._convert_ellipsis_for_vertical(replacement.translated_text)
         
         # 计算每列的宽度
-        min_column_width = char_width * 1.1  # 字符宽度
-        column_width = min(min_column_width, max_width / column_count)
+        column_width = (box_width - 2 * replacement.padding) / replacement.column_count
         
-        # 计算所有列实际占用的总宽度
-        total_columns_width = column_width * column_count
-        # 计算剩余空间
-        remaining_space = max_width - total_columns_width
-        # 计算起始X坐标（整体居中）
-        start_x = x + (remaining_space / 2)
+        # 分割文本到列
+        columns_text = self._split_text_into_columns(text_to_draw, replacement.column_count)
         
-        # print(f"列宽: 最小={min_column_width}, 实际={column_width}")
-        # print(f"总列宽: {total_columns_width}, 剩余空间: {remaining_space}")
-        # print(f"整体起始X: {start_x}")
+        # 计算字符高度和宽度 (估算)
+        # 使用 "M" 作为典型字符估算宽度，"中" 作为典型字符估算高度
+        char_bbox_m = font.getbbox("M")
+        char_width_m = char_bbox_m[2] - char_bbox_m[0]
+        char_bbox_zh = font.getbbox("中")
+        char_height_zh = char_bbox_zh[3] - char_bbox_zh[1]
+        
+        # 使用较大的值作为字符尺寸的基准，并考虑行间距
+        char_render_height = int(char_height_zh * replacement.line_spacing)
+        char_render_width = int(char_width_m * replacement.line_spacing) # 垂直时，列间距也用line_spacing
 
-        for col_index, column_text in enumerate(text_columns):
-            # print(f"\n--- 列 {col_index + 1}/{len(text_columns)} ---")
-            # print(f"列文本: {column_text}")
+        # 获取系统默认字体（用于特殊字符）
+        default_font = ImageFont.load_default()
+        
+        # 确定起始X坐标 (最右列的中心)
+        start_x = box_center_x + (box_width // 2) - (column_width // 2) - replacement.padding
+        
+        for i, column_text in enumerate(columns_text):
+            # 从右向左计算每列的X坐标
+            current_x_col = start_x - i * column_width
             
-            # 计算列的X坐标（考虑整体居中）
-            current_x = start_x + (column_width * col_index) + (column_width - char_width) / 2
-            current_y = y
-            # print(f"列起始坐标: x={current_x}, y={current_y}")
-            
-            # 预先计算整列文本的总高度
-            total_height = len(column_text) * (char_height + char_height * 0.2)
-            # print(f"列总高度: {total_height}")
-            
-            # 根据对齐方式计算初始 Y 偏移
-            initial_y_offset = 0
-            if replacement.alignment == TextAlignment.MIDDLE:
-                initial_y_offset = (max_height - total_height) / 2
-                # print(f"中间对齐Y偏移: {initial_y_offset}")
+            # 计算该列文本的总高度
+            total_col_height = len(column_text) * char_render_height - char_render_height * (1-replacement.line_spacing) if len(column_text) > 1 else 0
+
+            # 确定起始Y坐标
+            if replacement.alignment == TextAlignment.TOP:
+                current_y = box_center_y - box_height // 2 + replacement.padding
             elif replacement.alignment == TextAlignment.BOTTOM:
-                initial_y_offset = max_height - total_height
-                # print(f"底部对齐Y偏移: {initial_y_offset}")
-            # else:
-                # print("顶部对齐，无Y偏移")
+                current_y = box_center_y + box_height // 2 - total_col_height - replacement.padding
+            else: # MIDDLE (for vertical, often same as TOP or slightly adjusted)
+                current_y = box_center_y - total_col_height // 2
             
-            # 应用初始 Y 偏移到当前 Y 坐标
-            current_y = y + initial_y_offset
-            # print(f"应用Y偏移后的起始Y坐标: {current_y}")
-            
-            for i, char in enumerate(column_text):
-                if char == '\n':
-                    continue
-
-                # 获取当前字符的具体尺寸
-                char_bbox = font.getbbox(char)
-                this_char_height = char_bbox[3] - char_bbox[1]
-                this_char_width = char_bbox[2] - char_bbox[0]
-                # print(f"字符 '{char}' at {i}: 位置=({current_x}, {current_y}), 尺寸={this_char_width}x{this_char_height}")
-
-                # 计算基于字体大小的字符间距
-                char_spacing = char_height * 0.2
+            for char_index, char_text in enumerate(column_text):
+                # 获取单个字符的边界框以精确居中
+                current_font = default_font if char_text == "⋮" else font
+                char_bbox = current_font.getbbox(char_text)
+                single_char_width = char_bbox[2] - char_bbox[0]
                 
-                # 绘制文本描边和文本
+                # 计算字符的绘制位置 (X居中于列，Y递增)
+                char_x = current_x_col - single_char_width // 2
+                char_y = current_y + char_index * char_render_height
+                
+                # 绘制描边
                 if replacement.stroke_width > 0 and replacement.stroke_color:
-                    draw.text(
-                        (current_x, current_y),
-                        char,
-                        font=font,
-                        fill=replacement.stroke_color,
-                        stroke_width=replacement.stroke_width,
-                        stroke_fill=replacement.stroke_color
-                    )
-                
-                draw.text(
-                    (current_x, current_y),
-                    char,
-                    font=font,
-                    fill=replacement.font_color
-                )
-                
-                # 移动到下一个字符位置
-                current_y += this_char_height + char_spacing
-                # print(f"下一字符Y坐标: {current_y}")
-
-        # print("=== 垂直文本绘制完成 ===\n")
+                    for dx in range(-replacement.stroke_width, replacement.stroke_width + 1):
+                        for dy in range(-replacement.stroke_width, replacement.stroke_width + 1):
+                            if dx != 0 or dy != 0:
+                                draw.text((char_x + dx, char_y + dy), char_text,
+                                          font=current_font, fill=replacement.stroke_color)
+                # 绘制字符
+                draw.text((char_x, char_y), char_text, font=current_font, fill=replacement.font_color)
 
     def replace_manga_text(self, image: np.ndarray,
                            replacements: List[MangaTextReplacement],
                            inpaint_background: bool = True) -> np.ndarray:
         """
-        在漫画图像上替换文本
+        在图像上执行漫画文本替换
         
         Args:
-            image: 原始图像数据 (OpenCV格式)
+            image: 原始图像
             replacements: 漫画文本替换信息列表
-            inpaint_background: 是否修复背景（涂白）
+            inpaint_background: 是否修复背景
             
         Returns:
-            替换文本后的图像
+            处理后的图像
         """
-        result_image = image.copy()
+        processed_image = image.copy()
         
         for replacement in replacements:
-            # print(f"处理替换: '{replacement.original_text}' -> '{replacement.translated_text}'")
-            
-            # 1. 修复背景（涂白）
             if inpaint_background:
-                result_image = self._inpaint_background(result_image, replacement.bbox)
+                # 修复背景（例如，使用内容感知填充或简单的颜色填充）
+                processed_image = self._inpaint_background(processed_image, replacement.bbox)
             
-            # 2. 绘制新文本
-            result_image = self._draw_text_with_layout(result_image, replacement)
+            # 绘制文本
+            processed_image = self._draw_text_with_layout(processed_image, replacement)
             
-        return result_image
+        return processed_image
 
     def process_manga_image(self, image: np.ndarray, 
-                            structured_texts: List[Dict[str, Any]],
+                            structured_texts: List[OCRResult], # 修改类型注解
                             translations: Dict[str, str],
                             target_language: str = "zh",
                             inpaint_background: bool = True) -> np.ndarray:
@@ -769,100 +691,23 @@ class MangaTextReplacer:
         
         Args:
             image: 原始图像数据
-            structured_texts: 结构化文本列表，每个元素格式为:
-                {
-                    'text': str,  # 合并后的完整文本
-                    'direction': str,  # 文本方向
-                    'ocr_results': List[OCRResult]  # OCR结果列表
-                }
-            translations: 翻译结果字典
+            structured_texts: OCR识别结果列表 (每个OCRResult代表一个独立的文本块)
+            translations: 翻译结果字典 {原文: 译文}
             target_language: 目标语言代码
             inpaint_background: 是否修复背景
             
         Returns:
             处理后的图像
         """
-        # 创建漫画替换信息列表
-        replacements = []
-        
-        for item in structured_texts:
-            # 获取文本和其翻译
-            original_text = item['text']
-            translated_text = translations.get(original_text)
-            
-            if not translated_text:
-                translated_text = self._find_fuzzy_translation(original_text, translations)
-                
-            if not translated_text:
-                continue
-                
-            # 获取所有OCR结果的边界框点
-            bbox_points = []
-            confidences = []
-            for ocr_result in item['ocr_results']:
-                bbox_points.extend(ocr_result.bbox)
-                confidences.append(ocr_result.confidence)
-                
-            if not bbox_points:
-                continue
-                
-            # 计算边界框
-            points = np.array(bbox_points)
-            x_min = min(p[0] for p in bbox_points)
-            y_min = min(p[1] for p in bbox_points)
-            x_max = max(p[0] for p in bbox_points)
-            y_max = max(p[1] for p in bbox_points)
-            
-            bbox = [[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max]]
-            
-            # 确定文本方向
-            if item.get('direction') == 'vertical':
-                original_direction = TextDirection.VERTICAL
-            elif item.get('direction') == 'horizontal':
-                original_direction = TextDirection.HORIZONTAL
-            else:
-                original_direction = self._detect_text_direction(bbox)
-                log.warning(f"未找到文本方向信息，使用检测到的方向: {original_direction}")
-
-            target_direction = self._determine_target_direction(
-                original_text, translated_text, target_language, original_direction
-            )
-            
-            # 计算其他布局参数
-            width = x_max - x_min
-            height = y_max - y_min
-            column_count = len(item['ocr_results'])
-            font_size = self._calculate_optimal_font_size(
-                translated_text, bbox, target_direction,
-                column_count=column_count
-            )
-            alignment = self._determine_alignment(target_direction, target_language)
-            line_spacing, char_spacing = self._calculate_spacing(
-                target_direction, target_language, font_size
-            )
-            
-            # 创建替换信息
-            replacement = MangaTextReplacement(
-                original_text=original_text,
-                translated_text=translated_text,
-                bbox=bbox,
-                confidence=sum(confidences) / len(confidences),
-                direction=target_direction,
-                alignment=alignment,
-                font_size=font_size,
-                line_spacing=line_spacing,
-                char_spacing=char_spacing,
-                max_width=int(width),
-                max_height=int(height),
-                column_count=column_count,
-                stroke_color=(255, 255, 255),
-                stroke_width=2
-            )
-            
-            replacements.append(replacement)
+        # 直接使用 create_manga_replacements 来生成替换列表
+        replacements = self.create_manga_replacements(
+            ocr_results=structured_texts, 
+            translations=translations, 
+            target_language=target_language
+        )
         
         if not replacements:
-            log.warning("没有找到可替换的漫画文本")
+            log.warning("在 process_manga_image 中没有生成可替换的漫画文本")
             return image.copy()
         
         # 执行漫画文本替换
@@ -871,41 +716,13 @@ class MangaTextReplacer:
         )
         
         return result_image
-    
+
     def save_result_image(self, image: np.ndarray, output_path: str) -> bool:
         """保存处理结果图像"""
         try:
             cv2.imwrite(output_path, image)
-            log.info(f"漫画结果图像已保存: {output_path}")
+            log.info(f"结果图像已保存到: {output_path}")
             return True
         except Exception as e:
-            log.error(f"保存漫画图像失败: {e}")
+            log.error(f"保存图像失败: {e}", exc_info=True)
             return False
-
-
-def create_manga_translation_dict(structured_texts: List[Dict[str, Any]], 
-                                pure_translated_texts: List[str]) -> Dict[str, str]:
-    """
-    从结构化文本和纯翻译结果中创建漫画翻译字典 {原文: 译文}
-    
-    Args:
-        structured_texts: 结构化文本列表，每个元素包含 'text' (原文) 和 'ocr_results'
-        pure_translated_texts: 纯翻译结果列表，与 structured_texts 一一对应
-        
-    Returns:
-        翻译字典 {原文: 译文}
-    """
-    translation_dict = {}
-    
-    if len(structured_texts) != len(pure_translated_texts):
-        log.error("结构化文本列表和纯翻译结果列表长度不匹配，无法创建翻译字典。")
-        return {}
-
-    for i, item in enumerate(structured_texts):
-        original_text = item['text'].strip()
-        translated_text = pure_translated_texts[i].strip()
-        
-        if original_text and translated_text:
-            translation_dict[original_text] = translated_text
-            
-    return translation_dict

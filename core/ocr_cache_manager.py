@@ -2,7 +2,7 @@
 import sqlite3
 import json
 import os
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Dict
 
 from core.cache_interface import CacheInterface
 from core.data_models import OCRResult # Corrected import path
@@ -236,6 +236,35 @@ class OcrCacheManager(CacheInterface):
         except sqlite3.Error as e:
             log.error(f"清空 OCR 缓存失败: {e}")
 
+    def get_all_entries_for_display(self) -> List[Dict[str, Any]]:
+            """
+            获取所有OCR缓存条目以供显示。
+            返回一个字典列表，每个字典代表一个缓存条目。
+            """
+            log.debug("正在获取所有OCR缓存条目以供显示...")
+            entries = []
+            try:
+                conn = self._connect()
+                cursor = conn.cursor()
+                # 选择要在显示界面中使用的列
+                # ocr_data 可能会很大，可以考虑是否只显示摘要或部分信息
+                # 但为了与 MangaCache 和 TranslationCacheManager 的 get_all_entries_for_display 保持一致
+                # 我们暂时选择所有主要元数据列。UI层面可以决定如何显示。
+                cursor.execute(f"""
+                    SELECT cache_key, file_name, file_size, last_modified, page_num, created_at
+                    FROM {self.TABLE_NAME}
+                    ORDER BY created_at DESC
+                """) # 添加了 ORDER BY
+                rows = cursor.fetchall()
+                for row in rows:
+                    entries.append(dict(row)) # sqlite3.Row可以直接转换为字典
+                log.info(f"成功检索到 {len(entries)} 条OCR缓存条目以供显示。")
+            except sqlite3.Error as e:
+                log.error(f"获取所有OCR缓存条目失败: {e}")
+            except Exception as e: # Catch any other unexpected errors
+                log.error(f"获取所有OCR缓存条目时发生意外错误: {e}")
+            return entries
+    
     def close(self) -> None:
         """
         关闭数据库连接。

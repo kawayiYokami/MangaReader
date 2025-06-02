@@ -20,6 +20,7 @@ from qfluentwidgets import NavigationItemPosition, FluentWindow, SubtitleLabel, 
 from views.manga_browser_interface import MangaBrowserInterface
 from views.manga_translation_interface import MangaTranslationInterface
 from views.settings_interface import SettingsInterface
+from views.cache_management_interface import CacheManagementInterface # Added import
 import sys
 from core.config import config
 from core.cache_factory import get_cache_factory_instance # Added
@@ -63,6 +64,13 @@ class MainWindow(SplitFluentWindow):
         self.manga_translation_interface.setObjectName("mangaTranslationInterface")
         self.addSubInterface(
             self.manga_translation_interface, FIF.EDIT, "漫画翻译", isTransparent=True # <--- 确保使用 FIF.EDIT
+        )
+
+        # 添加缓存管理页面
+        self.cache_management_interface = CacheManagementInterface(self) # Added cache management interface
+        self.cache_management_interface.setObjectName("cacheManagementInterface")
+        self.addSubInterface(
+            self.cache_management_interface, FIF.INFO, "缓存管理", isTransparent=True # Changed icon to FIF.INFO
         )
 
         # 添加设置页面

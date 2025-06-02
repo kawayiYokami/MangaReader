@@ -185,12 +185,16 @@ class MangaList(QWidget):  # 改为继承自QWidget
 class ClearConfirmDialog(MessageBoxBase):
     """清空确认对话框"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, cache_type_name: str = None):
         super().__init__(parent)
         self.titleLabel = SubtitleLabel("清空确认", self)
-        self.contentLabel = SubtitleLabel(
-            "您确定要清空所有已加载的漫画目录和缓存吗？这将需要重新加载。", self
-        )
+
+        if cache_type_name:
+            content_text = f"您确定要清空选中的 “{cache_type_name}” 缓存吗？"
+        else:
+            content_text = "您确定要清空所有已加载的漫画目录和缓存吗？这将需要重新加载。"
+        
+        self.contentLabel = SubtitleLabel(content_text, self)
 
         # add widget to view layout
         self.viewLayout.addWidget(self.titleLabel)

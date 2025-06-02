@@ -48,11 +48,50 @@ class TranslationSettingsWindow(QDialog):
         translator_layout = QFormLayout(translator_group)
         
         self.translator_combo = QComboBox()
-        self.translator_combo.addItems(["Google", "智谱"])
+        self.translator_combo.addItems(["Google", "智谱", "NLLB"])
         self.translator_combo.currentTextChanged.connect(self.on_translator_changed)
         translator_layout.addRow("翻译器类型:", self.translator_combo)
         
         layout.addWidget(translator_group)
+
+        # NLLB设置
+        self.nllb_group = QGroupBox("NLLB设置")
+        nllb_layout = QFormLayout(self.nllb_group)
+        
+        self.nllb_model_name_edit = QLineEdit()
+        self.nllb_model_name_edit.setPlaceholderText("默认为 facebook/nllb-200-distilled-600M")
+        nllb_layout.addRow("模型名称:", self.nllb_model_name_edit)
+        
+        # 源语言选择
+        self.nllb_source_lang_combo = QComboBox()
+        nllb_sources = [
+            ("日语", "jpn_Jpan"),
+            ("英语", "eng_Latn"),
+            ("简体中文", "zho_Hans"),
+            ("韩语", "kor_Hang"),
+        ]
+        for display_name, code in nllb_sources:
+            self.nllb_source_lang_combo.addItem(display_name)
+            index = self.nllb_source_lang_combo.count() - 1
+            self.nllb_source_lang_combo.setItemData(index, code)
+        nllb_layout.addRow("源语言:", self.nllb_source_lang_combo)
+        
+        # 目标语言选择
+        self.nllb_target_lang_combo = QComboBox()
+        nllb_targets = [
+            ("简体中文", "zho_Hans"),
+            ("繁体中文", "zho_Hant"),
+            ("英文", "eng_Latn"),
+            ("日文", "jpn_Jpan"),
+            ("韩文", "kor_Hang"),
+        ]
+        for display_name, code in nllb_targets:
+            self.nllb_target_lang_combo.addItem(display_name)
+            index = self.nllb_target_lang_combo.count() - 1
+            self.nllb_target_lang_combo.setItemData(index, code)
+        nllb_layout.addRow("目标语言:", self.nllb_target_lang_combo)
+        
+        layout.addWidget(self.nllb_group)
         
         # 智谱AI设置
         self.zhipu_group = QGroupBox("智谱AI设置")
@@ -146,17 +185,37 @@ class TranslationSettingsWindow(QDialog):
         # Google设置
         self.google_api_key_edit.setText(config.google_api_key.value)
 
+        # NLLB设置
+        from core.translators.nllb_translator import NLLBTranslator
+        
+        self.nllb_model_name_edit.setText(config.nllb_model_name.value or NLLBTranslator.DEFAULT_MODEL_NAME)
+        
+        # 加载源语言设置
+        nllb_source_code = config.nllb_source_lang.value or NLLBTranslator.DEFAULT_SOURCE_LANG_CODE
+        source_index = self.nllb_source_lang_combo.findData(nllb_source_code)
+        if source_index >= 0:
+            self.nllb_source_lang_combo.setCurrentIndex(source_index)
+            
+        # 加载目标语言设置
+        nllb_target_code = config.nllb_target_lang.value or NLLBTranslator.DEFAULT_NLLB_TARGET_LANG_CODE
+        target_index = self.nllb_target_lang_combo.findData(nllb_target_code)
+        if target_index >= 0:
+            self.nllb_target_lang_combo.setCurrentIndex(target_index)
+
     def on_translator_changed(self, translator_type):
         """翻译器类型改变时的处理"""
         # 隐藏所有设置组
         self.zhipu_group.setVisible(False)
         self.google_group.setVisible(False)
+        self.nllb_group.setVisible(False)
         
         # 显示对应的设置组
         if translator_type == "智谱":
             self.zhipu_group.setVisible(True)
         elif translator_type == "Google":
             self.google_group.setVisible(True)
+        elif translator_type == "NLLB":
+            self.nllb_group.setVisible(True)
 
     def test_connection(self):
         """测试翻译器连接"""
@@ -183,6 +242,14 @@ class TranslationSettingsWindow(QDialog):
                 translator = TranslatorFactory.create_translator(
                     translator_type="Google",
                     api_key=api_key if api_key else None
+                )
+            elif translator_type == "NLLB":
+                model_name = self.nllb_model_name_edit.text().strip()
+                source_lang = self.nllb_source_lang_combo.currentData()
+                translator = TranslatorFactory.create_translator(
+                    translator_type="NLLB",
+                    model_name=model_name if model_name else None,
+                    source_lang_code=source_lang
                 )
             
             # 测试翻译
@@ -213,6 +280,11 @@ class TranslationSettingsWindow(QDialog):
             
             # 保存Google设置
             config.google_api_key.value = self.google_api_key_edit.text().strip()
+            
+            # 保存NLLB设置
+            config.nllb_model_name.value = self.nllb_model_name_edit.text().strip()
+            config.nllb_source_lang.value = self.nllb_source_lang_combo.currentData()
+            config.nllb_target_lang.value = self.nllb_target_lang_combo.currentData()
             
             # 保存字体设置
             font_file_name = self.font_combo.currentData()

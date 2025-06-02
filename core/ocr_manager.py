@@ -53,6 +53,7 @@ class OCRWorker(QThread): # This worker will now also need file_path and page_nu
             
             # 解析结果
             ocr_results_list = []
+            img_height, img_width = self.image_data.shape[0], self.image_data.shape[1]
             if result and len(result) > 0 and result[0]:
                 for line in result[0]:
                     if len(line) >= 2:
@@ -73,7 +74,7 @@ class OCRWorker(QThread): # This worker will now also need file_path and page_nu
                         height = max_y - min_y
                         direction = 'horizontal' if width > height else 'vertical'
 
-                        ocr_result_obj = OCRResult(text, bbox, confidence, direction=direction)
+                        ocr_result_obj = OCRResult(text, bbox, confidence, direction=direction, image_width=img_width, image_height=img_height)
                         ocr_results_list.append(ocr_result_obj)
             
             self.ocr_progress.emit(f"OCR识别完成，耗时 {processing_time:.2f}秒，识别到 {len(ocr_results_list)} 个文本区域")
@@ -364,6 +365,7 @@ class OCRManager(QObject):
             processing_time = end_time - start_time
             
             ocr_results_list = []
+            img_height, img_width = image_data.shape[0], image_data.shape[1]
             if result and len(result) > 0 and result[0]:
                 for line in result[0]:
                     if len(line) >= 2:
@@ -379,7 +381,7 @@ class OCRManager(QObject):
                         width = max_x - min_x
                         height = max_y - min_y
                         direction = 'horizontal' if width > height else 'vertical'
-                        ocr_results_list.append(OCRResult(text, bbox, confidence, direction=direction))
+                        ocr_results_list.append(OCRResult(text, bbox, confidence, direction=direction, image_width=img_width, image_height=img_height))
             
             log.info(f"同步OCR识别完成，耗时 {processing_time:.2f}秒，识别到 {len(ocr_results_list)} 个文本区域")
 
@@ -508,7 +510,7 @@ class OCRManager(QObject):
             合并的文本字符串
         """
         structured_texts = self.get_structured_text(ocr_results)
-        return '\n'.join([item['text'] for item in structured_texts])
+        return '\n'.join([item.text for item in structured_texts])
     
     def filter_by_confidence(self, ocr_results: List[OCRResult], 
                            min_confidence: float = 0.8) -> List[OCRResult]:
@@ -572,8 +574,6 @@ class OCRManager(QObject):
         """
         if not ocr_results:
             return []
-
-        ocr_results = self.filter_by_confidence(ocr_results, min_confidence=0.8)
         
         # 1. 按方向分组
         direction_groups = {}
@@ -663,7 +663,7 @@ class OCRManager(QObject):
         
         return merged_results
  
-    def get_structured_text(self, ocr_results: List[OCRResult]) -> List[Dict[str, Any]]:
+    def get_structured_text(self, ocr_results: List[OCRResult]) -> List[OCRResult]:
         """
         从OCR结果中提取结构化文本，并尝试合并多列文本。
         
@@ -671,96 +671,21 @@ class OCRManager(QObject):
             ocr_results: 原始OCR结果列表。
             
         Returns:
-            结构化文本字典列表，每个字典包含：
-            - text: 合并后的文本
-            - ocr_results: 相关的OCR结果对象列表（包含所有原始OCR结果）
-            - direction: 文本方向('horizontal' 或 'vertical')
+            合并之后的文本列表，每个元素是一个字典，包含文本和相关信息。
         """
         if not ocr_results:
             return []
 
         # 进行结果合并
         processed_groups = self._sort_and_group_ocr_results(ocr_results)
-        
-        # 构建新格式的结构化文本列表
-        structured_texts = []
-        used_originals = set()  # 用于跟踪已处理的原始OCR结果的id
-        
-        # 为每个合并后的结果找到对应的原始OCR结果
-        for result in processed_groups:
-            bbox = result.bbox
-            
-            # 查找与当前merged bbox重叠的所有原始OCR结果
-            associated_results = []
-            for orig in ocr_results:
-                if id(orig) in used_originals:
-                    continue
-                    
-                # 检查边界框是否重叠
-                orig_bbox = orig.bbox
-                
-                # 计算两个框的边界并放大1.1倍
-                # 计算合并框的中心点
-                merged_center_x = (min(p[0] for p in bbox) + max(p[0] for p in bbox)) / 2
-                merged_center_y = (min(p[1] for p in bbox) + max(p[1] for p in bbox)) / 2
-                # 计算合并框的宽度和高度并放大1.1倍
-                merged_width = (max(p[0] for p in bbox) - min(p[0] for p in bbox)) * 1.1
-                merged_height = (max(p[1] for p in bbox) - min(p[1] for p in bbox)) * 1.1
-                # 计算放大后的边界
-                merged_left = merged_center_x - merged_width / 2
-                merged_right = merged_center_x + merged_width / 2
-                merged_top = merged_center_y - merged_height / 2
-                merged_bottom = merged_center_y + merged_height / 2
-                
-                # 对原始框也进行同样的处理
-                orig_center_x = (min(p[0] for p in orig_bbox) + max(p[0] for p in orig_bbox)) / 2
-                orig_center_y = (min(p[1] for p in orig_bbox) + max(p[1] for p in orig_bbox)) / 2
-                orig_width = (max(p[0] for p in orig_bbox) - min(p[0] for p in orig_bbox)) * 1.1
-                orig_height = (max(p[1] for p in orig_bbox) - min(p[1] for p in orig_bbox)) * 1.1
-                orig_left = orig_center_x - orig_width / 2
-                orig_right = orig_center_x + orig_width / 2
-                orig_top = orig_center_y - orig_height / 2
-                orig_bottom = orig_center_y + orig_height / 2
-                
-                # 检查重叠
-                if not (merged_right < orig_left or 
-                       merged_left > orig_right or
-                       merged_bottom < orig_top or
-                       merged_top > orig_bottom):
-                    associated_results.append(orig)
-                    used_originals.add(id(orig))
-            
-            # 确定文本方向
-            # 使用合并后的文本框尺寸判断方向
-            width = max(p[0] for p in bbox) - min(p[0] for p in bbox)
-            height = max(p[1] for p in bbox) - min(p[1] for p in bbox)
-            direction = 'horizontal' if width > height else 'vertical'
-            
-            structure = {
-                'text': result.text,
-                'direction': direction,  # 添加方向信息
-                'ocr_results': associated_results if associated_results else [result]
-            }
-            structured_texts.append(structure)
-        
-        # 检查是否有未处理的原始结果
-        for orig in ocr_results:
-            if id(orig) not in used_originals:
-                # 计算单个结果的方向
-                bbox = orig.bbox
-                width = max(p[0] for p in bbox) - min(p[0] for p in bbox)
-                height = max(p[1] for p in bbox) - min(p[1] for p in bbox)
-                direction = 'horizontal' if width > height else 'vertical'
-                
-                structure = {
-                    'text': orig.text,
-                    'direction': direction,  # 添加方向信息
-                    'ocr_results': [orig]
-                }
-                structured_texts.append(structure)
-                used_originals.add(id(orig))
-        
-        return structured_texts
+
+        # 打印合并后的结果
+        log.info(f"结构化文本识别完成，共识别到 {len(processed_groups)} 个文本区域。")
+        for idx, result in enumerate(processed_groups):
+            log.debug(f"文本 {idx + 1}: {result.text}, 置信度: {result.confidence}, "
+                      f"方向: {result.direction}, 边界框: {result.bbox}, 合并数量: {result.merged_count}")
+
+        return processed_groups
 
     def filter_numeric_and_symbols(self, ocr_results: List[OCRResult]) -> List[OCRResult]:
         """

@@ -27,6 +27,7 @@ from qfluentwidgets import (
     FolderValidator,
     ConfigSerializer,
 )
+import os
 
 
 class ReadingOrder(Enum):
@@ -89,12 +90,6 @@ class Config(QConfig):
     translate_title = ConfigItem("Manga", "TranslateTitle", False)
     simplify_chinese = ConfigItem("Manga", "SimplifyChinese", False)
     merge_tags = ConfigItem("Manga", "MergeTags", True)
-    # png_compression_level = RangeConfigItem(
-    #     "Manga",
-    #     "PngCompressionLevel",
-    #     9,
-    #     validator=RangeValidator(0, 9)
-    # )
     webp_quality = RangeConfigItem(
         "Manga",
         "WebpQuality",
@@ -111,16 +106,16 @@ class Config(QConfig):
     log_level = OptionsConfigItem(
         "System", 
         "LogLevel",
-        "DEBUG", # Change default log level to DEBUG for debugging
+        "DEBUG", 
         validator=OptionsValidator(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     )
     
-    # ==================== OCR 设置 ==================== # 新增分组
-    ocr_confidence_threshold = RangeConfigItem( # 使用 RangeConfigItem 以便设置范围
+    # ==================== OCR 设置 ====================
+    ocr_confidence_threshold = RangeConfigItem(
         "OCR",
         "ConfidenceThreshold",
-        0.75,  # 默认值 0.75
-        validator=RangeValidator(0.0, 1.0) # 验证范围 0.0 到 1.0
+        0.60,
+        validator=RangeValidator(0.0, 1.0)
     )
 
     # ==================== 翻译设置 ====================
@@ -128,7 +123,7 @@ class Config(QConfig):
         "Translation", 
         "TranslatorType", 
         "Google", 
-        validator=OptionsValidator(["Google", "智谱"])
+        validator=OptionsValidator(["Google", "智谱", "NLLB"])
     )
 
     # 文字替换设置
@@ -139,17 +134,35 @@ class Config(QConfig):
     zhipu_model = ConfigItem(
         "Translation",
         "ZhipuModel",
-        "glm-4-flash", # 更新默认模型为一个更常用的值
+        "glm-4-flash",
         validator=OptionsValidator([
             "glm-4-flash",
             "glm-4",
             "glm-3-turbo",
-            "glm-4-flash-250414" # 保留旧值以防用户已配置
+            "glm-4-flash-250414"
         ])
     )
     
     # Google翻译设置
     google_api_key = ConfigItem("Translation", "GoogleApiKey", "")
+
+    # NLLB翻译设置
+    nllb_model_name = ConfigItem(
+        "Translation", "NLLBModelName", 'facebook/nllb-200-distilled-600M'
+    )
+    # nllb_cache_dir 不再作为用户可配置项
+    # _project_root_for_nllb_cache = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # _default_nllb_cache_dir = os.path.join(_project_root_for_nllb_cache, "models")
+    # nllb_cache_dir = ConfigItem(
+    #     "Translation", "NLLBCacheDir", _default_nllb_cache_dir
+    # )
+    nllb_source_lang = ConfigItem(
+        "Translation", "NLLBSourceLang", "jpn_Jpan"
+    )
+    _default_nllb_target_lang = "zho_Hans"
+    nllb_target_lang = ConfigItem(
+        "Translation", "NLLBTargetLang", _default_nllb_target_lang
+    )
 
 
 # 创建全局 config 对象

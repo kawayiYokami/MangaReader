@@ -168,6 +168,24 @@ class MangaListCacheManager(CacheInterface):
         except sqlite3.Error as e:
             log.error(f"清空漫画列表缓存失败: {e}")
 
+    def get_all_entries_for_display(self) -> List[Dict[str, Any]]:
+        """
+        获取所有漫画列表缓存条目，用于在界面中显示。
+        返回包含 directory_path 和 last_updated 的字典列表。
+        """
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            # Select directory_path and last_updated.
+            # We could also try to count items in manga_data, but that might be slow.
+            cursor.execute(f"SELECT directory_path, last_updated FROM {TABLE_NAME}")
+            rows = cursor.fetchall()
+            # Convert rows to a list of dictionaries
+            return [dict(row) for row in rows]
+        except sqlite3.Error as e:
+            log.error(f"获取所有漫画列表缓存条目失败: {e}")
+            return []
+
     def close(self) -> None:
         """关闭数据库连接。"""
         if self.conn:

@@ -175,7 +175,7 @@ class MangaManager(QObject):
                         continue
 
                     # is_manga_modified is now part of MangaListCacheManager
-                    if os.path.exists(file_path) and not self.manga_list_cache_manager.is_manga_modified(file_path):
+                    if os.path.exists(file_path):
                         try:
                             manga = MangaInfo(file_path) # Recreate MangaInfo from path
                             manga.title = manga_data.get("title", os.path.basename(file_path))
@@ -198,7 +198,7 @@ class MangaManager(QObject):
                             if fresh_manga and fresh_manga.is_valid:
                                 current_scan_mangas.append(fresh_manga)
                     else:
-                        log.info(f"漫画文件已修改或不存在于缓存: {file_path}，将重新加载。")
+                        log.info(f"漫画文件不存在于缓存: {file_path}，将重新加载。")
                         manga = MangaLoader.load_manga(file_path)
                         if manga and manga.is_valid:
                             current_scan_mangas.append(manga)

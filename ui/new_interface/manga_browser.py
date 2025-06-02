@@ -8,6 +8,8 @@ from .manga_list import MangaList
 from .tag_filter import TagFilter
 from .control_panel import ControlPanel
 from core.manga_manager import MangaManager
+from core.cache_factory import get_cache_factory_instance # 添加 CacheFactory 导入
+from core.config import config # 添加 config 导入
 
 
 class MangaBrowser(QWidget):
@@ -16,6 +18,7 @@ class MangaBrowser(QWidget):
     def __init__(self, parent=None, manga_manager=None):
         super().__init__(parent)
         self.manga_manager = manga_manager or MangaManager(self)  # 使用传入的manager或新建实例
+        self.manga_list_cache = get_cache_factory_instance().get_manager("manga_list") # 获取漫画列表缓存实例
         self.setup_ui()
         self.reading_order = "right_to_left"
         
@@ -99,12 +102,9 @@ class MangaBrowser(QWidget):
             
     def dragEnterEvent(self, event):
         """处理拖拽进入事件"""
-        # 检查是否是文件拖拽
         if event.mimeData().hasUrls():
-            # 检查是否是支持的文件类型（.zip或.cbz）
             for url in event.mimeData().urls():
                 file_path = url.toLocalFile()
-                # 检查是否是支持的文件类型（.zip, .cbz）或目录
                 if file_path.lower().endswith(('.zip', '.cbz')) or os.path.isdir(file_path):
                     event.acceptProposedAction()
                     return
@@ -115,15 +115,12 @@ class MangaBrowser(QWidget):
         if not urls:
             return
 
-        # 优先处理拖入的第一个文件夹
         for url in urls:
             file_path = url.toLocalFile()
             if os.path.isdir(file_path):
-                # 如果是目录，则调用manga_manager的设置目录并重新扫描功能
                 self.manga_manager.set_manga_dir(file_path, force_rescan=True)
-                return # 找到第一个目录就处理并返回
+                return 
 
-        # 如果没有拖入目录，则处理拖入的ZIP/CBZ文件
         files_to_process = []
         for url in urls:
             file_path = url.toLocalFile()
@@ -133,34 +130,42 @@ class MangaBrowser(QWidget):
         if not files_to_process:
             return
             
-        # 扫描所有拖入的漫画文件
         from core.manga_model import MangaLoader
-        manga_list = []
+        manga_list_from_drop = [] # 重命名以避免与 self.manga_list 冲突
         for file_path in files_to_process:
             manga = MangaLoader.load_manga(file_path)
             if manga and manga.is_valid:
-                manga_list.append(manga)
+                manga_list_from_drop.append(manga)
         
-        if manga_list:
-            # 保存第一个拖入的漫画，稍后打开它
-            first_manga = manga_list[0]
+        if manga_list_from_drop:
+            first_manga = manga_list_from_drop[0]
             
-            # 检查并添加不重复的漫画
-            new_manga_list = []
-            for manga in manga_list:
-                # 检查是否已存在相同路径的漫画（使用规范化路径进行比较）
-                manga_path = os.path.normpath(manga.file_path).lower()
-                if not any(os.path.normpath(existing.file_path).lower() == manga_path for existing in self.manga_manager.manga_list):
-                    new_manga_list.append(manga)
-                    self.manga_manager.manga_list.append(manga)
+            new_manga_added_to_manager = []
+            for manga_item in manga_list_from_drop:
+                manga_path_norm = os.path.normpath(manga_item.file_path).lower()
+                if not any(os.path.normpath(existing.file_path).lower() == manga_path_norm for existing in self.manga_manager.manga_list):
+                    new_manga_added_to_manager.append(manga_item)
+                    self.manga_manager.manga_list.append(manga_item) # 添加到 MangaManager 的列表
             
-            # 如果有新添加的漫画，更新缓存
-            if new_manga_list:
-                from core.manga_cache import manga_cache
-                from core.config import config
-                manga_cache.update_manga_list(config.manga_dir.value, self.manga_manager.manga_list)
-                # 通知UI更新
+            if new_manga_added_to_manager:
+                # 使用 MangaListCacheManager 实例的 set 方法更新缓存
+                # 假设拖入的文件应该被添加到当前 manga_dir 的缓存中
+                # 如果 manga_dir 未设置，则可能需要一个默认行为或提示用户
+                current_manga_dir = config.manga_dir.value
+                if current_manga_dir:
+                    # MangaListCacheManager.set 需要一个包含所有漫画信息的列表
+                    # 我们需要传递 MangaManager 中完整的漫画列表给它
+                    self.manga_list_cache.set(current_manga_dir, self.manga_manager.manga_list)
+                else:
+                    InfoBar.warning(
+                        title="提示",
+                        content="未设置漫画目录，拖入的漫画未被缓存。",
+                        orient=Qt.Horizontal,
+                        isClosable=True,
+                        position=InfoBarPosition.TOP,
+                        duration=3000,
+                        parent=self
+                    )
                 self.manga_manager.manga_list_updated.emit(self.manga_manager.manga_list)
             
-            # 无论是否重复，都打开第一个拖入的漫画
             self.manga_manager.set_current_manga(first_manga)

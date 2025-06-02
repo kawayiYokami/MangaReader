@@ -32,6 +32,7 @@ from core.batch_translation_worker import BatchTranslationWorker, TranslationTas
 import time
 import cv2
 import numpy as np # 导入 numpy
+import os # 导入 os 模块
 
 
 class MangaViewer(CardWidget):
@@ -346,13 +347,16 @@ class MangaViewer(CardWidget):
 
     def scale_image(self, image, container_size: QSize):
         """缩放OpenCV图像到合适大小"""
-        if image is None or len(image.shape) < 2:
-            print("无效的图像输入")
+        if image is None:
+            print("scale_image: 无效的图像输入 (is None)")
+            return None
+        if not hasattr(image, 'shape') or not isinstance(image, np.ndarray) or len(image.shape) < 2:
+            print(f"scale_image: 无效的图像输入 (type: {type(image)}, no shape or invalid shape)")
             return None
 
         if container_size.width() <= 0 or container_size.height() <= 0:
             print(f"无效的容器尺寸: {container_size.width()}x{container_size.height()}")
-            return None
+            return None # Return None if container size is invalid
 
         # 计算保持宽高比的缩放尺寸
         h, w = image.shape[:2]
@@ -371,7 +375,7 @@ class MangaViewer(CardWidget):
         # 确保目标尺寸大于0
         if target_width <= 0 or target_height <= 0:
              print(f"计算出的目标尺寸无效: {target_width}x{target_height}")
-             return None
+             return None # Return None if target dimensions are invalid
 
         # 使用LANCZOS4插值进行高质量缩放
         scaled_image = cv2.resize(
@@ -441,11 +445,13 @@ class MangaViewer(CardWidget):
         """
         if not hasattr(self, "current_manga") or not self.current_manga:
             self.image_area.setText("请选择一本漫画开始阅读")
+            self.image_area.setPixmap(QPixmap()) # Clear pixmap
             return
 
         current_page = config.current_page.value
         if current_page < 0 or current_page >= self.current_manga.total_pages:
             self.image_area.setText("页码超出范围")
+            self.image_area.setPixmap(QPixmap()) # Clear pixmap
             return
 
         # 从配置获取最新设置
@@ -453,101 +459,109 @@ class MangaViewer(CardWidget):
         self.reading_order = config.reading_order.value
         container_size = self.scroll_area.size()
 
-        display_image = None
+        # This will hold the raw (unscaled) image data to be displayed
+        final_image_data_unscaled = None
         self.actual_pages_displayed = 1 # 默认单页
 
-        # 检查是否启用翻译且缓存命中
         if self.translation_enabled and current_page in self.translated_image_cache:
-            print(f"翻译开启且缓存命中，显示页码 {current_page} 的翻译图片。")
-            current_image = self.translated_image_cache.get(current_page)
+            print(f"翻译开启且缓存命中，准备显示页码 {current_page} 的翻译图片。")
+            current_image_unscaled = self.translated_image_cache.get(current_page) # Can be None
 
             if self.display_mode != DisplayMode.SINGLE.value:
                 next_page_index = current_page + 1
+                next_image_unscaled = None
                 if next_page_index < self.current_manga.total_pages and next_page_index in self.translated_image_cache:
-                    next_image = self.translated_image_cache.get(next_page_index)
-                    # 检查是否应该合并翻译后的图片
-                    if self.should_combine_pages(current_image, next_image, container_size):
-                         combined = self.combine_images(current_image, next_image)
-                         if combined is not None and combined.size > 0:
-                             display_image = combined
-                             self.actual_pages_displayed = 2 # 实际显示双页
-                         else:
-                             display_image = self.scale_image(current_image, container_size) # 合并失败，显示单页翻译图片
-                    else:
-                         display_image = self.scale_image(current_image, container_size) # 不合并，显示单页翻译图片
-                else:
-                    display_image = self.scale_image(current_image, container_size) # 没有下一页翻译图片，显示单页翻译图片
-            else:
-                display_image = self.scale_image(current_image, container_size) # 单页模式，显示单页翻译图片
+                    next_image_unscaled = self.translated_image_cache.get(next_page_index) # Can be None
 
+                if current_image_unscaled is not None and next_image_unscaled is not None and \
+                   self.should_combine_pages(current_image_unscaled, next_image_unscaled, container_size):
+                    combined_data = self.combine_images(current_image_unscaled, next_image_unscaled)
+                    # combine_images handles None inputs and can return None
+                    if combined_data is not None and combined_data.size > 0:
+                        final_image_data_unscaled = combined_data
+                        self.actual_pages_displayed = 2
+                    else: # Combine failed or one of the images was None
+                        final_image_data_unscaled = current_image_unscaled # Fallback to current
+                else: # Not combining (or one image is None)
+                    final_image_data_unscaled = current_image_unscaled
+            else: # Single page mode
+                final_image_data_unscaled = current_image_unscaled
         else:
             # 翻译关闭或缓存未命中，显示原始图片
-            print(f"翻译关闭或缓存未命中，显示页码 {current_page} 的原始图片。")
-            current_image = self.get_page_image(current_page)
-            if current_image is None or current_image.size == 0:
-                 self.image_area.setText("无法获取图像")
-                 return
+            print(f"翻译关闭或缓存未命中，准备显示页码 {current_page} 的原始图片。")
+            current_image_unscaled = self.get_page_image(current_page) # Can be None
 
-            # 在检查翻译缓存之后，获取原始图片之后进行缩放
-            scaled_current_image = self.scale_image(current_image, container_size)
+            if current_image_unscaled is None: # Explicit check after get_page_image
+                self.image_area.setText("无法获取原始图像")
+                self.image_area.setPixmap(QPixmap())
+                return
+            if not hasattr(current_image_unscaled, 'size') or current_image_unscaled.size == 0:
+                self.image_area.setText("原始图像数据无效或为空")
+                self.image_area.setPixmap(QPixmap())
+                return
 
             if self.display_mode != DisplayMode.SINGLE.value:
                 next_page_index = current_page + 1
+                next_image_unscaled = None
                 if next_page_index < self.current_manga.total_pages:
-                    next_image = self.get_page_image(next_page_index)
-                    if (
-                        next_image is not None
-                        and next_image.size > 0
-                        and self.should_combine_pages(current_image, next_image, container_size) # 注意这里使用原始图片判断是否合并
-                    ):
-                        # 合并缩放后的两张原始图片
-                        scaled_next_image = self.scale_image(next_image, container_size)
-                        combined = self.combine_images(scaled_current_image, scaled_next_image)
-                        if combined is not None and combined.size > 0:
-                            display_image = combined
-                            self.actual_pages_displayed = 2 # 实际显示双页
-                        else:
-                            display_image = scaled_current_image # 合并失败，显示单页原始图片
-                    else:
-                        display_image = scaled_current_image # 不合并，显示单页原始图片
-                else:
-                    display_image = scaled_current_image # 没有下一页原始图片，显示单页原始图片
-            else:
-                display_image = scaled_current_image # 单页模式，显示单页原始图片
+                    next_image_unscaled = self.get_page_image(next_page_index) # Can be None
 
+                # current_image_unscaled is guaranteed not None here
+                if next_image_unscaled is not None and \
+                   self.should_combine_pages(current_image_unscaled, next_image_unscaled, container_size):
+                    combined_data = self.combine_images(current_image_unscaled, next_image_unscaled)
+                    if combined_data is not None and combined_data.size > 0:
+                        final_image_data_unscaled = combined_data
+                        self.actual_pages_displayed = 2
+                    else: # Combine failed
+                        final_image_data_unscaled = current_image_unscaled
+                else: # Not combining or next_image_unscaled is None
+                    final_image_data_unscaled = current_image_unscaled
+            else: # Single page mode
+                final_image_data_unscaled = current_image_unscaled
 
-        if display_image is not None and display_image.size > 0:
-            qimage = self.convert_image_to_qimage(display_image)
-            if qimage and not qimage.isNull():
-                self.original_image_size = qimage.size()  # 记录原始尺寸
-                self.image_area.setPixmap(QPixmap.fromImage(qimage))
-                # 计算初始尺寸(保持宽高比)
-                container_height = self.scroll_area.height()
-                self.current_scale = container_height / qimage.height()
-                scaled_width = int(qimage.width() * (container_height / qimage.height()))
-                self.image_area.setFixedSize(scaled_width, container_height)
-            else:
-                self.image_area.setText("无法加载图像")
+        # Now, scale final_image_data_unscaled if it's not None
+        if final_image_data_unscaled is None:
+            self.image_area.setText("无法加载最终图像数据")
+            self.image_area.setPixmap(QPixmap())
+            return
+
+        # Check size again, in case combine_images returned an empty array or similar
+        if not hasattr(final_image_data_unscaled, 'size') or final_image_data_unscaled.size == 0:
+            self.image_area.setText("最终图像数据为空或无效")
+            self.image_area.setPixmap(QPixmap())
+            return
+
+        scaled_display_image = self.scale_image(final_image_data_unscaled, container_size)
+
+        if scaled_display_image is None: # scale_image might return None
+            self.image_area.setText("图像缩放失败")
+            self.image_area.setPixmap(QPixmap())
+            return
+
+        q_image = self.convert_image_to_qimage(scaled_display_image)
+        if q_image.isNull():
+            self.image_area.setText("图像转换失败")
+            self.image_area.setPixmap(QPixmap())
         else:
-             self.image_area.setText("无法加载图像")
+            self.image_area.setPixmap(QPixmap.fromImage(q_image))
 
 
     def toggle_reading_order(self):
-        """切换阅读顺序（从左到右/从右到左）并返回当前状态"""
-        self.reading_order = (
+        """切换阅读顺序"""
+        current_order = config.reading_order.value
+        new_order = (
             ReadingOrder.LEFT_TO_RIGHT.value
-            if self.reading_order == ReadingOrder.RIGHT_TO_LEFT.value
+            if current_order == ReadingOrder.RIGHT_TO_LEFT.value
             else ReadingOrder.RIGHT_TO_LEFT.value
         )
-        config.reading_order.value = self.reading_order # 更新配置
-        return self.reading_order
+        config.reading_order.set_value(new_order)
 
     def mousePressEvent(self, event):
-        """鼠标按下事件处理"""
-        if event.modifiers() == Qt.ControlModifier and event.button() == Qt.LeftButton:
+        """鼠标按下事件处理，用于图片拖动"""
+        if event.button() == Qt.LeftButton:
             self.is_dragging = True
             self.last_mouse_pos = event.pos()
-            self.setCursor(Qt.ClosedHandCursor)  # 改变鼠标指针样式为抓取状态
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
@@ -555,272 +569,223 @@ class MangaViewer(CardWidget):
         if event.button() == Qt.LeftButton:
             self.is_dragging = False
             self.last_mouse_pos = None
-            self.setCursor(Qt.ArrowCursor)  # 恢复鼠标指针样式
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
-        """鼠标移动事件处理"""
-        # 处理拖动逻辑
+        """鼠标移动事件处理，用于显示/隐藏控制面板和图片拖动"""
+        # 控制面板显示/隐藏逻辑
+        # 检查鼠标是否在窗口底部区域 (例如，底部50像素)
+        if event.pos().y() >= self.height() - 50:
+            if not self.control_panel.isVisible() and self.control_panel.isEnabled(): # 仅在启用时显示
+                self.control_panel.show()
+                self.control_panel_visible = True # 更新状态
+        else:
+            if self.control_panel.isVisible():
+                self.control_panel.hide()
+                self.control_panel_visible = False # 更新状态
+
+        # 图片拖动逻辑
         if self.is_dragging and self.last_mouse_pos:
             delta = event.pos() - self.last_mouse_pos
-            self.scroll_area.horizontalScrollBar().setValue(
-                self.scroll_area.horizontalScrollBar().value() - delta.x()
-            )
-            self.scroll_area.verticalScrollBar().setValue(
-                self.scroll_area.verticalScrollBar().value() - delta.y()
-            )
+            h_bar = self.scroll_area.horizontalScrollBar()
+            v_bar = self.scroll_area.verticalScrollBar()
+            h_bar.setValue(h_bar.value() - delta.x())
+            v_bar.setValue(v_bar.value() - delta.y())
             self.last_mouse_pos = event.pos()
-            return
-
-        # 原有的控制面板显示逻辑
-        window_height = self.height()
-        mouse_y = event.pos().y()
-
-        # 如果鼠标在底部100像素范围内，显示控制面板
-        if window_height - mouse_y <= 100:
-            if not self.control_panel_visible:
-                self.control_panel.show()
-                self.control_panel_visible = True
-        else:
-            if self.control_panel_visible:
-                self.control_panel.hide()
-                self.control_panel_visible = False
 
         super().mouseMoveEvent(event)
 
+
     def leaveEvent(self, event):
-        """鼠标离开事件处理"""
-        # 鼠标离开窗口时隐藏控制面板
-        if self.control_panel_visible:
+        """鼠标离开窗口事件处理"""
+        if self.control_panel.isVisible():
             self.control_panel.hide()
-            self.control_panel_visible = False
+            self.control_panel_visible = False # 更新状态
         super().leaveEvent(event)
+
 
     def zoom_in(self):
         """放大图片"""
-        self.current_scale *= 1.1
+        self.current_scale = min(self.max_scale, self.current_scale + 0.1)
         self.apply_zoom()
 
     def zoom_out(self):
         """缩小图片"""
-        self.current_scale /= 1.1
+        self.current_scale = max(0.1, self.current_scale - 0.1) # 最小缩放比例为0.1
         self.apply_zoom()
 
     def apply_zoom(self):
-        """应用缩放比例"""
-        if self.original_image_size and not self.original_image_size.isNull():
-            scaled_width = int(self.original_image_size.width() * self.current_scale)
-            scaled_height = int(self.original_image_size.height() * self.current_scale)
-            self.image_area.setFixedSize(scaled_width, scaled_height)
+        """应用缩放并更新显示"""
+        # 注意：这里的缩放逻辑可能需要更复杂的实现，
+        # 例如，基于原始图片尺寸进行缩放，而不是简单地缩放当前显示的QPixmap
+        # 目前的实现是概念性的，实际效果可能需要调整
+        if self.original_image_size:
+            # 重新计算并设置ImageLabel的尺寸或Pixmap
+            # 这需要重新调用update_display或一个专门的缩放更新函数
+            self.update_display() # 重新调用update_display以应用缩放
+
 
     @Slot(bool) # 接收 bool 类型的信号参数
     def set_translation_enabled(self, enabled: bool):
         """
-        设置翻译功能是否启用
-        :param enabled: 是否启用翻译
+        设置翻译功能的启用状态
+        :param enabled: True表示启用翻译，False表示禁用
         """
         self.translation_enabled = enabled
-        print(f"翻译功能已设置为: {enabled}") # 打印状态以便调试
+        print(f"翻译功能已 {'启用' if enabled else '禁用'}")
 
         if enabled:
-            # 启用翻译
-            if hasattr(self, "current_manga") and self.current_manga:
-                total_pages = self.current_manga.total_pages
-                # 检查缓存是否完整
-                # 注意：这里简单检查缓存数量，实际应用可能需要更复杂的逻辑判断缓存是否有效
-                if len(self.translated_image_cache) < total_pages:
-                    print("缓存不完整，开始批量翻译...")
-                    # 创建并启动批量翻译工作器
-                    # 确保没有正在运行的工作器
-                    if self.batch_translation_worker and self.translation_thread and self.translation_thread.isRunning():
-                         print("已有翻译工作器正在运行，先取消。")
-                         self.batch_translation_worker.cancel()
-                         self.translation_thread.wait() # 等待旧线程结束
+            if not hasattr(self, "current_manga") or not self.current_manga:
+                InfoBar.warning(
+                    title="提示",
+                    content="请先选择一本漫画再启用翻译。",
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=3000,
+                    parent=self,
+                )
+                self.control_panel.translate_switch.setChecked(False) # 重置开关状态
+                return
 
-                    # 创建 TranslationTaskItem 列表，从 MangaLoader 获取原始图片数据
-                    task_list = []
-                    for i in range(total_pages):
-                        original_image_data = self.manga_loader.get_page_image(self.current_manga, i)
-                        if original_image_data is not None:
-                            current_manga_main_file_path = self.current_manga.file_path
-                            # Determine if it's an archive (e.g., zip)
-                            is_archive_manga = current_manga_main_file_path.lower().endswith('.zip') # Add other archive types if needed
+            if self.translation_thread and self.translation_thread.isRunning():
+                if self.batch_translation_worker:
+                    self.batch_translation_worker.cancel()
+                self.translation_thread.quit()
+                self.translation_thread.wait()
 
-                            # Set original_archive_path_for_cache:
-                            # If it's an archive, use its full path. Otherwise, None.
-                            archive_path_for_cache_val = current_manga_main_file_path if is_archive_manga else None
-                            
-                            # Set file_path_for_cache:
-                            # For folder manga, it's the direct page path.
-                            # For archive manga, it's the internal path within the archive.
-                            page_specific_path_for_cache_val = self.current_manga.get_page_path(i)
+            translation_tasks = []
+            current_translator_engine = config.translator_type.value
+            source_lang = "auto"
+            target_lang = "zh-CN"
 
-                            task_list.append(
-                                TranslationTaskItem(
-                                    task_id=f"page_{i}",
-                                    image_data=original_image_data,
-                                    page_index=i,
-                                    file_path_for_cache=page_specific_path_for_cache_val,
-                                    page_num_for_cache=i,
-                                    original_archive_path_for_cache=archive_path_for_cache_val
-                                )
-                            )
-                        else:
-                             print(f"警告: 无法获取页码 {i} 的原始图片数据，跳过该页翻译。")
+            if current_translator_engine == "NLLB":
+                source_lang = config.nllb_source_lang.value
+                target_lang = config.nllb_target_lang.value
+
+            # 确定 original_archive_path
+            # MangaInfo.file_path 存储的是完整路径
+            # 检查 self.current_manga.file_path 是否为 .zip 文件
+            is_zip_archive = False
+            if self.current_manga and hasattr(self.current_manga, 'file_path') and self.current_manga.file_path:
+                is_zip_archive = self.current_manga.file_path.lower().endswith(".zip")
+            
+            original_archive_path_for_task = self.current_manga.file_path if is_zip_archive else None
 
 
-                    if not task_list:
-                         print("没有可翻译的页面。")
-                         self.translation_enabled = False # 没有任务时强制关闭翻译
-                         # TODO: 更新翻译开关UI状态为关闭
-                         self.update_display()
-                         return
-
-
-                    self.batch_translation_worker = BatchTranslationWorker(
-                        tasks=task_list, # 传入任务列表
-                        save_to_disk=False # 不保存到磁盘
+            for i in range(self.current_manga.total_pages):
+                image_data = self.get_page_image(i)
+                if image_data is not None:
+                    task_item = TranslationTaskItem(
+                        task_id=f"page_{i}",
+                        image_data=image_data,
+                        page_index=i,
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        original_archive_path=original_archive_path_for_task
                     )
-                    self.translation_thread = QThread()
-
-                    # 连接信号
-                    self.batch_translation_worker.single_page_translated.connect(
-                        self.on_single_page_translated
-                    )
-                    self.batch_translation_worker.overall_progress.connect(
-                        self.on_batch_translation_progress
-                    )
-                    self.batch_translation_worker.all_tasks_finished.connect(
-                        self.on_all_tasks_finished
-                    )
-                    self.batch_translation_worker.error_occurred.connect(
-                        self.on_translation_error
-                    ) # 添加错误信号连接
-
-                    # 将工作器移动到线程
-                    self.batch_translation_worker.moveToThread(self.translation_thread)
-
-                    # 连接线程启动和结束信号
-                    self.translation_thread.started.connect(
-                        self.batch_translation_worker.run
-                    )
-                    self.batch_translation_worker.all_tasks_finished.connect(
-                        self.translation_thread.quit
-                    )
-                    self.batch_translation_worker.all_tasks_finished.connect(
-                        self.batch_translation_worker.deleteLater
-                    )
-                    self.translation_thread.finished.connect(
-                        self.translation_thread.deleteLater
-                    )
-                    self.batch_translation_worker.error_occurred.connect(
-                        self.translation_thread.quit
-                    ) # 错误时也退出线程
-                    self.batch_translation_worker.error_occurred.connect(
-                        self.batch_translation_worker.deleteLater
-                    ) # 错误时也删除工作器
-                    self.translation_thread.finished.connect(
-                        self.translation_thread.deleteLater
-                    ) # 错误时也删除线程
-
-
-                    # 启动线程
-                    self.translation_thread.start()
-
-                    # 更新UI显示翻译正在进行 (例如显示进度条或状态文本)
-                    # TODO: 添加UI更新逻辑，例如显示进度条
-                    print("批量翻译已启动...")
+                    translation_tasks.append(task_item)
                 else:
-                    print("缓存完整，无需重新翻译。")
-                    # 缓存完整，直接更新显示当前页
-                    self.update_display()
-            else:
-                print("没有当前漫画，无法启动翻译。")
-                self.translation_enabled = False # 没有漫画时强制关闭翻译
-                # TODO: 更新翻译开关UI状态为关闭
+                    print(f"警告: 无法获取第 {i} 页的图像数据，跳过此页的翻译任务。")
 
+            if not translation_tasks:
+                InfoBar.warning(
+                    title="提示",
+                    content="当前漫画没有可供翻译的页面。",
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=3000,
+                    parent=self,
+                )
+                self.control_panel.translate_switch.setChecked(False)
+                return
+
+            self.batch_translation_worker = BatchTranslationWorker(
+                tasks=translation_tasks,
+                save_to_disk=False,
+                translator_engine=current_translator_engine
+            )
+            self.translation_thread = QThread()
+            self.batch_translation_worker.moveToThread(self.translation_thread)
+
+            self.batch_translation_worker.single_page_translated.connect(self.on_single_page_translated)
+            self.batch_translation_worker.overall_progress.connect(self.on_batch_translation_progress)
+            self.batch_translation_worker.all_tasks_finished.connect(self.on_all_tasks_finished)
+            self.batch_translation_worker.error_occurred.connect(self.on_translation_error)
+            self.translation_thread.started.connect(self.batch_translation_worker.run)
+
+            self.translation_thread.start()
+            InfoBar.info(
+                title="翻译已启动",
+                content="正在后台翻译当前漫画...",
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self,
+            )
         else:
-            # 禁用翻译
-            print("禁用翻译功能...")
-            if self.batch_translation_worker and self.translation_thread and self.translation_thread.isRunning():
-                print("正在取消批量翻译工作器...")
-                self.batch_translation_worker.cancel()
-                self.translation_thread.wait() # 等待线程结束
-                print("批量翻译工作器已取消。")
-                self.batch_translation_worker = None
-                self.translation_thread = None
-
-
-            # 清空缓存
+            if self.translation_thread and self.translation_thread.isRunning():
+                if self.batch_translation_worker:
+                    self.batch_translation_worker.cancel()
+                self.translation_thread.quit()
+                self.translation_thread.wait()
+            self.batch_translation_worker = None
+            self.translation_thread = None
             self.translated_image_cache.clear()
-            print("翻译图片缓存已清空。")
+            self.update_display()
+            InfoBar.info(
+                title="翻译已关闭",
+                content="已切换回显示原始图片。",
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self,
+            )
 
-            # 更新UI显示翻译已关闭
-            # TODO: 添加UI更新逻辑，例如隐藏进度条
-            self.update_display() # 更新显示为原始图片
 
     @Slot(int, object) # page_index, translated_image_data
     def on_single_page_translated(self, page_index: int, translated_image_data):
-        """
-        处理单页翻译完成信号
-        :param page_index: 翻译完成的页码
-        :param translated_image_data: 翻译后的图片数据 (numpy数组)
-        """
-        print(f"接收到页码 {page_index} 的翻译结果。")
-        self.translated_image_cache[page_index] = translated_image_data
-
-        # 如果当前显示的页面是刚翻译完的页面，则刷新显示
-        # 移除这里的 update_display 调用，统一在所有任务完成后刷新
-        # current_page = config.current_page.value
-        # if self.display_mode == DisplayMode.SINGLE.value:
-        #      if current_page == page_index:
-        #          print(f"当前页 {current_page} 翻译完成，刷新显示。")
-        #          self.update_display()
-        # else: # 双页模式
-        #     # 检查当前显示的页面是否包含刚翻译完的页面
-        #     if self.reading_order == ReadingOrder.RIGHT_TO_LEFT.value:
-        #         # 右到左，当前页是右边的，下一页是左边的
-        #         if current_page == page_index or (current_page + 1 == page_index and current_page + 1 < self.current_manga.total_pages):
-        #              print(f"当前显示的页面包含页码 {page_index}，刷新显示。")
-        #              self.update_display()
-        #     else:
-        #         # 左到右，当前页是左边的，下一页是右边的
-        #         if current_page == page_index or (current_page + 1 == page_index and current_page + 1 < self.current_manga.total_pages):
-        #              print(f"当前显示的页面包含页码 {page_index}，刷新显示。")
-        #              self.update_display()
+        """单个页面翻译完成的回调"""
+        if translated_image_data is not None:
+            self.translated_image_cache[page_index] = translated_image_data
+            print(f"页面 {page_index} 翻译完成并已缓存。")
+            if config.current_page.value == page_index or \
+               (self.display_mode != DisplayMode.SINGLE.value and config.current_page.value + 1 == page_index):
+                self.update_display()
+        else:
+            print(f"页面 {page_index} 翻译返回空数据。")
 
 
     @Slot(int, str)
     def on_batch_translation_progress(self, percent: int, message: str):
-        """
-        处理批量翻译进度更新信号
-        :param percent: 完成百分比 (0-100)
-        :param message: 进度信息
-        """
-        print(f"批量翻译进度: {percent}% - {message}")
-        # TODO: 更新UI进度条
+        """批量翻译进度更新回调"""
+        pass
 
     @Slot(str)
     def on_all_tasks_finished(self, result_message: str):
-        """
-        处理所有批量翻译任务完成信号
-        :param result_message: 结果信息
-        """
-        print(f"批量翻译完成: {result_message}")
-        # TODO: 隐藏UI进度条，显示完成信息
-        # 翻译完成后，如果翻译开关仍然开启，刷新当前页以显示翻译结果
-        if self.translation_enabled:
-             self.update_display()
+        """所有翻译任务完成的回调"""
+        InfoBar.success(
+            title="翻译完成",
+            content=result_message,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=self,
+        )
+        print("所有翻译任务已完成。")
+        if self.translation_thread:
+            self.translation_thread.quit()
 
 
     @Slot(str)
     def on_translation_error(self, error_message: str):
-        """
-        处理翻译过程中发生的错误
-        :param error_message: 错误信息
-        """
-        print(f"翻译过程中发生错误: {error_message}")
-        # TODO: 显示错误信息给用户
-        self.translation_enabled = False # 发生错误时关闭翻译功能
-        # TODO: 更新翻译开关UI状态为关闭
-        self.update_display() # 更新显示为原始图片
+        """翻译错误回调"""
+        error_content = str(error_message)
+        InfoBar.error(
+            title="翻译错误",
+            content=error_content,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=5000,
+            parent=self,
+        )
+        print(f"翻译过程中发生错误: {error_content}")

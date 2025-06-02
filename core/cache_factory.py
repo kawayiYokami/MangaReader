@@ -4,9 +4,10 @@ from core.cache_interface import CacheInterface
 from core.manga_cache import MangaListCacheManager
 from core.ocr_cache_manager import OcrCacheManager
 from core.translation_cache_manager import TranslationCacheManager
+# DangerousWordCacheManager import removed
 
 # Define a type for cache types for better type hinting
-CacheType = Literal["manga_list", "ocr", "translation"]
+CacheType = Literal["manga_list", "ocr", "translation"] # "dangerous_word" removed
 
 class CacheManagerFactory:
     """
@@ -35,11 +36,12 @@ class CacheManagerFactory:
                 self._managers[cache_type] = OcrCacheManager()
             elif cache_type == "translation":
                 self._managers[cache_type] = TranslationCacheManager()
+            # "dangerous_word" case removed
             else:
                 # This case should ideally be caught by Literal type hinting
                 # but good to have a runtime check as well.
                 raise ValueError(f"未知的缓存类型: {cache_type}")
-        
+
         return self._managers[cache_type]
 
     def close_all_managers(self) -> None:
@@ -50,7 +52,11 @@ class CacheManagerFactory:
         for manager_type in list(self._managers.keys()): # Iterate over a copy of keys
             manager = self._managers.pop(manager_type) # Remove and get
             try:
-                manager.close()
+                # All managers in this factory are expected to have a close method
+                # if they implement CacheInterface properly (though CacheInterface doesn't enforce close())
+                # For now, we assume they might have it.
+                if hasattr(manager, 'close') and callable(manager.close):
+                    manager.close()
             except Exception as e:
                 # Log error, but continue closing others
                 # Assuming a logger is available or print for simplicity

@@ -3,7 +3,7 @@ name = "MangaReader"
 version = "0.1.0"
 description = "本子浏览器"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "deep-translator==1.11.4",
     "numpy==2.2.6",
@@ -19,7 +19,6 @@ dependencies = [
     "screeninfo==0.8.1",
     "zhconv==1.4.3",
     "langdetect==1.0.9",
-    # OnnxOCR dependencies
     "flask",
     "gunicorn",
     "opencv-contrib-python",
@@ -30,6 +29,9 @@ dependencies = [
     "imgaug",
     "lmdb",
     "tqdm",
+    "transformers",
+    "torch",
+    "sentencepiece",
 ]
 
 [build-system]
@@ -44,7 +46,3 @@ members = [
     ".",
     "OnnxOCR"
 ]
-
-# 引用子项目
-[project.optional-dependencies]
-ocr = ["OnnxOCR"]
