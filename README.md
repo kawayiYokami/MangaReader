@@ -14,6 +14,7 @@
 ### 安装
 
 运行 update_ocr_font.bat
+或者手动克隆项目https://github.com/jingsongliujing/OnnxOCR.git到目录下
 
 ```bash
 cd manga
