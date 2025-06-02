@@ -513,6 +513,10 @@ class SettingsInterface(ScrollArea):
         super().__init__(parent=parent)
         self.view = QWidget(self)
         self.manga_manager = manga_manager or MangaManager(self)
+        # --- CRITICAL CHANGE: Make SettingsInterface (ScrollArea) and its viewport transparent ---
+        self.setStyleSheet("background: transparent;")
+        self.viewport().setStyleSheet("background: transparent;")
+        # ------------------------------------------------------------------------------------
         self.setup_ui()
 
     def setup_ui(self):

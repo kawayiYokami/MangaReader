@@ -9,10 +9,11 @@ from typing import List, Any, Optional, Tuple
 
 from PySide6.QtCore import Qt, Slot, QUrl, QThread
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
-from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QFileDialog, QTableWidget,
-                               QTableWidgetItem, QAbstractItemView, QHeaderView)
+from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QFileDialog,
+                               QTableWidgetItem, QAbstractItemView, QHeaderView) # Removed QTableWidget
 from qfluentwidgets import (ScrollArea, StrongBodyLabel, SubtitleLabel, setFont, PushButton, ToolButton, LineEdit,
-                            ComboBox, ProgressBar, TextEdit, FluentIcon as FIF, InfoBar, InfoBarPosition, MessageBox)
+                            ComboBox, ProgressBar, TextEdit, FluentIcon as FIF, InfoBar, InfoBarPosition, MessageBox,
+                            TableWidget) # Added TableWidget
 
 # 项目内部导入
 from core.config import config # Added import for config
@@ -54,6 +55,10 @@ class MangaTranslationInterface(QWidget):
 
     def _init_control_panel(self, default_output_dir: str):
         self.control_panel_scroll = ScrollArea(self)
+        # --- CRITICAL CHANGE: Make control_panel_scroll and its viewport transparent ---
+        self.control_panel_scroll.setStyleSheet("background: transparent;")
+        self.control_panel_scroll.viewport().setStyleSheet("background: transparent;")
+        # -----------------------------------------------------------------------------
         self.control_panel_scroll.setWidgetResizable(True)
         self.control_panel_scroll.setObjectName("controlPanelScroll")
 
@@ -200,9 +205,12 @@ class MangaTranslationInterface(QWidget):
 
     def _init_task_list_panel(self):
         self.task_list_scroll = ScrollArea(self)
+        # --- CRITICAL CHANGE: Make task_list_scroll and its viewport transparent ---
+        self.task_list_scroll.setStyleSheet("background: transparent;")
+        self.task_list_scroll.viewport().setStyleSheet("background: transparent;")
+        # --------------------------------------------------------------------------
         self.task_list_scroll.setWidgetResizable(True)
         self.task_list_scroll.setObjectName("taskListScroll")
-        self.task_list_scroll.setStyleSheet("ScrollArea { border: none; }")
 
         self.task_list_widget_container = QWidget()
         self.task_list_container_layout = QVBoxLayout(self.task_list_widget_container)
@@ -213,7 +221,7 @@ class MangaTranslationInterface(QWidget):
         setFont(task_list_title, 18)
         self.task_list_container_layout.addWidget(task_list_title)
 
-        self.task_table = QTableWidget(self)
+        self.task_table = TableWidget(self) # Changed to qfluentwidgets.TableWidget
         self.task_table.setColumnCount(3)
         self.task_table.setHorizontalHeaderLabels(["文件/任务", "状态", "详情/结果"])
         self.task_table.verticalHeader().setVisible(False)

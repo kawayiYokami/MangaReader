@@ -4,8 +4,8 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout,
                                QTableWidgetItem, QAbstractItemView, QHeaderView, QLabel,
                                QMenu, QDialog, QPushButton as QtWidgetsPushButton,
                                QDialogButtonBox, QTextEdit, QMessageBox) 
-from qfluentwidgets import (ScrollArea, SubtitleLabel, setFont, PushButton, ComboBox,
-                            LineEdit as FluentLineEdit, InfoBar, InfoBarPosition, TableWidget) 
+from qfluentwidgets import (ScrollArea, SubtitleLabel, setFont, PushButton, ComboBox, BodyLabel,
+                            LineEdit as FluentLineEdit, InfoBar, InfoBarPosition, TableWidget)
 
 # 项目内部导入
 from typing import Any, Dict, List, Optional 
@@ -32,13 +32,13 @@ class HarmonizationMappingDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        self.original_label = QLabel("原文 (Original Text):", self)
+        self.original_label = BodyLabel("原文 (Original Text):", self)
         self.original_text_edit = QTextEdit(self)
         self.original_text_edit.setPlainText(original_text)
         self.original_text_edit.setReadOnly(False) # Always allow editing the field
         self.original_text_edit.setToolTip("需要被替换的文本。")
 
-        self.harmonized_label = QLabel("替换为 (Replacement Text):", self)
+        self.harmonized_label = BodyLabel("替换为 (Replacement Text):", self)
         self.harmonized_text_edit = QTextEdit(self)
         self.harmonized_text_edit.setPlainText(current_harmonized_text)
         self.harmonized_text_edit.setPlaceholderText("输入替换后的文本（留空表示不替换或删除原文）")
@@ -91,6 +91,10 @@ class CacheManagementInterface(QWidget):
 
     def _init_control_panel(self):
         self.control_panel_scroll = ScrollArea(self)
+        # --- CRITICAL CHANGE: Make control_panel_scroll and its viewport transparent ---
+        self.control_panel_scroll.setStyleSheet("background: transparent;")
+        self.control_panel_scroll.viewport().setStyleSheet("background: transparent;")
+        # -----------------------------------------------------------------------------
         self.control_panel_scroll.setWidgetResizable(True)
         self.control_panel_scroll.setObjectName("controlPanelScroll")
 
@@ -105,7 +109,7 @@ class CacheManagementInterface(QWidget):
         setFont(title, 18)
         self.control_panel_layout.addWidget(title)
 
-        self.cache_type_label = QLabel("选择缓存类型:", self)
+        self.cache_type_label = BodyLabel("选择缓存类型:", self)
         self.cache_type_combo = ComboBox(self)
         self.cache_type_combo.addItems(["漫画列表", "OCR", "翻译", "和谐映射"]) 
         self.cache_type_combo.currentIndexChanged.connect(self._on_cache_type_changed) 
@@ -139,9 +143,12 @@ class CacheManagementInterface(QWidget):
 
     def _init_display_area(self):
         self.display_area_scroll = ScrollArea(self)
+        # --- CRITICAL CHANGE: Make display_area_scroll and its viewport transparent ---
+        self.display_area_scroll.setStyleSheet("background: transparent;")
+        self.display_area_scroll.viewport().setStyleSheet("background: transparent;")
+        # ----------------------------------------------------------------------------
         self.display_area_scroll.setWidgetResizable(True)
         self.display_area_scroll.setObjectName("displayAreaScroll")
-        self.display_area_scroll.setStyleSheet("ScrollArea { border: none; }") 
 
         self.display_area_widget_container = QWidget()
         self.display_area_container_layout = QVBoxLayout(self.display_area_widget_container)
@@ -149,11 +156,11 @@ class CacheManagementInterface(QWidget):
         self.display_area_container_layout.setSpacing(10)
 
         self.filter_search_layout = QHBoxLayout()
-        self.search_label = QLabel("搜索:", self)
+        self.search_label = BodyLabel("搜索:", self)
         self.search_line_edit = FluentLineEdit(self) 
         self.search_line_edit.setPlaceholderText("输入搜索关键词")
 
-        self.filter_label = QLabel("筛选:", self)
+        self.filter_label = BodyLabel("筛选:", self)
         self.filter_combo = ComboBox(self)
         self.filter_combo.addItem("所有") 
 
