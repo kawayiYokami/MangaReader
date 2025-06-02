@@ -17,7 +17,7 @@
 
 ## 🛠️ 技术栈
 
--   **主要语言**: Python 3.9+
+-   **主要语言**: Python 3.11
 -   **GUI框架**: PySide6, qfluentwidgets
 -   **包管理/虚拟环境**: uv
 -   **OCR技术**: OnnxOCR (通过子模块集成，提供移动版和可选的完整版模型支持)
@@ -220,10 +220,10 @@ flowchart TD
     B -- (可选)OCR参数 --> B;
     B --> C[启动翻译];
     C --> D[OCR文本识别];
-    D --> E[文本和谐化处理 (若启用)];
-    E --> F[翻译文本];
-    F --> G[文本替换回图片];
-    G --> H[查看/保存结果];
+    D --> E["文本和谐化处理 (若启用)"];
+    E --> F["翻译文本"];
+    F --> G["文本替换回图片"];
+    G --> H["查看/保存结果"];
 ```
 
 ## 🤝 贡献指南
@@ -244,5 +244,5 @@ flowchart TD
 
 ## 📄 许可证
 
--   主项目: [MIT License](LICENSE) *(如果您的项目根目录有 LICENSE 文件，请确保此链接有效，否则可以移除此行或指向正确的许可证信息)*
+-   主项目: [MIT License](LICENSE)
 -   OnnxOCR 子项目: 遵循其自身的许可证 [MIT License](https://github.com/jingsongliujing/OnnxOCR/blob/main/LICENSE)
