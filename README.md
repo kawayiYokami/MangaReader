@@ -36,7 +36,7 @@ graph TD
     A --> G(requirements.txt);
     A --> H[core/];
     A --> I[font/];
-    A --> J[OnnxOCR/ (子模块)];
+    A --> J["OnnxOCR/ (子模块)"];
     A --> K[ui/];
     A --> L[utils/];
     A --> M[views/];
