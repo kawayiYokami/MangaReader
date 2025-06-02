@@ -73,3 +73,6 @@ manga/
 ## ⚙️ 配置
 
 应用程序的默认配置定义在 <mcfile name="config.py" path="core/config.py"></mcfile> 文件中。您可以在此文件中调整默认的阅读顺序、显示模式等设置。例如，默认设置为双页、从左到右阅读。
+
+## 📜 许可证
+本项目采用 [GNU General Public License v3.0](LICENSE) 授权。
