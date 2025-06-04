@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="theme-dark" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -227,28 +227,13 @@
                 // ==================== 初始化 ====================
 
                 // 简化的主题消息监听器
-                function initThemeMessageListener() {
-                    window.addEventListener('message', (event) => {
-                        if (event.data && event.data.type === 'applyCSSVars') {
-                            console.log('🎨 收到主题同步消息');
-                            applyCSSVars(event.data.vars);
-                        }
-                    });
-                    console.log('👂 主题监听器已初始化');
-                }
+                // Removed theme message listener (initThemeMessageListener) and applyCSSVars function.
+                // This viewer is intentionally set to always use a dark theme (via <html class="theme-dark">)
+                // and does not sync with or inherit theme from the parent page.
 
                 // 应用CSS变量
-                function applyCSSVars(vars) {
-                    const root = document.documentElement;
-                    Object.entries(vars).forEach(([varName, value]) => {
-                        root.style.setProperty(varName, value);
-                    });
-                    console.log('🎨 主题已应用');
-                }
-
                 onMounted(async () => {
                     // 初始化主题消息监听器
-                    initThemeMessageListener();
 
 
 

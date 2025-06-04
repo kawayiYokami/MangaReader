@@ -174,47 +174,13 @@ window.MangaBrowserMethods = {
     // iframe加载完成事件
     onIframeLoad() {
         console.log('🎨 iframe加载完成，同步主题');
-        setTimeout(() => {
-            this.syncThemeToIframe();
-        }, 200); // 等待iframe完全准备好
+        // Removed call to syncThemeToIframe.
+        // Viewer iframe theme is now independent.
     },
 
-    // 主题同步到iframe
-    syncThemeToIframe() {
-        if (!this.showMangaViewer) return;
-
-        const iframe = document.querySelector('.manga-viewer-iframe');
-        if (!iframe || !iframe.contentWindow) return;
-
-        try {
-            const rootStyles = getComputedStyle(document.documentElement);
-            const cssVars = {};
-
-            // 获取主要的主题变量
-            const themeVarNames = [
-                '--bg-primary', '--bg-secondary', '--bg-tertiary',
-                '--text-primary', '--text-secondary', '--text-muted',
-                '--border-color', '--accent-color', '--accent-hover'
-            ];
-
-            themeVarNames.forEach(varName => {
-                const value = rootStyles.getPropertyValue(varName).trim();
-                if (value) {
-                    cssVars[varName] = value;
-                }
-            });
-
-            // 发送主题变量到iframe
-            iframe.contentWindow.postMessage({
-                type: 'applyCSSVars',
-                vars: cssVars
-            }, '*');
-
-            console.log('🎨 主题已同步到iframe');
-        } catch (error) {
-            console.warn('主题同步失败:', error);
-        }
-    },
+    // Removed syncThemeToIframe function.
+    // The viewer.html iframe is now intentionally set to always use a dark theme
+    // and no longer syncs with the parent page's theme.
 
     // 保存当前浏览状态
     saveBrowsingState() {
