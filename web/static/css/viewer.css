@@ -1,18 +1,5 @@
 /* 漫画查看器样式 */
 
-/* Theme variables for dark mode, mirroring modern-theme.css */
-html.theme-dark {
-    --bg-primary: #121212;
-    --bg-secondary: #1e1e1e;
-    --bg-tertiary: #242424;
-    --text-primary: #e0e0e0;
-    --text-secondary: #b0b0b0;
-    --text-muted: #757575;
-    --border-color: #2c2c2c;
-    --border-muted: #222222;
-    --accent-color: #bb86fc;
-    --accent-hover: #a36efc;
-}
 /* 全局样式重置 */
 * {
     margin: 0;
@@ -23,24 +10,24 @@ html.theme-dark {
 html, body {
     height: 100%;
     overflow: hidden;
-    background: var(--bg-primary, #000);
-    color: var(--text-primary, #fff);
+    background: var(--color-bg-default);
+    color: var(--color-text-default);
 }
 
 #app {
     height: 100%;
     display: flex;
     flex-direction: row;
-    background: var(--bg-primary, #000);
+    background: var(--color-bg-default);
 }
 
 /* 左侧边栏 */
 .left-sidebar {
     width: 120px;
     height: 100vh;
-    background: var(--bg-secondary);
+    background: var(--color-bg-subtle);
     backdrop-filter: blur(10px);
-    border-right: 1px solid var(--border-color);
+    border-right: 1px solid var(--color-border-default);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -54,7 +41,7 @@ html, body {
 .manga-title-section {
     width: 100%;
     text-align: center;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--color-border-default);
     padding-bottom: 15px;
 }
 
@@ -63,7 +50,7 @@ html, body {
     text-orientation: mixed;
     font-size: 12px;
     font-weight: 500;
-    color: var(--text-primary, #fff);
+    color: var(--color-text-default);
     text-align: center;
     max-height: 200px;
     overflow-y: hidden;
@@ -106,7 +93,7 @@ html, body {
     width: 100%;
     display: flex;
     justify-content: center;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--color-border-default);
     padding-top: 15px;
 }
 
@@ -116,15 +103,15 @@ html, body {
     border-radius: 50% !important;
     font-size: 18px !important;
     font-weight: bold !important;
-    background: var(--bg-tertiary) !important;
-    border: 1px solid var(--border-color) !important;
-    color: var(--text-primary, #fff) !important;
+    background: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-border-default) !important;
+    color: var(--color-text-default) !important;
     transition: all 0.2s ease !important;
 }
 
 .nav-btn:hover {
-    background: var(--accent-hover) !important;
-    border-color: var(--accent-color) !important;
+    background: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-default) !important;
     transform: scale(1.05);
 }
 
@@ -136,8 +123,8 @@ html, body {
     gap: 2px;
     margin-bottom: 8px;
     padding: 6px 8px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-default);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -145,13 +132,13 @@ html, body {
 }
 
 .page-display:hover {
-    background: var(--bg-secondary);
-    border-color: var(--border-muted);
+    background: var(--color-bg-subtle);
+    border-color: var(--color-border-subtle);
 }
 
 .current-page {
     font-size: 13px;
-    color: var(--text-primary, #fff);
+    color: var(--color-text-default);
     font-weight: bold;
     min-width: 20px;
     text-align: center;
@@ -159,13 +146,13 @@ html, body {
 
 .page-divider {
     font-size: 12px;
-    color: var(--text-secondary, #ccc);
+    color: var(--color-text-secondary);
     margin: 0 2px;
 }
 
 .total-pages {
     font-size: 11px;
-    color: var(--text-secondary, #ccc);
+    color: var(--color-text-secondary);
     font-weight: normal;
     min-width: 20px;
     text-align: center;
@@ -186,14 +173,14 @@ html, body {
 }
 
 .page-input .el-input__wrapper {
-    background: var(--bg-tertiary) !important;
-    border: 1px solid var(--accent-color) !important;
+    background: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-accent-default) !important;
     border-radius: 4px !important;
-    box-shadow: 0 0 0 1px var(--accent-color) !important;
+    box-shadow: 0 0 0 1px var(--color-accent-default) inset !important;
 }
 
 .page-input .el-input__inner {
-    color: var(--text-primary, #fff) !important;
+    color: var(--color-text-default) !important;
     text-align: center !important;
     font-size: 13px !important;
     font-weight: bold !important;
@@ -214,13 +201,13 @@ html, body {
 
 .progress-bg {
     fill: none;
-    stroke: var(--border-muted);
+    stroke: var(--color-border-subtle);
     stroke-width: 3;
 }
 
 .progress-fill {
     fill: none;
-    stroke: var(--accent-color, #409eff);
+    stroke: var(--color-accent-default);
     stroke-width: 3;
     stroke-linecap: round;
     transition: stroke-dashoffset 0.3s ease;
@@ -229,7 +216,7 @@ html, body {
 .progress-text {
     position: absolute;
     font-size: 10px;
-    color: var(--text-secondary, #ccc);
+    color: var(--color-text-secondary);
     font-weight: bold;
 }
 
@@ -240,7 +227,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-primary, #000);
+    background: var(--color-bg-default);
     position: relative;
     overflow: hidden;
 }
@@ -252,7 +239,7 @@ html, body {
     justify-content: center;
     width: 100%;
     height: 100%;
-    color: var(--text-primary, #fff);
+    color: var(--color-text-default);
 }
 
 /* 图片容器 */
@@ -277,7 +264,7 @@ html, body {
     user-select: none;
     -webkit-user-drag: none;
     border-radius: 4px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); /* Keep hardcoded shadow for now */
 }
 
 /* 单页模式 */
@@ -314,7 +301,7 @@ html, body {
     justify-content: center;
     width: 100%;
     height: 100%;
-    color: var(--text-primary, #fff);
+    color: var(--color-text-default);
 }
 
 /* 模式切换按钮 */
@@ -324,15 +311,15 @@ html, body {
     border-radius: 50% !important;
     font-size: 11px !important;
     font-weight: bold !important;
-    background: var(--bg-tertiary) !important;
-    border: 1px solid var(--border-color) !important;
-    color: var(--text-primary, #fff) !important;
+    background: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-border-default) !important;
+    color: var(--color-text-default) !important;
     transition: all 0.2s ease !important;
 }
 
 .mode-btn:hover {
-    background: var(--accent-hover) !important;
-    border-color: var(--accent-color) !important;
+    background: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-default) !important;
     transform: scale(1.05);
 }
 
@@ -343,29 +330,29 @@ html, body {
     border-radius: 50% !important;
     font-size: 14px !important;
     font-weight: bold !important;
-    background: var(--bg-tertiary) !important;
-    border: 1px solid var(--border-color) !important;
-    color: var(--text-primary, #fff) !important;
+    background: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-border-default) !important;
+    color: var(--color-text-default) !important;
     transition: all 0.2s ease !important;
 }
 
 .translation-btn:hover {
-    background: var(--accent-hover) !important;
-    border-color: var(--accent-color) !important;
+    background: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-default) !important;
     transform: scale(1.05);
 }
 
 /* 翻译按钮激活状态 */
 .translation-active {
-    background: var(--accent-color) !important;
-    border-color: var(--accent-hover) !important;
-    color: var(--text-primary) !important;
-    box-shadow: 0 0 8px var(--accent-color-translucent) !important;
+    background: var(--color-accent-default) !important;
+    border-color: var(--color-accent-hover) !important;
+    color: var(--color-text-default) !important;
+    box-shadow: 0 0 8px rgba(var(--color-accent-default), 0.5) !important; /* Use rgba with variable */
 }
 
 .translation-active:hover {
-    background: rgba(64, 158, 255, 0.4) !important;
-    border-color: rgba(64, 158, 255, 0.8) !important;
+    background: rgba(var(--color-accent-default), 0.4) !important; /* Use rgba with variable */
+    border-color: rgba(var(--color-accent-default), 0.8) !important; /* Use rgba with variable */
 }
 
 /* 返回按钮 */
@@ -382,17 +369,17 @@ html, body {
     border-radius: 50% !important;
     font-size: 18px !important;
     font-weight: bold !important;
-    background: rgba(255, 255, 255, 0.1) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    color: var(--text-primary, #fff) !important;
+    background: rgba(var(--color-text-default), 0.1) !important; /* Use rgba with variable */
+    border: 1px solid rgba(var(--color-text-default), 0.2) !important; /* Use rgba with variable */
+    color: var(--color-text-default) !important;
     transition: all 0.2s ease !important;
 }
 
 .back-btn:hover {
-    background: rgba(255, 255, 255, 0.2) !important;
-    border-color: rgba(255, 255, 255, 0.3) !important;
+    background: rgba(var(--color-text-default), 0.2) !important; /* Use rgba with variable */
+    border-color: rgba(var(--color-text-default), 0.3) !important; /* Use rgba with variable */
     transform: scale(1.05);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); /* Keep hardcoded shadow for now */
 }
 
 /* 响应式设计 */
@@ -502,12 +489,12 @@ html, body {
 /* 关键帧动画 */
 @keyframes pulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(187, 134, 252, 0.7);
+        box-shadow: 0 0 0 0 rgba(var(--color-accent-default), 0.7); /* Use rgba with variable */
     }
     70% {
-        box-shadow: 0 0 0 10px rgba(187, 134, 252, 0);
+        box-shadow: 0 0 0 10px rgba(var(--color-accent-default), 0); /* Use rgba with variable */
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(187, 134, 252, 0);
+        box-shadow: 0 0 0 0 rgba(var(--color-accent-default), 0); /* Use rgba with variable */
     }
 }

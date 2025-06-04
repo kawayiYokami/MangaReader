@@ -5,21 +5,32 @@
 :root,
 html.theme-light {
     /* 浅色模式 - 现代扁平化 */
-    --bg-primary: #ffffff;
-    --bg-secondary: #f6f8fa;
-    --bg-tertiary: #f1f3f4;
-    --text-primary: #24292f;
-    --text-secondary: #656d76;
-    --text-muted: #8c959f;
-    --border-color: #d0d7de;
-    --border-muted: #e1e4e8;
-    --accent-color: #0969da;
-    --accent-hover: #0550ae;
+    --color-bg-default: #ffffff;
+    --color-bg-subtle: #f6f8fa;
+    --color-bg-elevated: #f1f3f4;
+
+    --color-text-default: #24292f;
+    --color-text-secondary: #656d76;
+    --color-text-muted: #8c959f;
+
+    --color-border-default: #d0d7de;
+    --color-border-subtle: #e1e4e8;
+
+    --color-accent-default: #0969da;
+    --color-accent-hover: #0550ae;
+    --color-accent-active: #044294; /* Added active state color */
 
     /* 状态颜色 */
-    --success-color: #1a7f37;
-    --warning-color: #9a6700;
-    --error-color: #cf222e;
+    --color-state-success: #1a7f37;
+    --color-state-warning: #9a6700;
+    --color-state-error: #cf222e;
+
+    /* Element Plus 颜色映射 */
+    --el-color-primary: var(--color-accent-default);
+    --el-color-success: var(--color-state-success);
+    --el-color-warning: var(--color-state-warning);
+    --el-color-danger: var(--color-state-error);
+    --el-color-info: var(--color-text-muted); /* Using muted text for info */
 
     /* 布局 */
     --border-radius: 6px;
@@ -51,40 +62,62 @@ html.theme-light {
 
 /* 深色模式 - 优化配色 */
 html.theme-dark {
-    --bg-primary: #121212;
-    --bg-secondary: #1e1e1e;
-    --bg-tertiary: #242424;
-    --text-primary: #e0e0e0;
-    --text-secondary: #b0b0b0;
-    --text-muted: #757575;
-    --border-color: #2c2c2c;
-    --border-muted: #222222;
-    --accent-color: #bb86fc;
-    --accent-hover: #a36efc;
+    --color-bg-default: #121212;
+    --color-bg-subtle: #1e1e1e;
+    --color-bg-elevated: #242424;
 
-    --success-color: #107c10;
-    --warning-color: #fce100;
-    --error-color: #d13438;
+    --color-text-default: #e0e0e0;
+    --color-text-secondary: #b0b0b0;
+    --color-text-muted: #757575;
+
+    --color-border-default: #2c2c2c;
+    --color-border-subtle: #222222;
+
+    --color-accent-default: #bb86fc;
+    --color-accent-hover: #a36efc;
+    --color-accent-active: #8a56e6; /* Added active state color */
+
+    --color-state-success: #107c10;
+    --color-state-warning: #fce100;
+    --color-state-error: #d13438;
+
+    /* Element Plus 颜色映射 */
+    --el-color-primary: var(--color-accent-default);
+    --el-color-success: var(--color-state-success);
+    --el-color-warning: var(--color-state-warning);
+    --el-color-danger: var(--color-state-error);
+    --el-color-info: var(--color-text-muted);
 }
 
 /* 自动模式 - 跟随系统设置 */
 @media (prefers-color-scheme: dark) {
     html:not(.theme-light):not(.theme-dark),
     html.theme-auto {
-        --bg-primary: #121212;
-        --bg-secondary: #1e1e1e;
-        --bg-tertiary: #242424;
-        --text-primary: #e0e0e0;
-        --text-secondary: #b0b0b0;
-        --text-muted: #757575;
-        --border-color: #2c2c2c;
-        --border-muted: #222222;
-        --accent-color: #bb86fc;
-        --accent-hover: #a36efc;
+        --color-bg-default: #121212;
+        --color-bg-subtle: #1e1e1e;
+        --color-bg-elevated: #242424;
 
-        --success-color: #107c10;
-        --warning-color: #fce100;
-        --error-color: #d13438;
+        --color-text-default: #e0e0e0;
+        --color-text-secondary: #b0b0b0;
+        --color-text-muted: #757575;
+
+        --color-border-default: #2c2c2c;
+        --color-border-subtle: #222222;
+
+        --color-accent-default: #bb86fc;
+        --color-accent-hover: #a36efc;
+        --color-accent-active: #8a56e6;
+
+        --color-state-success: #107c10;
+        --color-state-warning: #fce100;
+        --color-state-error: #d13438;
+
+        /* Element Plus 颜色映射 */
+        --el-color-primary: var(--color-accent-default);
+        --el-color-success: var(--color-state-success);
+        --el-color-warning: var(--color-state-warning);
+        --el-color-danger: var(--color-state-error);
+        --el-color-info: var(--color-text-muted);
     }
 }
 
@@ -99,8 +132,8 @@ body {
     font-family: var(--font-family);
     font-size: var(--font-size-base);
     line-height: 1.5;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
+    background: var(--color-bg-subtle); /* Use new variable */
+    color: var(--color-text-default); /* Use new variable */
     transition: background-color var(--transition), color var(--transition);
 }
 
@@ -122,8 +155,8 @@ body {
 /* 侧边栏 - 现代简洁设计 */
 .sidebar {
     width: 240px;
-    background: var(--bg-primary);
-    border-right: 1px solid var(--border-color);
+    background: var(--color-bg-default); /* Use new variable */
+    border-right: 1px solid var(--color-border-default); /* Use new variable */
     display: flex;
     flex-direction: column;
     transition: width var(--transition);
@@ -149,13 +182,13 @@ body {
 .hamburger-line {
     width: 100%;
     height: 2px;
-    background: var(--text-primary);
+    background: var(--color-text-default); /* Use new variable */
     border-radius: 1px;
     transition: all var(--transition);
 }
 
 .hamburger-btn:hover .hamburger-line {
-    background: var(--accent-color);
+    background: var(--color-accent-default); /* Use new variable */
 }
 
 .collapsed .hamburger-btn .hamburger-line:nth-child(1) {
@@ -184,18 +217,18 @@ body {
     border-radius: 8px;
     cursor: pointer;
     transition: all var(--transition);
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
     position: relative;
     white-space: nowrap;
 }
 
 .nav-item:hover {
-    background: var(--bg-tertiary);
+    background: var(--color-bg-elevated); /* Use new variable */
 }
 
 .nav-item.active {
-    background: var(--accent-color);
-    color: white;
+    background: var(--color-accent-default); /* Use new variable */
+    color: white; /* Keep white for contrast on accent */
 }
 
 .nav-icon {
@@ -231,7 +264,7 @@ body {
 
 /* 底部设置 */
 .nav-footer {
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--color-border-default); /* Use new variable */
     padding: 8px 0;
 }
 
@@ -240,14 +273,18 @@ body {
     flex: 1;
     padding: var(--spacing-lg);
     overflow-y: auto;
-    background: var(--bg-secondary);
+    background: var(--color-bg-subtle); /* Use new variable */
     transition: background-color var(--transition);
+}
+/* Ensure content area has correct dark mode background */
+html.theme-dark .content-area {
+    background-color: var(--color-bg-subtle) !important;
 }
 
 /* 卡片组件 - 带流畅动效 */
 .welcome-card {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    background: var(--color-bg-default); /* Use new variable */
+    border: 1px solid var(--color-border-default); /* Use new variable */
     border-radius: var(--border-radius);
     padding: var(--spacing-xl);
     text-align: center;
@@ -257,7 +294,7 @@ body {
 }
 
 .welcome-card:hover {
-    border-color: var(--accent-color);
+    border-color: var(--color-accent-default); /* Use new variable */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -265,15 +302,28 @@ body {
     margin: 0 0 var(--spacing-md) 0;
     font-size: var(--font-size-2xl);
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
     transition: color var(--transition);
 }
 
 .welcome-card p {
     margin: 0 0 var(--spacing-lg) 0;
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
     font-size: var(--font-size-base);
     transition: color var(--transition);
+}
+/* Dark theme specific styles for welcome card */
+html.theme-dark .welcome-card {
+    background-color: var(--color-bg-default) !important;
+    border-color: var(--color-border-default) !important;
+}
+
+html.theme-dark .welcome-card h2 {
+    color: var(--color-text-default) !important;
+}
+
+html.theme-dark .welcome-card p {
+    color: var(--color-text-secondary) !important;
 }
 
 /* 功能网格 */
@@ -285,8 +335,8 @@ body {
 }
 
 .feature-card {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    background: var(--color-bg-default); /* Use new variable */
+    border: 1px solid var(--color-border-default); /* Use new variable */
     border-radius: var(--border-radius);
     padding: var(--spacing-lg);
     transition: all var(--transition);
@@ -294,7 +344,7 @@ body {
 }
 
 .feature-card:hover {
-    border-color: var(--accent-color);
+    border-color: var(--color-accent-default); /* Use new variable */
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
@@ -318,13 +368,13 @@ body {
     margin: 0 0 var(--spacing-sm) 0;
     font-size: var(--font-size-lg);
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
     transition: color var(--transition);
 }
 
 .feature-card p {
     margin: 0;
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
     font-size: var(--font-size-base);
     line-height: 1.5;
     transition: color var(--transition);
@@ -339,13 +389,13 @@ body {
     border-radius: var(--border-radius);
     font-size: var(--font-size-sm);
     font-weight: 500;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--color-border-default); /* Use new variable */
 }
 
 .status-healthy {
-    background: var(--bg-primary);
-    color: var(--success-color);
-    border-color: var(--success-color);
+    background: var(--color-bg-default); /* Use new variable */
+    color: var(--color-state-success); /* Use new variable */
+    border-color: var(--color-state-success); /* Use new variable */
 }
 
 /* 漫画浏览页面样式 */
@@ -362,7 +412,9 @@ body {
 
 .toolbar-left h2 {
     margin: 0 0 8px 0;
-    color: var(--text-primary);
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-text-default); /* Use new variable */
 }
 
 .directory-info {
@@ -398,8 +450,8 @@ body {
 /* ==================== 漫画卡片样式 ==================== */
 .manga-card {
     position: relative;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    background: var(--color-bg-default); /* Use new variable */
+    border: 1px solid var(--color-border-default); /* Use new variable */
     border-radius: 8px;
     overflow: hidden;
     cursor: pointer;
@@ -412,7 +464,7 @@ body {
 }
 
 .manga-card:hover {
-    border-color: var(--accent-color);
+    border-color: var(--color-accent-default); /* Use new variable */
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); /* 减少阴影强度 */
     transform: translateY(-1px) translateZ(0); /* 减少移动距离 */
 }
@@ -422,7 +474,7 @@ body {
     position: relative;
     aspect-ratio: 3/4;
     overflow: hidden;
-    background: var(--bg-secondary);
+    background: var(--color-bg-subtle); /* Use new variable */
 }
 
 .cover-image {
@@ -442,12 +494,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-secondary);
+    background: var(--color-bg-subtle); /* Use new variable */
 }
 
 .placeholder-icon {
     font-size: 48px;
-    color: var(--text-muted);
+    color: var(--color-text-muted); /* Use new variable */
     opacity: 0.5;
 }
 
@@ -459,8 +511,8 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
+    background: var(--color-bg-subtle); /* Use new variable */
+    color: var(--color-text-secondary); /* Use new variable */
 }
 
 .loading-spinner {
@@ -484,8 +536,8 @@ body {
     position: absolute;
     top: 8px;
     right: 8px;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
+    background: rgba(0, 0, 0, 0.8); /* Keep for contrast */
+    color: white; /* Keep white for contrast */
     padding: 4px 8px;
     border-radius: 12px;
     font-size: 12px;
@@ -498,7 +550,7 @@ body {
     padding: 12px 12px 8px 12px;
     font-size: 13px;
     font-weight: 500;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -518,8 +570,8 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    background: var(--bg-primary);
-    border-top: 1px solid var(--border-color);
+    background: var(--color-bg-default); /* Use new variable */
+    border-top: 1px solid var(--color-border-default); /* Use new variable */
     opacity: 0;
     transform: translateY(100%) translateZ(0); /* 添加硬件加速 */
     transition: opacity 0.15s ease, transform 0.15s ease; /* 减少动画时间 */
@@ -535,17 +587,17 @@ body {
 .manga-tags .tag {
     font-size: 11px;
     padding: 2px 6px;
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
+    background: var(--color-bg-subtle); /* Use new variable */
+    color: var(--color-text-secondary); /* Use new variable */
     border-radius: 4px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--color-border-default); /* Use new variable */
     white-space: nowrap;
 }
 
 .manga-tags .more-tag {
-    background: var(--accent-color);
-    color: white;
-    border-color: var(--accent-color);
+    background: var(--color-accent-default); /* Use new variable */
+    color: white; /* Keep white for contrast */
+    border-color: var(--color-accent-default); /* Use new variable */
 }
 
 /* 可点击标签样式 */
@@ -555,9 +607,9 @@ body {
 }
 
 .clickable-tag:hover {
-    background: var(--accent-color) !important;
-    color: white !important;
-    border-color: var(--accent-color) !important;
+    background: var(--color-accent-default) !important; /* Use new variable */
+    color: white !important; /* Keep white for contrast */
+    border-color: var(--color-accent-default) !important; /* Use new variable */
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -568,7 +620,7 @@ body {
 }
 
 .clickable-title:hover {
-    color: var(--accent-color);
+    color: var(--color-accent-default); /* Use new variable */
     transform: translateY(-1px);
 }
 
@@ -590,8 +642,39 @@ body {
 }
 
 .tag-category-tabs .el-tabs__header {
+    border-bottom: 1px solid var(--color-border-default) !important; /* Use new variable */
     margin-bottom: 16px;
 }
+
+.tag-category-tabs .el-tabs__header .el-tabs__nav {
+    border: 1px solid var(--color-border-default) !important; /* Use new variable */
+    border-bottom: none !important;
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    background-color: var(--color-bg-subtle) !important; /* Use new variable */
+}
+
+.tag-category-tabs .el-tabs__header .el-tabs__item {
+    border-left: 1px solid var(--color-border-default) !important; /* Use new variable */
+    transition: all var(--transition) !important;
+    color: var(--color-text-secondary) !important; /* Use new variable */
+    background-color: var(--color-bg-subtle) !important; /* Use new variable */
+}
+
+.tag-category-tabs .el-tabs__header .el-tabs__item:first-child {
+    border-left: none !important;
+}
+
+.tag-category-tabs .el-tabs__header .el-tabs__item.is-active {
+    border-bottom-color: var(--color-bg-default) !important; /* Use new variable */
+    background-color: var(--color-bg-default) !important; /* Use new variable */
+    color: var(--color-text-default) !important; /* Use new variable */
+}
+
+.tag-category-tabs .el-tabs__header .el-tabs__item:hover {
+    background-color: var(--color-bg-elevated) !important; /* Use new variable */
+    color: var(--color-text-default) !important; /* Use new variable */
+}
+
 
 .tag-list {
     display: flex;
@@ -662,28 +745,126 @@ body {
 /* Element Plus 组件样式覆盖 */
 
 .el-card {
-    border: 1px solid var(--border-color) !important;
+    border: 1px solid var(--color-border-default) !important; /* Use new variable */
     box-shadow: none !important;
     border-radius: var(--border-radius) !important;
-    background: var(--bg-primary) !important;
+    background: var(--color-bg-default) !important; /* Use new variable */
 }
 
 .el-button--primary {
-    background: var(--accent-color) !important;
-    border: 1px solid var(--accent-color) !important;
+    background: var(--el-color-primary) !important; /* Use mapped variable */
+    border: 1px solid var(--el-color-primary) !important; /* Use mapped variable */
     border-radius: var(--border-radius) !important;
     transition: background-color var(--transition) !important;
 }
 
 .el-button--primary:hover {
-    background: var(--accent-hover) !important;
-    border-color: var(--accent-hover) !important;
+    background: var(--color-accent-hover) !important; /* Use new variable */
+    border-color: var(--color-accent-hover) !important; /* Use new variable */
 }
 
 .el-button {
     border-radius: var(--border-radius) !important;
     font-size: var(--font-size-base) !important;
 }
+
+/* Element Plus Tag 样式覆盖 */
+.el-tag {
+    font-size: var(--font-size-sm) !important; /* Use variable */
+    border-radius: 4px !important; /* Use hardcoded value for smaller tag radius */
+    height: auto !important; /* Allow height to adjust to content */
+    line-height: 1.2 !important; /* Adjust line height */
+    padding: 4px 8px !important; /* Adjust padding */
+}
+
+.el-tag--plain {
+    background-color: var(--color-bg-subtle) !important; /* Use new variable */
+    border-color: var(--color-border-default) !important; /* Use new variable */
+    color: var(--color-text-secondary) !important; /* Use new variable */
+}
+
+.el-tag--plain.el-tag--primary {
+    background-color: rgba(9, 105, 218, 0.1) !important; /* Keep a light background for primary plain */
+    border-color: var(--el-color-primary) !important; /* Use mapped variable */
+    color: var(--el-color-primary) !important; /* Use mapped variable */
+}
+
+.el-tag--dark {
+    background-color: var(--el-color-primary) !important; /* Use mapped variable */
+    border-color: var(--el-color-primary) !important; /* Use mapped variable */
+    color: white !important; /* Keep white for contrast */
+}
+/* Ensure plain tags have correct dark mode colors */
+html.theme-dark .el-tag--plain {
+    background-color: var(--color-bg-elevated) !important;
+    color: var(--color-text-default) !important;
+    border-color: var(--color-border-default) !important;
+}
+
+
+/* Element Plus Tabs 样式覆盖 */
+.el-tabs--card > .el-tabs__header {
+    border-bottom: 1px solid var(--color-border-default) !important; /* Use new variable */
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__nav {
+    border: 1px solid var(--color-border-default) !important; /* Use new variable */
+    border-bottom: none !important;
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    background-color: var(--color-bg-subtle) !important; /* Use new variable */
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item {
+    border-left: 1px solid var(--color-border-default) !important; /* Use new variable */
+    transition: all var(--transition) !important;
+    color: var(--color-text-secondary) !important; /* Use new variable */
+    background-color: var(--color-bg-subtle) !important; /* Use new variable */
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item:first-child {
+    border-left: none !important;
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
+    border-bottom-color: var(--color-bg-default) !important; /* Use new variable */
+    color: var(--color-accent-default) !important; /* Use new variable */
+    background-color: var(--color-bg-default) !important; /* Use new variable */
+    color: var(--color-text-default) !important; /* Use new variable */
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item:hover {
+    background-color: var(--color-bg-elevated) !important; /* Use new variable */
+    color: var(--color-text-default) !important; /* Use new variable */
+/* Ensure tab items have correct dark mode colors */
+html.theme-dark .el-tabs__item {
+    background-color: var(--color-bg-elevated) !important;
+    color: var(--color-text-default) !important;
+    border-color: var(--color-border-default) !important;
+}
+}
+
+/* Element Plus Input 样式覆盖 */
+.el-input__wrapper {
+    background-color: var(--color-bg-default) !important; /* Use new variable */
+    box-shadow: 0 0 0 1px var(--color-border-default) inset !important; /* Use new variable */
+    border-radius: var(--border-radius) !important;
+    transition: box-shadow var(--transition) !important;
+}
+
+.el-input__wrapper.is-focus {
+    box-shadow: 0 0 0 1px var(--color-accent-default) inset !important; /* Use new variable */
+    border-color: var(--color-accent-default) !important; /* Use new variable */
+}
+
+.el-input__inner {
+    color: var(--color-text-default) !important; /* Use new variable */
+    font-size: var(--font-size-base) !important;
+}
+
+.el-input__inner::placeholder {
+    color: var(--color-text-muted) !important; /* Use new variable */
+}
+
 
 /* 响应式设计 */
 @media (max-width: 768px) {
@@ -695,7 +876,7 @@ body {
         width: 100%;
         height: auto;
         border-right: none;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--color-border-default); /* Use new variable */
     }
 
     .sidebar-header {
@@ -722,25 +903,25 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--bg-secondary);
+    background: var(--color-bg-subtle); /* Use new variable */
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--border-color);
+    background: var(--color-border-default); /* Use new variable */
     border-radius: var(--border-radius);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background: var(--color-text-muted); /* Use new variable */
 }
 
 /* 工具类 */
-.text-primary { color: var(--text-primary); }
-.text-secondary { color: var(--text-secondary); }
-.text-muted { color: var(--text-muted); }
-.bg-primary { background: var(--bg-primary); }
-.bg-secondary { background: var(--bg-secondary); }
-.border { border: 1px solid var(--border-color); }
+.text-primary { color: var(--color-text-default); } /* Use new variable */
+.text-secondary { color: var(--color-text-secondary); } /* Use new variable */
+.text-muted { color: var(--color-text-muted); } /* Use new variable */
+.bg-primary { background: var(--color-bg-default); } /* Use new variable */
+.bg-secondary { background: var(--color-bg-subtle); } /* Use new variable */
+.border { border: 1px solid var(--color-border-default); } /* Use new variable */
 .rounded { border-radius: var(--border-radius); }
 
 /* ==================== 缓存管理样式 ==================== */
@@ -764,8 +945,8 @@ body {
 }
 
 .cache-overview-card.active {
-    border-color: var(--accent-color);
-    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+    border-color: var(--color-accent-default); /* Use new variable */
+    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2); /* Keep original shadow for now, could use a variable */
 }
 
 .cache-card-header {
@@ -782,7 +963,7 @@ body {
 .cache-title {
     font-size: 16px;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
 }
 
 .cache-stats {
@@ -798,13 +979,13 @@ body {
 
 .stat-label {
     font-size: 14px;
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
 }
 
 .stat-value {
     font-size: 14px;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
 }
 
 .cache-actions {
@@ -823,7 +1004,7 @@ body {
 .action-group h4 {
     margin: 0 0 12px 0;
     font-size: 16px;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
 }
 
 .system-info {
@@ -834,7 +1015,7 @@ body {
 
 .system-info span {
     font-size: 14px;
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
 }
 
 /* 缓存详情 */
@@ -856,12 +1037,12 @@ body {
 .cache-key {
     font-family: 'Courier New', monospace;
     font-size: 12px;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
 }
 
 .cache-preview {
     font-size: 13px;
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
 }
 
 /* 响应式设计 - 缓存管理 */
@@ -918,7 +1099,7 @@ body {
     margin: 0 0 var(--spacing-md) 0;
     font-size: var(--font-size-xl);
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
 }
 
 .cache-list {
@@ -932,20 +1113,20 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: var(--spacing-md);
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    background: var(--color-bg-default); /* Use new variable */
+    border: 1px solid var(--color-border-default); /* Use new variable */
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: all var(--transition);
 }
 
 .cache-item:hover {
-    border-color: var(--accent-color);
+    border-color: var(--color-accent-default); /* Use new variable */
 }
 
 .cache-item.active {
-    border-color: var(--accent-color);
-    background: rgba(9, 105, 218, 0.05);
+    border-color: var(--color-accent-default); /* Use new variable */
+    background: rgba(9, 105, 218, 0.05); /* Keep original for now */
 }
 
 .cache-basic-info {
@@ -964,19 +1145,19 @@ body {
 .cache-name {
     font-size: var(--font-size-base);
     font-weight: 500;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
 }
 
 .cache-stats {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
     font-size: var(--font-size-sm);
 }
 
 .stat-divider {
-    color: var(--border-color);
+    color: var(--color-border-default); /* Use new variable */
 }
 
 .cache-actions {
@@ -985,8 +1166,8 @@ body {
 
 /* 缓存详情 */
 .cache-detail {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    background: var(--color-bg-default); /* Use new variable */
+    border: 1px solid var(--color-border-default); /* Use new variable */
     border-radius: var(--border-radius);
     padding: var(--spacing-lg);
 }
@@ -1002,7 +1183,7 @@ body {
     margin: 0;
     font-size: var(--font-size-lg);
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
 }
 
 .search-bar {
@@ -1010,17 +1191,17 @@ body {
 }
 
 .entries-container {
-    background: var(--bg-primary);
+    background: var(--color-bg-default); /* Use new variable */
 }
 
 .cache-key {
     font-family: 'Courier New', monospace;
     font-size: var(--font-size-sm);
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
 }
 
 .cache-content {
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
 }
 
 .content-with-tags {
@@ -1033,6 +1214,73 @@ body {
     flex-shrink: 0;
 }
 
+/* Element Plus Table Styles */
+.el-table {
+    background-color: var(--color-bg-default) !important;
+    color: var(--color-text-default) !important;
+    border: 1px solid var(--color-border-default) !important; /* Add border to the table itself */
+}
+
+.el-table th.el-table__cell {
+    background-color: var(--color-bg-subtle) !important;
+    color: var(--color-text-secondary) !important;
+    border-color: var(--color-border-default) !important;
+}
+
+.el-table td.el-table__cell {
+    background-color: var(--color-bg-default) !important;
+    color: var(--color-text-default) !important;
+    border-bottom: 1px solid var(--color-border-subtle) !important; /* Lighter border for rows */
+}
+
+.el-table--enable-row-hover .el-table__row:hover > td.el-table__cell {
+    background-color: var(--color-bg-elevated) !important; /* Hover effect */
+}
+
+/* Element Plus Pagination Styles */
+.el-pagination {
+    padding: var(--spacing-sm) 0 !important; /* Adjust padding */
+}
+
+.el-pagination .el-pager li {
+    background-color: var(--color-bg-elevated) !important;
+    color: var(--color-text-default) !important;
+    border: 1px solid var(--color-border-default) !important;
+    border-radius: var(--border-radius) !important;
+    margin: 0 var(--spacing-xs) !important; /* Add spacing between items */
+    transition: all var(--transition-fast) !important;
+}
+
+.el-pagination .el-pager li:hover {
+    color: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-hover) !important;
+}
+
+.el-pagination .el-pager li.is-active {
+    background-color: var(--color-accent-default) !important;
+    color: white !important; /* Keep white for contrast on accent */
+    border-color: var(--color-accent-default) !important;
+}
+
+.el-pagination button {
+    background-color: var(--color-bg-elevated) !important;
+    color: var(--color-text-default) !important;
+    border: 1px solid var(--color-border-default) !important;
+    border-radius: var(--border-radius) !important;
+    transition: all var(--transition-fast) !important;
+}
+
+.el-pagination button:hover {
+    color: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-hover) !important;
+}
+
+.el-pagination button:disabled {
+    color: var(--color-text-muted) !important;
+    border-color: var(--color-border-subtle) !important;
+    background-color: var(--color-bg-subtle) !important;
+    cursor: not-allowed !important;
+}
 .pagination {
     display: flex;
     justify-content: center;
@@ -1049,27 +1297,27 @@ body {
 
 .danger-zone {
     padding: var(--spacing-md);
-    background: rgba(245, 108, 108, 0.05);
-    border: 1px solid rgba(245, 108, 108, 0.2);
+    background: rgba(245, 108, 108, 0.05); /* Keep original for now */
+    border: 1px solid rgba(245, 108, 108, 0.2); /* Keep original for now */
     border-radius: var(--border-radius);
     margin-bottom: var(--spacing-md);
 }
 
 .danger-label {
     font-size: var(--font-size-sm);
-    color: #f56c6c;
+    color: var(--color-state-error); /* Use new variable */
     font-weight: 500;
 }
 
 .delete-button {
     margin-top: var(--spacing-sm);
-    border-color: #f56c6c !important;
-    color: #f56c6c !important;
+    border-color: var(--color-state-error) !important; /* Use new variable */
+    color: var(--color-state-error) !important; /* Use new variable */
 }
 
 .delete-button:hover {
-    background-color: #f56c6c !important;
-    color: white !important;
+    background-color: var(--color-state-error) !important; /* Use new variable */
+    color: white !important; /* Keep white for contrast */
 }
 
 .main-actions {
@@ -1077,16 +1325,16 @@ body {
     justify-content: flex-end;
     gap: var(--spacing-md);
     padding-top: var(--spacing-sm);
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--color-border-default); /* Use new variable */
 }
 
 .sensitive-actions {
     margin-top: var(--spacing-sm);
     padding: var(--spacing-md);
-    background: rgba(230, 162, 60, 0.1);
-    border: 1px solid rgba(230, 162, 60, 0.3);
+    background: rgba(230, 162, 60, 0.1); /* Keep original for now */
+    border: 1px solid rgba(230, 162, 60, 0.3); /* Keep original for now */
     border-radius: var(--border-radius);
-    border-left: 3px solid #e6a23c;
+    border-left: 3px solid #e6a23c; /* Keep original for now */
 }
 
 /* 翻译界面样式 */
@@ -1115,16 +1363,16 @@ body {
 .selection-hint {
     margin-top: var(--spacing-sm);
     font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
 }
 
 /* 选中文件显示区域 */
 .selected-files-display {
     margin-top: var(--spacing-md);
     padding: var(--spacing-md);
-    background: var(--bg-secondary);
+    background: var(--color-bg-subtle); /* Use new variable */
     border-radius: var(--border-radius);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--color-border-default); /* Use new variable */
 }
 
 .selected-files-list {
@@ -1137,14 +1385,14 @@ body {
     justify-content: space-between;
     padding: var(--spacing-sm);
     margin-bottom: var(--spacing-xs);
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    background: var(--color-bg-default); /* Use new variable */
+    border: 1px solid var(--color-border-default); /* Use new variable */
     border-radius: var(--border-radius);
     transition: all var(--transition);
 }
 
 .selected-file-item:hover {
-    border-color: var(--accent-color);
+    border-color: var(--color-accent-default); /* Use new variable */
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
@@ -1156,7 +1404,7 @@ body {
 
 .file-name {
     font-weight: 500;
-    color: var(--text-primary);
+    color: var(--color-text-default); /* Use new variable */
     margin-bottom: 2px;
     word-break: break-all;
     font-size: var(--font-size-base);
@@ -1164,14 +1412,14 @@ body {
 
 .file-path {
     font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
     margin-bottom: 2px;
     word-break: break-all;
 }
 
 .file-size {
     font-size: var(--font-size-sm);
-    color: var(--text-muted);
+    color: var(--color-text-muted); /* Use new variable */
 }
 
 .file-actions {
@@ -1186,6 +1434,46 @@ body {
 }
 
 .translation-actions {
+/* Element Plus Radio Styles */
+.el-radio {
+    color: var(--color-text-default) !important;
+}
+
+.el-radio__input.is-checked .el-radio__inner {
+    background-color: var(--color-accent-default) !important;
+    border-color: var(--color-accent-default) !important;
+}
+
+.el-radio__input.is-checked + .el-radio__label {
+    color: var(--color-accent-default) !important;
+}
+
+.el-radio__inner {
+    border-color: var(--color-border-default) !important;
+    background-color: var(--color-bg-default) !important;
+}
+
+/* Element Plus Slider Styles */
+.el-slider__runway {
+    background-color: var(--color-border-subtle) !important;
+}
+
+.el-slider__bar {
+    background-color: var(--color-accent-default) !important;
+}
+
+.el-slider__button {
+    border-color: var(--color-accent-default) !important;
+    background-color: var(--color-bg-default) !important;
+}
+
+.el-slider__stop {
+    background-color: var(--color-border-subtle) !important;
+}
+
+.el-slider__marks-text {
+    color: var(--color-text-secondary) !important;
+}
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
@@ -1198,7 +1486,7 @@ body {
 .progress-text {
     margin-top: var(--spacing-sm);
     font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
 }
 
 .translation-tasks {
@@ -1206,8 +1494,46 @@ body {
 }
 
 .task-count {
+/* Element Plus Select Styles */
+.el-select .el-input__wrapper {
+    background-color: var(--color-bg-default) !important;
+    box-shadow: none !important; /* Remove default shadow */
+    border: 1px solid var(--color-border-default) !important;
+    transition: border-color var(--transition-fast) ease !important;
+}
+
+.el-select .el-input__wrapper.is-focused,
+.el-select .el-input__wrapper:hover {
+    border-color: var(--color-accent-default) !important;
+}
+
+.el-select .el-input__inner {
+    color: var(--color-text-default) !important;
+}
+
+/* Select dropdown */
+.el-select__popper.el-popper {
+    background-color: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-border-default) !important;
+    box-shadow: var(--shadow-elevation-2) !important;
+}
+
+.el-select-dropdown__item {
+    color: var(--color-text-default) !important;
+}
+
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover {
+    background-color: var(--color-bg-subtle) !important;
+    color: var(--color-text-default) !important;
+}
+
+.el-select-dropdown__item.selected {
+    color: var(--color-accent-default) !important;
+    font-weight: bold !important;
+}
     font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
 }
 
 .task-list {
@@ -1220,30 +1546,30 @@ body {
 
 .task-item {
     padding: var(--spacing-md);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--color-border-default); /* Use new variable */
     border-radius: var(--border-radius);
-    background: var(--bg-secondary);
+    background: var(--color-bg-subtle); /* Use new variable */
     transition: all 0.2s ease;
 }
 
 .task-item:hover {
-    border-color: var(--primary-color);
+    border-color: var(--el-color-primary); /* Use mapped variable */
     transform: translateY(-1px);
 }
 
 .task-item.task-processing {
-    border-color: #e6a23c;
-    background: rgba(230, 162, 60, 0.05);
+    border-color: var(--el-color-warning); /* Use mapped variable */
+    background: rgba(230, 162, 60, 0.05); /* Keep original for now */
 }
 
 .task-item.task-completed {
-    border-color: #67c23a;
-    background: rgba(103, 194, 58, 0.05);
+    border-color: var(--el-color-success); /* Use mapped variable */
+    background: rgba(103, 194, 58, 0.05); /* Keep original for now */
 }
 
 .task-item.task-error {
-    border-color: #f56c6c;
-    background: rgba(245, 108, 108, 0.05);
+    border-color: var(--el-color-danger); /* Use mapped variable */
+    background: rgba(245, 108, 108, 0.05); /* Keep original for now */
 }
 
 .task-info {
@@ -1262,7 +1588,7 @@ body {
     display: flex;
     justify-content: space-between;
     font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
 }
 
 .task-progress {
@@ -1271,7 +1597,7 @@ body {
 
 .progress-detail {
     font-size: var(--font-size-sm);
-    color: var(--text-secondary);
+    color: var(--color-text-secondary); /* Use new variable */
     margin-left: var(--spacing-sm);
 }
 
@@ -1327,13 +1653,13 @@ body {
 
 
 html.theme-dark .viewer-close-btn {
-    background: rgba(40, 40, 40, 0.8); /* 深灰色半透明背景 */
-    color: #e0e0e0; /* 浅色文字 */
+    background: rgba(var(--color-bg-elevated), 0.8); /* Use new variable */
+    color: var(--color-text-default); /* Use new variable */
 }
 
 html.theme-dark .viewer-close-btn:hover {
-    background: rgba(60, 60, 60, 0.9); /* 悬停时更不透明一些 */
-    color: #ffffff;
+    background: rgba(var(--color-bg-elevated), 0.9); /* Use new variable */
+    color: var(--color-text-default); /* Use new variable */
 }
 .manga-viewer-overlay {
     position: fixed;
@@ -1341,7 +1667,7 @@ html.theme-dark .viewer-close-btn:hover {
     left: 0;
     width: 100%;
     height: 100%;
-    background: var(--bg-primary);
+    background: var(--color-bg-default); /* Use new variable */
     z-index: 9999;
     display: flex;
     flex-direction: column;
@@ -1353,8 +1679,8 @@ html.theme-dark .viewer-close-btn:hover {
     right: 16px;
     width: 40px;
     height: 40px;
-    background: rgba(0, 0, 0, 0.7);
-    color: rgb(0, 0, 0);
+    background: rgba(0, 0, 0, 0.7); /* Keep original for now */
+    color: rgb(0, 0, 0); /* Keep original for now */
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -1367,7 +1693,7 @@ html.theme-dark .viewer-close-btn:hover {
 }
 
 .viewer-close-btn:hover {
-    background: rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.9); /* Keep original for now */
     transform: scale(1.1);
 }
 
@@ -1375,7 +1701,7 @@ html.theme-dark .viewer-close-btn:hover {
     width: 100%;
     height: 100%;
     border: none;
-    background: var(--bg-primary);
+    background: var(--color-bg-default); /* Use new variable */
 }
 
 /* 移动端优化 */
