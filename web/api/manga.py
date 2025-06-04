@@ -5,13 +5,14 @@
 通过统一接口层与core模块交互。
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import Response
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import os
 import base64
 from pathlib import Path
+from functools import wraps
 
 # 导入统一接口层
 from web.core_interface import (
@@ -23,6 +24,30 @@ from web.core_interface import (
     CoreInterfaceError
 )
 from utils import manga_logger as log
+
+# 权限控制函数
+def is_local_request(request: Request) -> bool:
+    """检查是否为本地访问"""
+    client_ip = request.client.host
+    local_ips = ['127.0.0.1', '::1', 'localhost']
+    return client_ip in local_ips
+
+def local_only(func):
+    """装饰器：仅允许本地访问"""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        # 从参数中找到Request对象
+        request = None
+        for arg in args:
+            if isinstance(arg, Request):
+                request = arg
+                break
+
+        if request and not is_local_request(request):
+            raise HTTPException(status_code=403, detail="此功能仅限本地访问")
+
+        return await func(*args, **kwargs)
+    return wrapper
 
 router = APIRouter()
 
@@ -92,8 +117,10 @@ async def get_current_directory(interface: CoreInterface = Depends(get_interface
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/directory")
+@local_only
 async def set_directory(
     request: DirectoryRequest,
+    http_request: Request,
     interface: CoreInterface = Depends(get_interface)
 ):
     """设置漫画目录并扫描文件"""
@@ -226,8 +253,10 @@ async def scan_manga_files(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/add")
+@local_only
 async def add_manga_files(
     request: AddMangaRequest,
+    http_request: Request,
     interface: CoreInterface = Depends(get_interface)
 ):
     """添加漫画文件或文件夹到缓存"""
@@ -288,9 +317,14 @@ async def add_manga_files(
         log.error(f"添加漫画失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Web版本不支持文件对话框功能，该功能已移除
+# 如需文件选择功能，请使用Electron版本
+
 @router.post("/scan-directory")
+@local_only
 async def scan_directory(
     request: ScanDirectoryRequest,
+    http_request: Request,
     interface: CoreInterface = Depends(get_interface)
 ):
     """扫描指定目录中的所有漫画"""
@@ -335,7 +369,11 @@ async def scan_directory(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/clear")
-async def clear_all_data(interface: CoreInterface = Depends(get_interface)):
+@local_only
+async def clear_all_data(
+    http_request: Request,
+    interface: CoreInterface = Depends(get_interface)
+):
     """清空所有漫画数据"""
     try:
         success = interface.clear_all_data()

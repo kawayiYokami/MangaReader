@@ -92,13 +92,19 @@ class ZhipuTranslator(BaseTranslator):
         self.batch_size = 20
         log.debug(f"智谱翻译器已初始化，批量大小: {self.batch_size}")
 
-    def translate_batch(self, texts: List[str], target_lang: str ="en") -> List[str]:
+    def translate_batch(self, texts: List[str], target_lang: str ="en", cancel_flag=None) -> List[str]:
         if not texts: return []
+
+        # 检查取消标志
+        if cancel_flag and cancel_flag.is_set():
+            log.warning("🛑 智谱翻译器：收到取消信号，停止批量翻译")
+            raise RuntimeError("翻译已被用户取消")
+
         clean_texts = [self._clean_text(text) for text in texts]
         results = [None] * len(clean_texts)
-        uncached_texts_map = {} 
-        retry_with_zhipu_single_map = {} 
-        google_translate_texts_map = {} 
+        uncached_texts_map = {}
+        retry_with_zhipu_single_map = {}
+        google_translate_texts_map = {}
         translator_name = "Zhipu"
 
         for i, text in enumerate(clean_texts):
@@ -125,11 +131,16 @@ class ZhipuTranslator(BaseTranslator):
         if uncached_texts_map:
             uncached_items = list(uncached_texts_map.items())
             for i_batch_start in range(0, len(uncached_items), self.batch_size):
+                # 检查取消标志
+                if cancel_flag and cancel_flag.is_set():
+                    log.warning("🛑 智谱翻译器：在批量处理中收到取消信号")
+                    raise RuntimeError("翻译已被用户取消")
+
                 current_batch_items = uncached_items[i_batch_start : i_batch_start + self.batch_size]
                 batch_texts_to_translate = [item[1] for item in current_batch_items]
                 batch_original_indices = [item[0] for item in current_batch_items]
-                
-                translated_sub_batch_results = self._translate_batch_api(batch_texts_to_translate, target_lang)
+
+                translated_sub_batch_results = self._translate_batch_api(batch_texts_to_translate, target_lang, cancel_flag)
                 
                 if translated_sub_batch_results and len(translated_sub_batch_results) == len(batch_texts_to_translate):
                     for j, translated_item_or_signal in enumerate(translated_sub_batch_results):
@@ -197,31 +208,89 @@ class ZhipuTranslator(BaseTranslator):
         final_results = [res if res is not None else f"[Translation Failed: {clean_texts[i]}]" for i, res in enumerate(results)]
         return final_results
 
-    def _translate_batch_api(self, texts: List[str], target_lang: str) -> List[Optional[str]]:
+    def _translate_batch_api(self, texts: List[str], target_lang: str, cancel_flag=None) -> List[Optional[str]]:
         if not texts: return []
+
+        # 检查取消标志
+        if cancel_flag and cancel_flag.is_set():
+            log.warning("🛑 智谱API请求前检查：收到取消信号")
+            raise RuntimeError("翻译已被用户取消")
+
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        lang_map = {"zh": "中文", "zh-cn": "中文", "en": "英文", "ja": "日文", "ko": "韩文"} 
+        lang_map = {"zh": "中文", "zh-cn": "中文", "en": "英文", "ja": "日文", "ko": "韩文"}
         target_lang_name = lang_map.get(target_lang.lower(), target_lang)
-        
+
         system_prompt_content = (
             f"你是一个专业的翻译引擎。请将用户提供的每一行文本独立翻译成{target_lang_name}。"
             "严格按照原始文本的顺序逐行翻译，每行翻译结果占一行。"
             "不要添加任何额外的解释、编号、或者与翻译无关的内容。"
             "如果某行文本由于内容限制无法翻译，请针对该行明确输出特殊标记：[UNTRANSLATABLE_CONTENT]"
         )
-        
+
         user_prompt_content = "\n".join(texts)
 
         messages = [
             {"role": "system", "content": system_prompt_content},
             {"role": "user", "content": user_prompt_content}
         ]
-        payload = {"model": self.model, "messages": messages, "temperature": 0.1} 
-        
+        payload = {"model": self.model, "messages": messages, "temperature": 0.1}
+
         log.debug(f"智谱批量API请求 ({len(texts)}条): 模型={self.model}, 目标语言={target_lang_name}")
 
         try:
-            response = requests.post(self.api_base_url, headers=headers, json=payload, timeout=45) 
+            # 使用更短的超时时间，并在循环中检查取消标志
+            import threading
+            import time
+
+            response_container = [None]
+            exception_container = [None]
+
+            def make_request():
+                try:
+                    response_container[0] = requests.post(
+                        self.api_base_url,
+                        headers=headers,
+                        json=payload,
+                        timeout=10  # 缩短超时时间
+                    )
+                except Exception as e:
+                    exception_container[0] = e
+
+            # 在单独线程中发送请求
+            request_thread = threading.Thread(target=make_request)
+            request_thread.daemon = True
+            request_thread.start()
+
+            # 轮询检查取消标志和请求完成状态
+            max_wait_time = 45  # 最大等待45秒
+            check_interval = 0.5  # 每0.5秒检查一次
+            elapsed_time = 0
+
+            while request_thread.is_alive() and elapsed_time < max_wait_time:
+                # 检查取消标志
+                if cancel_flag and cancel_flag.is_set():
+                    log.warning("🛑 智谱API请求中收到取消信号，停止等待")
+                    raise RuntimeError("翻译已被用户取消")
+
+                time.sleep(check_interval)
+                elapsed_time += check_interval
+
+            # 等待线程完成（如果还在运行）
+            request_thread.join(timeout=1.0)
+
+            # 检查是否超时
+            if request_thread.is_alive():
+                log.error("智谱API请求超时")
+                raise requests.exceptions.Timeout("智谱API请求超时")
+
+            # 检查是否有异常
+            if exception_container[0]:
+                raise exception_container[0]
+
+            # 获取响应
+            response = response_container[0]
+            if response is None:
+                raise RuntimeError("智谱API请求失败：无响应")
             
             if response.status_code == 400:
                 try:
@@ -284,7 +353,7 @@ class ZhipuTranslator(BaseTranslator):
         if not text: return None
         
         log.debug(f"单文本 (_translate_text): 调用智谱批量API翻译 '{text[:30]}...'")
-        api_results = self._translate_batch_api([text], target_lang) 
+        api_results = self._translate_batch_api([text], target_lang)
 
         if not api_results or api_results[0] is None:
             log.warning(f"单文本: 智谱API翻译失败 for '{text[:30]}...'. 将使用Google翻译。")

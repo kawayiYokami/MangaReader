@@ -5,9 +5,10 @@
 复用core中的缓存管理业务逻辑。
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
+from functools import wraps
 
 # 导入核心业务逻辑
 from core.cache_factory import get_cache_factory_instance
@@ -16,6 +17,30 @@ from core.ocr_cache_manager import OcrCacheManager
 from core.translation_cache_manager import TranslationCacheManager
 from core.harmonization_map_manager import get_harmonization_map_manager_instance
 from utils import manga_logger as log
+
+# 权限控制函数
+def is_local_request(request: Request) -> bool:
+    """检查是否为本地访问"""
+    client_ip = request.client.host
+    local_ips = ['127.0.0.1', '::1', 'localhost']
+    return client_ip in local_ips
+
+def local_only(func):
+    """装饰器：仅允许本地访问"""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        # 从参数中找到Request对象
+        request = None
+        for arg in args:
+            if isinstance(arg, Request):
+                request = arg
+                break
+
+        if request and not is_local_request(request):
+            raise HTTPException(status_code=403, detail="此功能仅限本地访问")
+
+        return await func(*args, **kwargs)
+    return wrapper
 
 router = APIRouter()
 
@@ -101,7 +126,11 @@ async def get_cache_info():
 
 
 @router.delete("/{cache_type}")
-async def clear_cache(cache_type: str):
+@local_only
+async def clear_cache(
+    cache_type: str,
+    http_request: Request
+):
     """清空指定类型的缓存"""
     try:
         factory = get_cache_factory_instance()
@@ -120,7 +149,8 @@ async def clear_cache(cache_type: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/all")
-async def clear_all_caches():
+@local_only
+async def clear_all_caches(http_request: Request):
     """清空所有缓存"""
     try:
         factory = get_cache_factory_instance()

@@ -1,0 +1,40 @@
+<!-- 设置页面 -->
+<div class="welcome-card">
+    <h2>⚙️ 应用设置</h2>
+    <p>配置应用的外观和行为</p>
+</div>
+
+<!-- 主题设置 -->
+<el-card style="margin-top: 24px;">
+    <template #header>
+        <span>🎨 主题设置</span>
+    </template>
+
+    <div>
+        <h4>外观主题</h4>
+        <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            选择应用的外观主题，支持浅色模式、深色模式或跟随系统设置
+        </p>
+
+        <el-radio-group v-model="currentTheme" @change="onThemeChange">
+            <el-radio value="light" style="display: block; margin-bottom: 12px;">
+                ☀️ 浅色模式 - 明亮的白色背景，适合白天使用
+            </el-radio>
+
+            <el-radio value="dark" style="display: block; margin-bottom: 12px;">
+                🌙 深色模式 - 深色背景，减少眼部疲劳
+            </el-radio>
+
+            <el-radio value="auto" style="display: block;">
+                🔄 跟随系统 - 根据系统设置自动切换主题
+            </el-radio>
+        </el-radio-group>
+
+        <div style="margin-top: 16px; padding: 16px; background: var(--bg-tertiary); border-radius: 6px;">
+            <strong><span v-text="themeIcon"></span> 当前主题: <span v-text="themeDisplayName"></span></strong>
+            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                主题设置会自动保存到本地存储
+            </div>
+        </div>
+    </div>
+</el-card>

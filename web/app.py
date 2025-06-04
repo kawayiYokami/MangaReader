@@ -95,11 +95,6 @@ async def root(request: Request):
     """主页"""
     return templates.TemplateResponse("index.html", {"request": request})
 
-@app.get("/frontend-processor")
-async def frontend_processor(request: Request):
-    """前端文件处理器"""
-    return templates.TemplateResponse("frontend_file_processor.html", {"request": request})
-
 @app.get("/viewer.html", response_class=HTMLResponse)
 async def manga_viewer():
     """漫画查看器页面"""

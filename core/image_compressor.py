@@ -30,16 +30,14 @@ class ImageCompressor:
         self,
         file_path: str,
         webp_quality: int = 100,
-        mode: str = "download",
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
     ) -> Dict[str, Any]:
         """
-        压缩漫画文件
+        压缩漫画文件（Web版本仅支持下载模式）
 
         Args:
             file_path: 漫画文件路径
             webp_quality: WebP质量 (0-100)
-            mode: 压缩模式 ("download" 或 "replace")
             progress_callback: 进度回调函数
 
         Returns:
@@ -49,7 +47,7 @@ class ImageCompressor:
             log.info(f"🔧 [压缩器调试] 开始压缩任务:")
             log.info(f"  - 文件路径: {file_path}")
             log.info(f"  - WebP质量: {webp_quality}")
-            log.info(f"  - 压缩模式: {mode}")
+            log.info(f"  - 压缩模式: download (Web版本固定)")
             log.info(f"  - 进度回调: {'有' if progress_callback else '无'}")
 
             self.is_compressing = True
@@ -77,7 +75,7 @@ class ImageCompressor:
             log.info(f"🔧 [压缩器调试] 调整后的WebP质量: {webp_quality}")
 
             log.info(f"开始压缩漫画文件: {file_path}")
-            log.info(f"WebP质量: {webp_quality}, 模式: {mode}")
+            log.info(f"WebP质量: {webp_quality}, 模式: download (Web版本固定)")
             
             # 报告开始状态
             self._report_progress({
@@ -115,8 +113,8 @@ class ImageCompressor:
                 if self.cancel_flag.is_set():
                     return {"success": False, "message": "操作已取消"}
                 
-                # 步骤3: 创建输出文件
-                result = self._create_output(file_path, converted_files, mode)
+                # 步骤3: 创建输出文件（Web版本仅支持下载模式）
+                result = self._create_output(file_path, converted_files)
                 if self.cancel_flag.is_set():
                     return {"success": False, "message": "操作已取消"}
                 
@@ -358,8 +356,8 @@ class ImageCompressor:
         
         return converted_files
     
-    def _create_output(self, original_file_path: str, converted_files: List[str], mode: str) -> Dict[str, Any]:
-        """创建输出文件"""
+    def _create_output(self, original_file_path: str, converted_files: List[str]) -> Dict[str, Any]:
+        """创建输出文件（Web版本仅支持下载模式）"""
         self._report_progress({
             "status": "packaging",
             "message": "正在打包文件...",
@@ -368,66 +366,35 @@ class ImageCompressor:
             "current_step": 3
         })
         
-        if mode == "replace":
-            # 直接替换原文件模式
-            try:
-                # 创建新的ZIP文件
-                with zipfile.ZipFile(original_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for file_path in converted_files:
-                        arcname = os.path.basename(file_path)
-                        zipf.write(file_path, arcname)
-                
-                log.info(f"原文件已替换: {original_file_path}")
-                
-                self._report_progress({
-                    "status": "packaged",
-                    "message": "文件打包完成，原文件已替换",
-                    "progress": 95,
-                    "total_steps": 4,
-                    "current_step": 3
-                })
-                
-                return {
-                    "success": True,
-                    "message": "无损压缩完成，原文件已替换",
-                    "mode": "replace",
-                    "converted_files": len(converted_files),
-                    "original_file": original_file_path
-                }
-                
-            except Exception as e:
-                raise Exception(f"替换原文件失败: {e}")
-        
-        else:
-            # 下载模式
-            # 创建临时ZIP文件
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
-                with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for file_path in converted_files:
-                        arcname = os.path.basename(file_path)
-                        zipf.write(file_path, arcname)
-                
-                # 生成下载文件名
-                original_name = Path(original_file_path).stem
-                safe_name = "".join(c for c in original_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                download_name = f"{safe_name}_compressed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-                
-                self._report_progress({
-                    "status": "packaged",
-                    "message": "文件打包完成，准备下载",
-                    "progress": 95,
-                    "total_steps": 4,
-                    "current_step": 3
-                })
-                
-                return {
-                    "success": True,
-                    "message": "无损压缩完成",
-                    "mode": "download",
-                    "converted_files": len(converted_files),
-                    "temp_file": temp_zip.name,
-                    "download_name": download_name
-                }
+        # Web版本只支持下载模式，不支持文件替换
+        # 创建临时ZIP文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
+            with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in converted_files:
+                    arcname = os.path.basename(file_path)
+                    zipf.write(file_path, arcname)
+
+            # 生成下载文件名
+            original_name = Path(original_file_path).stem
+            safe_name = "".join(c for c in original_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            download_name = f"{safe_name}_compressed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+
+            self._report_progress({
+                "status": "packaged",
+                "message": "文件打包完成，准备下载",
+                "progress": 95,
+                "total_steps": 4,
+                "current_step": 3
+            })
+
+            return {
+                "success": True,
+                "message": "无损压缩完成",
+                "mode": "download",
+                "converted_files": len(converted_files),
+                "temp_file": temp_zip.name,
+                "download_name": download_name
+            }
     
     def _report_progress(self, progress_data: Dict[str, Any]):
         """报告进度"""

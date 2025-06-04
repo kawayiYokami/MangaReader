@@ -2,6 +2,7 @@
 import os
 import cv2
 import numpy as np
+import threading
 from typing import Optional, Dict, Any, Union, List
 from pathlib import Path
 
@@ -27,10 +28,14 @@ class ImageTranslator:
                 - Google: api_key (可选)
         """
         self.ocr_manager = None
-        self.translator = None 
+        self.translator = None
         self.harmonization_manager = None
         self.manga_text_replacer = None
-        
+
+        # 添加取消机制
+        self.cancel_flag = threading.Event()
+        self.is_translating = False
+
         self._init_ocr_manager()
         self._init_translator(translator_type if translator_type is not None else config.translator_type.value, **translator_kwargs)
         self._init_manga_text_replacer()
@@ -115,10 +120,24 @@ class ImageTranslator:
     
     def is_ready(self) -> bool:
         """检查翻译器是否准备就绪"""
-        return (self.ocr_manager and self.ocr_manager.is_ready() and 
-                self.translator and 
+        return (self.ocr_manager and self.ocr_manager.is_ready() and
+                self.translator and
                 self.manga_text_replacer and
                 self.harmonization_manager)
+
+    def cancel_translation(self):
+        """取消当前翻译任务"""
+        log.warning("🛑 收到翻译取消请求")
+        log.info(f"🛑 当前翻译状态: is_translating={self.is_translating}")
+        self.cancel_flag.set()
+        log.warning("🛑 取消标志已设置")
+
+    def get_translation_status(self) -> Dict[str, Any]:
+        """获取翻译状态"""
+        return {
+            "is_translating": self.is_translating,
+            "is_cancelled": self.cancel_flag.is_set()
+        }
     
     def translate_image(self,
                        image_input: Union[str, np.ndarray],
@@ -430,11 +449,22 @@ class ImageTranslator:
 
 
         try:
+            # 设置翻译状态
+            log.warning("🚀 开始翻译任务，设置翻译状态")
+            self.is_translating = True
+            self.cancel_flag.clear()
+            log.info(f"🚀 翻译状态已设置: is_translating={self.is_translating}, cancel_flag={self.cancel_flag.is_set()}")
+
             log.info("开始批量 OCR 识别 (optimized)...")
-            all_ocr_results_per_page: List[List[OCRResult]] = [] 
-            all_structured_texts_per_page: List[List[OCRResult]] = [] 
-            
+            all_ocr_results_per_page: List[List[OCRResult]] = []
+            all_structured_texts_per_page: List[List[OCRResult]] = []
+
             for i, img_data_item in enumerate(images_data):
+                # 检查取消标志
+                if self.cancel_flag.is_set():
+                    log.warning(f"🛑 翻译已取消，停止OCR处理 (第{i+1}/{len(images_data)}张)")
+                    raise RuntimeError("翻译已被用户取消")
+
                 current_fp_cache = final_file_paths_for_cache[i]
                 current_pn_cache = final_page_nums_for_cache[i]
                 current_oa_cache = final_original_archive_paths_for_cache[i]
@@ -497,16 +527,26 @@ class ImageTranslator:
                         log.error("智谱翻译器 API Key 未配置 (optimized)，无法进行翻译。将返回原文。")
                         api_translations_optimized = actual_texts_for_api_optimized
                     else:
-                        translated_results = self.translator.translate_batch(actual_texts_for_api_optimized, target_lang=target_language)
+                        # 传递取消标志给智谱翻译器
+                        translated_results = self.translator.translate_batch(
+                            actual_texts_for_api_optimized,
+                            target_lang=target_language,
+                            cancel_flag=self.cancel_flag
+                        )
                         api_translations_optimized = translated_results if translated_results else actual_texts_for_api_optimized
-                else: 
+                else:
                     for text_for_api in actual_texts_for_api_optimized:
+                        # 检查取消标志
+                        if self.cancel_flag.is_set():
+                            log.info("翻译已取消，停止文本翻译处理")
+                            raise RuntimeError("翻译已被用户取消")
+
                         try:
                             translated = self.translator.translate(text_for_api, target_lang=target_language)
                             api_translations_optimized.append(translated)
                         except Exception as e_trans:
                             log.error(f"翻译失败 (optimized): {text_for_api}, 错误: {e_trans}")
-                            api_translations_optimized.append(text_for_api) 
+                            api_translations_optimized.append(text_for_api)
             
             # Map translations back to original unique OCR texts
             bulk_translations_map: Dict[str, str] = {} 
@@ -525,9 +565,13 @@ class ImageTranslator:
 
             log.info("批量翻译完成 (optimized)")
             
-            final_result_images: List[np.ndarray] = [] 
+            final_result_images: List[np.ndarray] = []
             for page_idx, (img_data_item, structured_texts_page_item) in enumerate(zip(images_data, all_structured_texts_per_page)):
-                
+                # 检查取消标志
+                if self.cancel_flag.is_set():
+                    log.info(f"翻译已取消，停止文本替换处理 (第{page_idx+1}/{len(images_data)}张)")
+                    raise RuntimeError("翻译已被用户取消")
+
                 page_specific_translations: Dict[str, str] = {}
                 for ocr_item in structured_texts_page_item:
                     original_ocr_text = ocr_item.text.strip()
@@ -570,6 +614,9 @@ class ImageTranslator:
             import traceback
             log.error(traceback.format_exc())
             raise RuntimeError(f"批量图片翻译失败 (optimized): {e}")
+        finally:
+            # 重置翻译状态
+            self.is_translating = False
 
     def get_ocr_results(self,
                        image_input: Union[str, np.ndarray],
@@ -690,6 +737,48 @@ class ImageTranslator:
         except Exception as e:
             log.error(f"保存图片时发生错误: {file_path}, {e}")
             return False
+
+# 全局翻译器实例和进程跟踪
+_translator_instance = None
+_current_translation_process = None
+
+def get_image_translator() -> ImageTranslator:
+    """获取图片翻译器实例（单例模式）"""
+    global _translator_instance
+    if _translator_instance is None:
+        log.warning("🔧 创建新的翻译器实例（单例模式）")
+        _translator_instance = ImageTranslator()
+    else:
+        log.info("🔧 返回现有的翻译器实例（单例模式）")
+    return _translator_instance
+
+def set_current_translation_process(process_info):
+    """设置当前翻译进程信息"""
+    global _current_translation_process
+    _current_translation_process = process_info
+    log.info(f"🔧 设置当前翻译进程: {process_info}")
+
+def get_current_translation_process():
+    """获取当前翻译进程信息"""
+    global _current_translation_process
+    return _current_translation_process
+
+def kill_current_translation():
+    """杀掉当前翻译进程"""
+    global _current_translation_process, _translator_instance
+
+    if _current_translation_process:
+        log.warning(f"🛑 强制终止翻译进程: {_current_translation_process}")
+
+        # 重置翻译器实例
+        _translator_instance = None
+        _current_translation_process = None
+
+        log.warning("🛑 翻译器实例已重置")
+        return True
+    else:
+        log.info("🛑 没有正在运行的翻译进程")
+        return False
 
 def create_image_translator(translator_type: Optional[str] = None, **kwargs) -> ImageTranslator:
     """
