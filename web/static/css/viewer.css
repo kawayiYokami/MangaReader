@@ -28,7 +28,7 @@ html, body {
 }
 
 #app {
-    height: 100vh;
+    height: 100%;
     display: flex;
     flex-direction: row;
     background: var(--bg-primary, #000);
@@ -47,6 +47,7 @@ html, body {
     padding: 20px 10px;
     z-index: 1000;
     gap: 20px;
+
 }
 
 /* 漫画标题区域 */
@@ -64,10 +65,8 @@ html, body {
     font-weight: 500;
     color: var(--text-primary, #fff);
     text-align: center;
-    max-height: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    max-height: 200px;
+    overflow-y: hidden;
     margin: 0 auto;
 }
 
@@ -236,6 +235,7 @@ html, body {
 
 /* 主要内容区域 */
 .viewer-content {
+    height: 100%;
     flex: 1;
     display: flex;
     align-items: center;
@@ -243,7 +243,6 @@ html, body {
     background: var(--bg-primary, #000);
     position: relative;
     overflow: hidden;
-    padding: 10px; /* 减少padding，避免图片被截断 */
 }
 
 /* 加载状态 */
@@ -272,6 +271,8 @@ html, body {
 
 /* 漫画图片 */
 .manga-image {
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
     user-select: none;
     -webkit-user-drag: none;
@@ -281,27 +282,28 @@ html, body {
 
 /* 单页模式 */
 .single-page {
-    max-width: calc(100% - 20px); /* 留出一些边距 */
-    max-height: calc(100% - 20px); /* 留出一些边距 */
-    width: auto;
-    height: auto;
+    max-width: calc(100%); /* 留出一些边距 */
+    max-height: calc(100%); /* 留出一些边距 */
+    width: 100%;
+    height: 100%;
 }
 
 /* 双页模式 */
 .double-page-container {
     display: flex;
-    gap: 20px;
+    gap: 10px;
     align-items: center;
     justify-content: center;
-    max-width: calc(100% - 20px); /* 留出边距 */
-    max-height: calc(100% - 20px); /* 留出边距 */
+    height: 100%;
+    max-width: calc(100%); /* 留出边距 */
+    max-height: calc(100%); /* 留出边距 */
 }
 
 .double-page {
-    max-width: calc(50% - 30px); /* 考虑gap和边距 */
-    max-height: calc(100% - 20px);
-    width: auto;
-    height: auto;
+    width: 50%;
+    max-width: 50%;
+    max-height: 100%;
+    height: 100%;
     flex-shrink: 0;
 }
 
@@ -495,87 +497,17 @@ html, body {
         flex-direction: column;
         gap: 10px;
     }
-
-    .double-page {
-        max-width: 100%;
-        max-height: calc(50% - 5px);
-    }
-
-    .progress-circle svg {
-        width: 40px;
-        height: 40px;
-    }
-
-    .progress-text {
-        font-size: 8px;
-    }
 }
 
-/* Element Plus 滑块样式覆盖 */
-.left-sidebar .el-slider {
-    --el-slider-main-bg-color: var(--accent-color, #409eff);
-    --el-slider-runway-bg-color: rgba(255, 255, 255, 0.2);
-    --el-slider-button-bg-color: var(--accent-color, #409eff);
-}
-
-.left-sidebar .el-slider__runway {
-    background-color: rgba(255, 255, 255, 0.2);
-}
-
-.left-sidebar .el-slider__bar {
-    background-color: var(--accent-color, #409eff);
-}
-
-.left-sidebar .el-slider__button {
-    background-color: var(--accent-color, #409eff);
-    border: 2px solid #fff;
-}
-
-/* 移除换页动画 */
-
-/* 加载动画 */
-.loading-container {
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
+/* 关键帧动画 */
 @keyframes pulse {
-    0%, 100% {
-        opacity: 1;
+    0% {
+        box-shadow: 0 0 0 0 rgba(187, 134, 252, 0.7);
     }
-    50% {
-        opacity: 0.7;
+    70% {
+        box-shadow: 0 0 0 10px rgba(187, 134, 252, 0);
     }
-}
-
-/* 隐藏滚动条但保持功能 */
-.viewer-content::-webkit-scrollbar {
-    display: none;
-}
-
-.viewer-content {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-/* PyWebView桌面应用优化 */
-@media screen {
-    /* 检测是否在桌面应用中 */
-    body.desktop-app .viewer-content {
-        padding: 5px; /* 桌面应用中减少更多padding */
-    }
-
-    body.desktop-app .single-page {
-        max-width: calc(100% - 10px);
-        max-height: calc(100% - 10px);
-    }
-
-    body.desktop-app .double-page-container {
-        max-width: calc(100% - 10px);
-        max-height: calc(100% - 10px);
-    }
-
-    body.desktop-app .double-page {
-        max-width: calc(50% - 20px);
-        max-height: calc(100% - 10px);
+    100% {
+        box-shadow: 0 0 0 0 rgba(187, 134, 252, 0);
     }
 }

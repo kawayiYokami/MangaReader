@@ -278,6 +278,10 @@
                     screenInfo.width = window.innerWidth;
                     screenInfo.height = window.innerHeight;
                     screenInfo.ratio = window.innerWidth / window.innerHeight;
+console.log('窗口尺寸:', screenInfo.width, 'x', screenInfo.height);
+                    if (viewerContent.value) {
+                        console.log('.viewer-content 尺寸:', viewerContent.value.offsetWidth, 'x', viewerContent.value.offsetHeight);
+                    }
 
                     // 如果是自动模式，重新加载页面以适应新的显示模式
                     if (displayMode.value === 'auto') {
@@ -370,6 +374,19 @@
                         // 加载当前页面
                         const imageUrls = await loadPageImages(currentPage.value, pagesToLoad);
 
+nextTick(() => {
+                                if (viewerContent.value) {
+                                    console.log('.viewer-content (after load) 尺寸:', viewerContent.value.offsetWidth, 'x', viewerContent.value.offsetHeight);
+                                }
+                                const imageContainer = document.querySelector('.image-container');
+                                if (imageContainer) {
+                                    console.log('.image-container 尺寸:', imageContainer.offsetWidth, 'x', imageContainer.offsetHeight);
+                                }
+                                const mangaImages = document.querySelectorAll('.manga-image');
+                                mangaImages.forEach((img, index) => {
+                                    console.log(`图片 ${index + 1} (.manga-image) 渲染尺寸:`, img.offsetWidth, 'x', img.offsetHeight);
+                                });
+                            });
                         if (imageUrls.length > 0) {
                             // 只有在新图片加载完成后才更新显示
                             currentImageUrls.value = imageUrls;
@@ -483,6 +500,42 @@
                         displayMode.value = 'auto';
                     }
                     loadCurrentPage();
+const img = event.target;
+                    console.log(`图片加载完成 - src: ${img.src}`);
+                    console.log(`图片自然尺寸: ${img.naturalWidth} x ${img.naturalHeight}`);
+                    console.log(`图片渲染尺寸: ${img.offsetWidth} x ${img.offsetHeight}`);
+const computedStyle = window.getComputedStyle(img);
+                    console.log('图片计算样式:', {
+                        width: computedStyle.width,
+                        height: computedStyle.height,
+                        maxWidth: computedStyle.maxWidth,
+                        maxHeight: computedStyle.maxHeight,
+                        objectFit: computedStyle.objectFit,
+                    });
+
+                    const doublePage = img.closest('.double-page');
+                    if (doublePage) {
+                        const dpStyle = window.getComputedStyle(doublePage);
+                        console.log('.double-page 尺寸:', doublePage.offsetWidth, 'x', doublePage.offsetHeight);
+                        console.log('.double-page 计算样式:', {
+                            width: dpStyle.width,
+                            height: dpStyle.height,
+                            maxWidth: dpStyle.maxWidth,
+                            maxHeight: dpStyle.maxHeight,
+                        });
+                    }
+
+                    const doublePageContainer = img.closest('.double-page-container');
+                    if (doublePageContainer) {
+                        const dpcStyle = window.getComputedStyle(doublePageContainer);
+                        console.log('.double-page-container 尺寸:', doublePageContainer.offsetWidth, 'x', doublePageContainer.offsetHeight);
+                        console.log('.double-page-container 计算样式:', {
+                            width: dpcStyle.width,
+                            height: dpcStyle.height,
+                            maxWidth: dpcStyle.maxWidth,
+                            maxHeight: dpcStyle.maxHeight,
+                        });
+                    }
                 }
 
                 function toggleTranslation() {
