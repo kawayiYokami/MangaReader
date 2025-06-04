@@ -109,8 +109,8 @@
         <!-- 主要内容区域 -->
         <div class="viewer-content" ref="viewerContent">
             <!-- 加载状态 -->
-            <div v-if="isLoading" class="loading-container">
-                <el-loading-directive v-loading="true" text="加载中..."></el-loading-directive>
+            <div v-if="isLoading" class="loading-container" v-loading="true" element-loading-text="加载中...">
+                <!-- v-loading 指令已应用到此 div -->
             </div>
 
             <!-- 图片显示区域 -->

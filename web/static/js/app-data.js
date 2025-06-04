@@ -19,7 +19,7 @@ window.AppData = {
     // 标签分类过滤
     tagsByCategory: {},
     activeTagCategory: '作者',
-    showAllTags: {},
+    tagCategoryShowAll: {},
 
     // 新的缩略图系统
     thumbnailCache: new Map(),
@@ -78,9 +78,9 @@ window.AppData = {
         webpQuality: 75  // Google推荐的默认质量
     },
     translationTasks: [],
-    isDragOver: false,  // 通用拖拽状态（保留兼容性）
-    isTranslationDragOver: false,  // 翻译专用拖拽状态
-    isProcessing: false,
+    generalDragOver: false,  // 通用拖拽状态（保留兼容性）
+    translationDragOver: false,  // 翻译专用拖拽状态
+    taskIsProcessing: false, // 通用处理状态
     translationStopped: false,  // 停止标志
     abortController: null,  // HTTP请求取消控制器
 
@@ -91,7 +91,7 @@ window.AppData = {
     },
     compressionTasks: [],
     isCompressing: false,
-    isCompressionDragOver: false,
+    compressionDragOver: false,
     compressionStopped: false  // 停止标志
 };
 

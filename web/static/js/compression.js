@@ -15,17 +15,17 @@ window.CompressionMethods = {
 
     handleCompressionDragOver(event) {
         event.preventDefault();
-        this.isCompressionDragOver = true;
+        this.compressionDragOver = true;
     },
 
     handleCompressionDragLeave(event) {
         event.preventDefault();
-        this.isCompressionDragOver = false;
+        this.compressionDragOver = false;
     },
 
     handleCompressionDrop(event) {
         event.preventDefault();
-        this.isCompressionDragOver = false;
+        this.compressionDragOver = false;
         
         const files = Array.from(event.dataTransfer.files);
         this.processCompressionFiles(files);
@@ -76,7 +76,7 @@ window.CompressionMethods = {
             return;
         }
 
-        this.isCompressing = true;
+        this.compressionIsProcessing = true;
         this.compressionStopped = false;
 
         try {
@@ -92,13 +92,13 @@ window.CompressionMethods = {
             console.error('压缩过程出错:', error);
             ElMessage.error('压缩过程出错: ' + error.message);
         } finally {
-            this.isCompressing = false;
+            this.compressionIsProcessing = false;
         }
     },
 
     stopCompression() {
         this.compressionStopped = true;
-        this.isCompressing = false;
+        this.compressionIsProcessing = false;
         ElMessage.info('压缩已停止');
     },
 

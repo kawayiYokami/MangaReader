@@ -45,9 +45,9 @@
 
                         <div class="tag-list">
                             <el-tag
-                                v-for="tag in tags.slice(0, showAllTags[category] ? tags.length : 20)"
+                                v-for="tag in tags.slice(0, tagCategoryShowAll[category] ? tags.length : 20)"
                                 :key="tag.full"
-                                :type="selectedTags.includes(tag.full) ? 'primary' : ''"
+                                :type="selectedTags.includes(tag.full) ? 'primary' : undefined"
                                 :effect="selectedTags.includes(tag.full) ? 'dark' : 'plain'"
                                 @click="toggleTag(tag.full)"
                                 class="filter-tag">
@@ -62,7 +62,7 @@
                                 text
                                 @click="toggleShowAllTags(category)"
                                 class="show-more-btn">
-                                <span v-text="showAllTags[category] ? '收起' : `显示全部 ${tags.length} 个`"></span>
+                                <span v-text="tagCategoryShowAll[category] ? '收起' : `显示全部 ${tags.length} 个`"></span>
                             </el-button>
                         </div>
                     </el-tab-pane>

@@ -79,9 +79,10 @@
 
                 // 注册Element Plus图标
                 if (window.ElementPlusIconsVue) {
-                    const { Delete, UploadFilled } = window.ElementPlusIconsVue;
+                    const { Delete, UploadFilled, Loading } = window.ElementPlusIconsVue;
                     app.component('Delete', Delete);
                     app.component('UploadFilled', UploadFilled);
+                    app.component('Loading', Loading);
                 }
 
                 app.mount('#app');

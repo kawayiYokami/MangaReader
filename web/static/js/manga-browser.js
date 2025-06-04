@@ -96,7 +96,7 @@ window.MangaBrowserMethods = {
             if (tags.length > 0) {
                 tags.sort((a, b) => a.display.localeCompare(b.display, 'zh-CN'));
                 this.tagsByCategory[category] = tags;
-                this.showAllTags[category] = false;
+                this.tagCategoryShowAll[category] = false;
             }
         }
 
@@ -126,7 +126,7 @@ window.MangaBrowserMethods = {
     },
 
     toggleShowAllTags(category) {
-        this.showAllTags[category] = !this.showAllTags[category];
+        this.tagCategoryShowAll[category] = !this.tagCategoryShowAll[category];
     },
 
     selectManga(manga) {
@@ -189,7 +189,7 @@ window.MangaBrowserMethods = {
             searchQuery: this.searchQuery,
             selectedTags: [...this.selectedTags],
             activeTagCategory: this.activeTagCategory,
-            showAllTags: {...this.showAllTags},
+            tagCategoryShowAll: {...this.tagCategoryShowAll},
             sidebarCollapsed: this.sidebarCollapsed,
             timestamp: Date.now()
         };
@@ -221,7 +221,7 @@ window.MangaBrowserMethods = {
                     this.searchQuery = state.searchQuery || '';
                     this.selectedTags = state.selectedTags || [];
                     this.activeTagCategory = state.activeTagCategory || '作者';
-                    this.showAllTags = state.showAllTags || {};
+                    this.tagCategoryShowAll = state.tagCategoryShowAll || {};
                     this.sidebarCollapsed = state.sidebarCollapsed || false;
 
                     console.log('🔄 浏览状态已恢复:', state);
@@ -466,7 +466,7 @@ window.MangaBrowserMethods = {
         ElMessage.success(`已搜索标题: ${title}`);
     },
 
-    showAllTags(manga) {
+    displayAllTagsModal(manga) {
         console.log('显示更多标签:', manga);
 
         // 获取漫画的所有标签

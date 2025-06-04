@@ -15,17 +15,17 @@ window.TranslationMethods = {
 
     handleTranslationDragOver(event) {
         event.preventDefault();
-        this.isTranslationDragOver = true;
+        this.translationDragOver = true;
     },
 
     handleTranslationDragLeave(event) {
         event.preventDefault();
-        this.isTranslationDragOver = false;
+        this.translationDragOver = false;
     },
 
     handleTranslationDrop(event) {
         event.preventDefault();
-        this.isTranslationDragOver = false;
+        this.translationDragOver = false;
 
         const files = Array.from(event.dataTransfer.files);
         this.processSelectedFiles(files);
@@ -75,12 +75,12 @@ window.TranslationMethods = {
             return;
         }
 
-        if (this.isProcessing) {
+        if (this.taskIsProcessing) {
             ElMessage.warning('翻译正在进行中，请先停止当前翻译');
             return;
         }
 
-        this.isProcessing = true;
+        this.taskIsProcessing = true;
         this.translationStopped = false;
 
         console.log('🚀 开始翻译任务');
@@ -101,7 +101,7 @@ window.TranslationMethods = {
             console.error('翻译过程出错:', error);
             ElMessage.error('翻译过程出错: ' + error.message);
         } finally {
-            this.isProcessing = false;
+            this.taskIsProcessing = false;
             console.log('🏁 翻译任务结束');
         }
     },
@@ -133,7 +133,7 @@ window.TranslationMethods = {
             }
 
             // 确保状态重置
-            this.isProcessing = false;
+            this.taskIsProcessing = false;
         }, 100); // 100ms后执行，确保UI先响应
     },
 
