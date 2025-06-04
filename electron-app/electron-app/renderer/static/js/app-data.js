@@ -27,10 +27,6 @@ window.AppData = {
     thumbnailObserver: null,
     visibleCards: new Set(),
 
-    // 漫画查看器iframe相关数据
-    showMangaViewer: false,
-    currentViewerUrl: '',
-
     // 缓存管理相关数据 - 全新设计
     cacheTypes: [
         { key: 'manga_list', name: '漫画列表', icon: '📚', description: '漫画文件扫描结果缓存' },
@@ -127,41 +123,30 @@ window.AppComputed = {
 // 生命周期方法
 window.AppLifecycle = {
     mounted() {
+        console.log('Vue组件已挂载，开始初始化...');
 
         this.updateThemeState();
         window.addEventListener('themechange', () => {
             this.updateThemeState();
         });
 
-        // 初始化iframe消息监听器
-        if (this.initIframeMessageListener) {
-            this.initIframeMessageListener();
-        }
-
         // 初始化缩略图观察器
         if (this.initThumbnailObserver) {
             this.initThumbnailObserver();
         }
 
-        // 处理URL片段（如果有的话）
-        this.handleUrlFragment();
-
-        // 恢复浏览状态
-        if (this.restoreBrowsingState) {
-            this.restoreBrowsingState();
-        }
-
         // 初始化漫画数据
         if (this.loadInitialData) {
+            console.log('调用loadInitialData...');
             this.loadInitialData();
+        } else {
+            console.error('loadInitialData方法不存在');
         }
 
         // 初始化缓存管理数据
         if (this.initCacheManagement) {
             this.initCacheManagement();
         }
-
-
     },
 
     beforeUnmount() {

@@ -43,21 +43,4 @@
             </div>
         </div>
     </div>
-
-    <!-- 漫画查看器iframe容器 -->
-    <div v-if="showMangaViewer" class="manga-viewer-overlay">
-        <!-- 关闭按钮 -->
-        <div class="viewer-close-btn" @click="closeMangaViewer" title="关闭查看器">
-            ✕
-        </div>
-
-        <!-- iframe容器 -->
-        <iframe
-            :src="currentViewerUrl"
-            class="manga-viewer-iframe"
-            frameborder="0"
-            allowfullscreen
-            @load="onIframeLoad">
-        </iframe>
-    </div>
 </div>

@@ -29,11 +29,11 @@ dependencies = [
     "imgaug",
     "lmdb",
     "tqdm",
-
     "fastapi>=0.115.12",
     "uvicorn>=0.34.3",
     "jinja2>=3.1.6",
     "python-multipart>=0.0.20",
+    "pywebview>=5.4",
 ]
 
 [build-system]

@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫画翻译工具 - 桌面版</title>
+    
+    <!-- 基础样式 -->
+    <link rel="stylesheet" href="static/css/modern-theme.css">
+    <link rel="stylesheet" href="static/css/viewer.css">
+    
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Element Plus -->
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <!-- Axios -->
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    
+    <!-- Electron适配器 -->
+    <script src="js/adapters/EnvironmentDetector.js"></script>
+    <script src="js/adapters/FileAPIAdapter.js"></script>
+    <script src="js/adapters/ElectronBridge.js"></script>
+    <script src="js/adapters/AdapterManager.js"></script>
+    
+    <style>
+        /* Electron特定样式 */
+        .electron-titlebar {
+            height: 30px;
+            background: #2c3e50;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            font-size: 14px;
+            -webkit-app-region: drag;
+        }
+        
+        .electron-titlebar .window-controls {
+            -webkit-app-region: no-drag;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .electron-titlebar .window-controls button {
+            background: none;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        
+        .electron-titlebar .window-controls button:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .electron-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #67c23a;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            z-index: 9999;
+        }
+        
+        .web-status {
+            background: #e6a23c;
+        }
+        
+        .main-content {
+            height: calc(100vh - 30px);
+            overflow: hidden;
+        }
+        
+        .file-drop-zone {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+        }
+        
+        .file-drop-zone.dragover {
+            border-color: #409eff;
+            background-color: #f0f9ff;
+        }
+        
+        .electron-features {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .feature-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Electron标题栏 -->
+        <div class="electron-titlebar" v-if="isElectron">
+            <span>🎌 漫画翻译工具 - 桌面版</span>
+            <div class="window-controls">
+                <button @click="minimizeWindow">−</button>
+                <button @click="maximizeWindow">□</button>
+                <button @click="closeWindow">×</button>
+            </div>
+        </div>
+        
+        <!-- 环境状态指示器 -->
+        <div :class="['electron-status', { 'web-status': !isElectron }]">
+            {{ isElectron ? '⚡ Electron' : '🌐 Web' }}
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="main-content">
+            <div class="container" style="padding: 20px;">
+                <h1 style="text-align: center; margin-bottom: 30px;">
+                    🎌 漫画翻译工具 - 桌面版
+                </h1>
+                
+                <!-- Electron特有功能展示 -->
+                <div class="electron-features" v-if="isElectron">
+                    <h3>🚀 桌面版特有功能</h3>
+                    <div class="feature-grid">
+                        <div class="feature-card">
+                            <div class="feature-icon">📁</div>
+                            <h4>直接文件选择</h4>
+                            <p>无需上传，直接选择本地文件</p>
+                            <el-button @click="testFileSelection" size="small">测试</el-button>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📂</div>
+                            <h4>文件夹批量处理</h4>
+                            <p>一次性处理整个文件夹</p>
+                            <el-button @click="testDirectorySelection" size="small">测试</el-button>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">🔄</div>
+                            <h4>原地文件替换</h4>
+                            <p>直接替换原始文件</p>
+                            <el-button @click="showReplaceDemo" size="small">演示</el-button>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">🔔</div>
+                            <h4>系统通知</h4>
+                            <p>原生系统通知支持</p>
+                            <el-button @click="testNotification" size="small">测试</el-button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 文件拖放区域 -->
+                <div class="file-drop-zone" 
+                     @dragover.prevent="handleDragOver"
+                     @dragleave.prevent="handleDragLeave"
+                     @drop.prevent="handleFileDrop"
+                     :class="{ 'dragover': isDragOver }">
+                    <div v-if="isElectron">
+                        <h3>📁 拖放文件到这里</h3>
+                        <p>支持漫画文件 (.zip, .rar, .cbz, .cbr)</p>
+                        <p>或者点击下方按钮选择文件</p>
+                    </div>
+                    <div v-else>
+                        <h3>📤 上传文件</h3>
+                        <p>点击下方按钮选择文件上传</p>
+                    </div>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div style="text-align: center; margin: 30px 0;">
+                    <el-button-group>
+                        <el-button type="primary" @click="selectFiles" size="large">
+                            📁 {{ isElectron ? '选择文件' : '上传文件' }}
+                        </el-button>
+                        <el-button type="success" @click="selectMultipleFiles" size="large" v-if="isElectron">
+                            📂 批量选择
+                        </el-button>
+                        <el-button type="info" @click="openWebVersion" size="large" v-if="isElectron">
+                            🌐 Web版本
+                        </el-button>
+                    </el-button-group>
+                </div>
+                
+                <!-- 选中的文件列表 -->
+                <div v-if="selectedFiles.length > 0" style="margin-top: 30px;">
+                    <h3>📋 选中的文件 ({{ selectedFiles.length }})</h3>
+                    <el-table :data="selectedFiles" style="width: 100%">
+                        <el-table-column prop="name" label="文件名" />
+                        <el-table-column prop="size" label="大小" :formatter="formatFileSize" />
+                        <el-table-column prop="type" label="类型" />
+                        <el-table-column label="操作" width="200">
+                            <template #default="scope">
+                                <el-button @click="removeFile(scope.$index)" size="small" type="danger">
+                                    删除
+                                </el-button>
+                                <el-button @click="showInFolder(scope.row)" size="small" v-if="isElectron && scope.row.path">
+                                    定位
+                                </el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    
+                    <div style="text-align: center; margin-top: 20px;">
+                        <el-button type="primary" @click="startTranslation" size="large">
+                            🚀 开始翻译
+                        </el-button>
+                        <el-button @click="clearFiles" size="large">
+                            🧹 清空列表
+                        </el-button>
+                    </div>
+                </div>
+                
+                <!-- Python服务状态 -->
+                <div style="margin-top: 30px;">
+                    <el-card>
+                        <template #header>
+                            <span>🐍 Python服务状态</span>
+                            <el-button style="float: right;" @click="refreshPythonStatus" size="small">
+                                刷新
+                            </el-button>
+                        </template>
+                        <div v-if="pythonStatus">
+                            <p><strong>状态:</strong> 
+                                <el-tag :type="pythonStatus.isRunning ? 'success' : 'danger'">
+                                    {{ pythonStatus.isRunning ? '运行中' : '未运行' }}
+                                </el-tag>
+                            </p>
+                            <p v-if="pythonStatus.port"><strong>端口:</strong> {{ pythonStatus.port }}</p>
+                            <p v-if="pythonStatus.pid"><strong>进程ID:</strong> {{ pythonStatus.pid }}</p>
+                        </div>
+                        <div v-else>
+                            <p>获取状态中...</p>
+                        </div>
+                    </el-card>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
+
+        createApp({
+            data() {
+                return {
+                    isElectron: false,
+                    selectedFiles: [],
+                    isDragOver: false,
+                    pythonStatus: null,
+                    adaptersReady: false
+                };
+            },
+            
+            async mounted() {
+                // 等待适配器就绪
+                window.addEventListener('adapters-ready', this.onAdaptersReady);
+                window.addEventListener('adapters-error', this.onAdaptersError);
+                
+                // 检测环境
+                this.isElectron = EnvironmentDetector.isElectron();
+                
+                // 如果适配器已经就绪，立即初始化
+                if (window.adapterManager && window.adapterManager.isReady()) {
+                    this.onAdaptersReady();
+                }
+            },
+            
+            methods: {
+                onAdaptersReady() {
+                    this.adaptersReady = true;
+                    ElMessage.success('适配器初始化完成');
+                    this.refreshPythonStatus();
+                },
+                
+                onAdaptersError(event) {
+                    ElMessage.error(`适配器初始化失败: ${event.detail.error}`);
+                },
+                
+                async selectFiles() {
+                    try {
+                        if (this.isElectron) {
+                            const result = await window.fileAPI.selectFile({
+                                accept: '.zip,.rar,.cbz,.cbr'
+                            });
+                            if (result) {
+                                this.selectedFiles.push(result);
+                                ElMessage.success(`已选择文件: ${result.name}`);
+                            }
+                        } else {
+                            // Web环境的文件选择逻辑
+                            const result = await window.fileAPI.selectFile({
+                                accept: '.zip,.rar,.cbz,.cbr'
+                            });
+                            if (result) {
+                                this.selectedFiles.push(result);
+                                ElMessage.success(`已选择文件: ${result.name}`);
+                            }
+                        }
+                    } catch (error) {
+                        ElMessage.error(`文件选择失败: ${error.message}`);
+                    }
+                },
+                
+                async selectMultipleFiles() {
+                    try {
+                        const results = await window.fileAPI.selectMultipleFiles({
+                            accept: '.zip,.rar,.cbz,.cbr'
+                        });
+                        if (results && results.length > 0) {
+                            this.selectedFiles.push(...results);
+                            ElMessage.success(`已选择 ${results.length} 个文件`);
+                        }
+                    } catch (error) {
+                        ElMessage.error(`多文件选择失败: ${error.message}`);
+                    }
+                },
+                
+                async testFileSelection() {
+                    await this.selectFiles();
+                },
+                
+                async testDirectorySelection() {
+                    try {
+                        const result = await window.fileAPI.selectDirectory();
+                        if (result) {
+                            ElMessage.success(`已选择文件夹: ${result.name}`);
+                        }
+                    } catch (error) {
+                        ElMessage.error(`文件夹选择失败: ${error.message}`);
+                    }
+                },
+                
+                showReplaceDemo() {
+                    ElMessageBox.alert(
+                        '原地文件替换功能允许直接替换原始漫画文件，无需手动管理文件。翻译完成后，您可以选择：\n\n1. 替换原文件\n2. 保存为新文件\n3. 创建备份后替换',
+                        '原地文件替换演示',
+                        { type: 'info' }
+                    );
+                },
+                
+                async testNotification() {
+                    try {
+                        await window.electronBridge.showNotification(
+                            '测试通知',
+                            '这是来自漫画翻译工具的测试通知'
+                        );
+                        ElMessage.success('通知已发送');
+                    } catch (error) {
+                        ElMessage.error(`通知发送失败: ${error.message}`);
+                    }
+                },
+                
+                handleDragOver(event) {
+                    this.isDragOver = true;
+                },
+                
+                handleDragLeave(event) {
+                    this.isDragOver = false;
+                },
+                
+                handleFileDrop(event) {
+                    this.isDragOver = false;
+                    
+                    if (!this.isElectron) {
+                        ElMessage.warning('Web版本不支持拖放，请使用文件选择');
+                        return;
+                    }
+                    
+                    // Electron环境下的文件拖放处理
+                    const files = Array.from(event.dataTransfer.files);
+                    const validFiles = files.filter(file => 
+                        ['.zip', '.rar', '.cbz', '.cbr'].some(ext => 
+                            file.name.toLowerCase().endsWith(ext)
+                        )
+                    );
+                    
+                    if (validFiles.length > 0) {
+                        this.selectedFiles.push(...validFiles.map(file => ({
+                            file: file,
+                            name: file.name,
+                            size: file.size,
+                            type: file.type || 'application/octet-stream',
+                            path: file.path // Electron提供的真实路径
+                        })));
+                        ElMessage.success(`已添加 ${validFiles.length} 个文件`);
+                    } else {
+                        ElMessage.warning('请拖放有效的漫画文件');
+                    }
+                },
+                
+                removeFile(index) {
+                    this.selectedFiles.splice(index, 1);
+                    ElMessage.info('文件已移除');
+                },
+                
+                async showInFolder(file) {
+                    if (file.path) {
+                        try {
+                            await window.fileAPI.showItemInFolder(file.path);
+                        } catch (error) {
+                            ElMessage.error(`无法定位文件: ${error.message}`);
+                        }
+                    }
+                },
+                
+                clearFiles() {
+                    this.selectedFiles = [];
+                    ElMessage.info('文件列表已清空');
+                },
+                
+                startTranslation() {
+                    if (this.selectedFiles.length === 0) {
+                        ElMessage.warning('请先选择要翻译的文件');
+                        return;
+                    }
+                    
+                    ElMessage.info('翻译功能正在开发中...');
+                    // TODO: 实现翻译功能
+                },
+                
+                async refreshPythonStatus() {
+                    try {
+                        this.pythonStatus = await window.electronBridge.getPythonStatus();
+                    } catch (error) {
+                        ElMessage.error(`获取Python状态失败: ${error.message}`);
+                    }
+                },
+                
+                openWebVersion() {
+                    if (this.pythonStatus && this.pythonStatus.port) {
+                        const url = `http://127.0.0.1:${this.pythonStatus.port}`;
+                        window.electronBridge.openPath ? 
+                            window.electronBridge.openPath(url) :
+                            window.open(url, '_blank');
+                    } else {
+                        ElMessage.warning('Python服务未运行，无法打开Web版本');
+                    }
+                },
+                
+                async minimizeWindow() {
+                    await window.electronBridge.minimizeWindow();
+                },
+                
+                async maximizeWindow() {
+                    await window.electronBridge.maximizeWindow();
+                },
+                
+                async closeWindow() {
+                    await window.electronBridge.closeWindow();
+                },
+                
+                formatFileSize(row, column, cellValue) {
+                    if (!cellValue) return '-';
+                    
+                    const units = ['B', 'KB', 'MB', 'GB'];
+                    let size = cellValue;
+                    let unitIndex = 0;
+                    
+                    while (size >= 1024 && unitIndex < units.length - 1) {
+                        size /= 1024;
+                        unitIndex++;
+                    }
+                    
+                    return `${size.toFixed(1)} ${units[unitIndex]}`;
+                }
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

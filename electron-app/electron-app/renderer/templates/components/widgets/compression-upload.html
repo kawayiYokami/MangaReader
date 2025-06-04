@@ -1,0 +1,25 @@
+<!-- 压缩文件上传组件 -->
+<div class="file-selection">
+    <div class="upload-area"
+         @click="triggerCompressionFileSelect"
+         @dragover.prevent="handleCompressionDragOver"
+         @dragleave.prevent="handleCompressionDragLeave"
+         @drop.prevent="handleCompressionDrop"
+         :class="{ dragover: isCompressionDragOver }"
+         style="border: 2px dashed #dcdfe6; border-radius: 8px; padding: 30px; text-align: center; transition: all 0.3s; cursor: pointer;">
+
+        <el-icon size="48" color="#c0c4cc">
+            <upload-filled />
+        </el-icon>
+
+        <h3 style="margin: 16px 0 8px 0; color: #303133;">拖拽文件到此处，或点击选择文件</h3>
+        <p style="margin: 0; color: #909399; font-size: 14px;">支持 ZIP、CBZ、CBR 格式的漫画文件</p>
+
+        <input ref="compressionFileInput"
+               type="file"
+               multiple
+               accept=".zip,.cbz,.cbr"
+               @change="handleCompressionFileSelect"
+               style="display: none;">
+    </div>
+</div>

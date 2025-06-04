@@ -1,0 +1,88 @@
+<!-- 任务列表组件 -->
+<!-- 空状态 -->
+<el-empty
+    v-if="translationTasks.length === 0"
+    description="暂无翻译任务"
+    :image-size="120">
+    <el-button type="primary" @click="triggerFileSelect">
+        选择文件开始翻译
+    </el-button>
+</el-empty>
+
+<!-- 任务列表 -->
+<div v-else class="task-list">
+    <div
+        v-for="(task, index) in translationTasks"
+        :key="task.id"
+        class="task-item"
+        :class="{
+            'task-processing': task.status === 'processing',
+            'task-completed': task.status === 'completed',
+            'task-error': task.status === 'error'
+        }">
+
+        <div class="task-info">
+            <div class="task-name" :title="task.fileName">
+                <span v-text="task.fileName"></span>
+            </div>
+            <div class="task-details">
+                <span class="task-pages"><span v-text="task.totalPages"></span> 页</span>
+                <span class="task-status" v-text="getTaskStatusText(task.status)"></span>
+            </div>
+        </div>
+
+        <div class="task-progress" v-if="task.status === 'processing'">
+            <el-progress
+                :percentage="task.progress"
+                :show-text="false"
+                :stroke-width="4">
+            </el-progress>
+            <span class="progress-detail"><span v-text="task.currentPage"></span> / <span v-text="task.totalPages"></span></span>
+        </div>
+
+        <div class="task-actions">
+            <div class="task-status">
+                <el-tag
+                    v-if="task.status === 'completed'"
+                    type="success"
+                    size="small">
+                    ✅ 完成
+                </el-tag>
+                <el-tag
+                    v-else-if="task.status === 'error'"
+                    type="danger"
+                    size="small">
+                    ❌ 失败
+                </el-tag>
+                <el-tag
+                    v-else-if="task.status === 'processing'"
+                    type="warning"
+                    size="small">
+                    ⏳ 处理中
+                </el-tag>
+                <el-tag
+                    v-else
+                    type="info"
+                    size="small">
+                    ⏸️ 等待
+                </el-tag>
+            </div>
+
+            <div class="task-buttons">
+                <el-button
+                    v-if="task.status === 'completed'"
+                    size="small"
+                    type="primary"
+                    @click="downloadTask(task)">
+                    📥 下载
+                </el-button>
+                <el-button
+                    size="small"
+                    type="danger"
+                    @click="removeTask(index)">
+                    🗑️ 移除
+                </el-button>
+            </div>
+        </div>
+    </div>
+</div>

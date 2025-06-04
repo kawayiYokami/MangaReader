@@ -16,7 +16,6 @@
     <div id="app">
         <!-- 左侧控制栏 -->
         <div class="left-sidebar">
-
             <!-- 漫画标题 -->
             <div class="manga-title-section">
                 <div class="manga-title-vertical">{{ mangaInfo.title || '加载中...' }}</div>
@@ -191,9 +190,6 @@
                 const urlParams = new URLSearchParams(window.location.search);
                 const mangaPath = urlParams.get('path');
                 const initialPage = parseInt(urlParams.get('page') || '0');
-                const themeParam = urlParams.get('theme');
-                const isIframe = urlParams.get('iframe') === 'true';
-
 
                 // 计算属性
                 const actualDisplayMode = computed(() => {
@@ -226,41 +222,10 @@
 
                 // ==================== 初始化 ====================
 
-                // 简化的主题消息监听器
-                function initThemeMessageListener() {
-                    window.addEventListener('message', (event) => {
-                        if (event.data && event.data.type === 'applyCSSVars') {
-                            console.log('🎨 收到主题同步消息');
-                            applyCSSVars(event.data.vars);
-                        }
-                    });
-                    console.log('👂 主题监听器已初始化');
-                }
-
-                // 应用CSS变量
-                function applyCSSVars(vars) {
-                    const root = document.documentElement;
-                    Object.entries(vars).forEach(([varName, value]) => {
-                        root.style.setProperty(varName, value);
-                    });
-                    console.log('🎨 主题已应用');
-                }
-
                 onMounted(async () => {
-                    // 初始化主题消息监听器
-                    initThemeMessageListener();
-
-
-
                     if (!mangaPath) {
                         ElMessage.error('缺少漫画路径参数');
                         return;
-                    }
-
-                    // 检测是否在桌面应用中，添加相应的CSS类
-                    if (isDesktopApp()) {
-                        document.body.classList.add('desktop-app');
-                        console.log('检测到桌面应用环境，应用桌面优化样式');
                     }
 
                     await loadMangaInfo();
@@ -274,13 +239,6 @@
                     document.addEventListener('wheel', handleWheel, { passive: false });
                     window.addEventListener('resize', handleResize);
                 });
-
-                // 检测是否在桌面应用中运行
-                function isDesktopApp() {
-                    return window.navigator.userAgent.includes('pywebview') ||
-                           window.location.protocol === 'file:' ||
-                           (!window.opener && !window.parent && window.location.hostname === '127.0.0.1');
-                }
 
                 onUnmounted(() => {
                     document.removeEventListener('keydown', handleKeydown);
@@ -596,7 +554,10 @@
                 }
 
                 // ==================== 导航 ====================
-                // iframe方案不需要返回按钮，由父页面控制关闭
+
+                function goBack() {
+                    window.history.back();
+                }
 
                 return {
                     // 数据
@@ -634,7 +595,8 @@
                     onImageClick,
                     onImageLoad,
                     onImageError,
-                    toggleFullscreen
+                    toggleFullscreen,
+                    goBack
                 };
             }
         }).use(ElementPlus).mount('#app');

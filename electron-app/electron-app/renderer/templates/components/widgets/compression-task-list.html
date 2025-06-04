@@ -1,0 +1,91 @@
+<!-- 压缩任务列表组件 -->
+<!-- 空状态 -->
+<el-empty
+    v-if="compressionTasks.length === 0"
+    description="暂无压缩任务"
+    :image-size="120">
+    <el-button type="primary" @click="triggerCompressionFileSelect">
+        选择文件开始压缩
+    </el-button>
+</el-empty>
+
+<!-- 任务列表 -->
+<div v-else class="task-list" style="max-height: 600px; overflow-y: auto;">
+    <div
+        v-for="(task, index) in compressionTasks"
+        :key="task.id"
+        class="task-item"
+        :class="{
+            'task-processing': task.status === 'processing',
+            'task-completed': task.status === 'completed',
+            'task-error': task.status === 'error'
+        }"
+        style="padding: 16px; border: 1px solid #ebeef5; border-radius: 8px; margin-bottom: 12px;">
+
+        <div class="task-info">
+            <div class="task-name" style="font-weight: 500; margin-bottom: 8px;" :title="task.fileName">
+                <span v-text="task.fileName"></span>
+            </div>
+            <div class="task-details" style="font-size: 12px; color: #909399;">
+                <span class="task-status" v-text="getCompressionTaskStatusText(task.status)"></span>
+            </div>
+        </div>
+
+        <div class="task-progress" v-if="task.status === 'processing'" style="margin: 12px 0;">
+            <el-progress
+                :percentage="task.progress"
+                :show-text="false"
+                :stroke-width="6">
+            </el-progress>
+            <div style="margin-top: 4px; font-size: 12px; color: #666;">
+                <span v-text="task.currentStep"></span>
+                <span style="float: right;" v-text="task.progress + '%'"></span>
+            </div>
+        </div>
+
+        <div class="task-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+            <div class="task-status">
+                <el-tag
+                    v-if="task.status === 'completed'"
+                    type="success"
+                    size="small">
+                    ✅ 完成
+                </el-tag>
+                <el-tag
+                    v-else-if="task.status === 'error'"
+                    type="danger"
+                    size="small">
+                    ❌ 失败
+                </el-tag>
+                <el-tag
+                    v-else-if="task.status === 'processing'"
+                    type="warning"
+                    size="small">
+                    ⏳ 处理中
+                </el-tag>
+                <el-tag
+                    v-else
+                    type="info"
+                    size="small">
+                    ⏸️ 等待
+                </el-tag>
+            </div>
+
+            <div class="task-buttons">
+                <el-button
+                    v-if="task.status === 'completed'"
+                    size="small"
+                    type="primary"
+                    @click="downloadCompressionTask(task)">
+                    📥 下载
+                </el-button>
+                <el-button
+                    size="small"
+                    type="danger"
+                    @click="removeCompressionTask(index)">
+                    🗑️ 移除
+                </el-button>
+            </div>
+        </div>
+    </div>
+</div>

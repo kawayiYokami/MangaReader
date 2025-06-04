@@ -15,35 +15,11 @@
         const { createApp } = Vue;
         const { ElMessage, ElMessageBox, ElLoading } = ElementPlus;
 
-        // 统一日志函数
-        function log(level, message) {
-            if (window.jsLog) {
-                window.jsLog(level, message);
-            } else {
-                console.log(`[${level.toUpperCase()}] ${message}`);
-            }
-        }
-
-        // 基础调试信息（仅在开发模式下显示）
-        if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
-            log('info', '🚀 HTML页面开始加载JavaScript...');
-            log('info', '🔍 Vue存在: ' + !!window.Vue);
-            log('info', '🔍 ElementPlus存在: ' + !!window.ElementPlus);
-        }
-
         // 等待所有模块加载完成
         document.addEventListener('DOMContentLoaded', function() {
-            // 开发模式下的调试信息
-            if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
-                log('info', '🚀 DOMContentLoaded事件触发');
-                log('info', '🔍 window.AppData存在: ' + !!window.AppData);
-                log('info', '🔍 window.AppLifecycle存在: ' + !!window.AppLifecycle);
-                log('info', '🔍 window.MangaBrowserMethods存在: ' + !!window.MangaBrowserMethods);
-            }
-
             // 检查必要的模块是否已加载
             if (!window.AppData) {
-                log('error', '❌ AppData模块未加载');
+                console.error('AppData模块未加载');
                 return;
             }
 

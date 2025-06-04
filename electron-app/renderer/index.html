@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫画翻译工具 - 桌面版</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .status-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .status-title {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        
+        .status-content {
+            font-family: monospace;
+            font-size: 12px;
+            color: #6c757d;
+            white-space: pre-wrap;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #1e7e34;
+        }
+        
+        .log-area {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+        
+        .environment-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 2px;
+        }
+        
+        .badge-electron {
+            background-color: #47b8e0;
+            color: white;
+        }
+        
+        .badge-web {
+            background-color: #ffc107;
+            color: black;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎌 漫画翻译工具</h1>
+            <p>桌面版测试页面</p>
+            <div id="environment-info" class="loading">正在检测环境...</div>
+        </div>
+
+        <div class="status-card">
+            <div class="status-title">🔍 环境信息</div>
+            <div id="environment-details" class="status-content">加载中...</div>
+        </div>
+
+        <div class="status-card">
+            <div class="status-title">🐍 Python服务状态</div>
+            <div id="python-status" class="status-content">检查中...</div>
+        </div>
+
+        <div class="status-card">
+            <div class="status-title">🧩 适配器状态</div>
+            <div id="adapter-status" class="status-content">初始化中...</div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-primary" onclick="testFileSelection()">📁 测试文件选择</button>
+            <button class="btn btn-primary" onclick="testMultipleFiles()">📂 测试多文件选择</button>
+            <button class="btn btn-secondary" onclick="testNotification()">🔔 测试通知</button>
+            <button class="btn btn-secondary" onclick="testProgressBar()">📊 测试进度条</button>
+            <button class="btn btn-success" onclick="clearLog()">🧹 清空日志</button>
+        </div>
+
+        <div class="log-area" id="log-area">
+            <div>📝 测试日志将显示在这里...</div>
+        </div>
+    </div>
+
+    <!-- 加载适配器脚本 -->
+    <script src="js/adapters/EnvironmentDetector.js"></script>
+    <script src="js/adapters/FileAPIAdapter.js"></script>
+    <script src="js/adapters/ElectronBridge.js"></script>
+    <script src="js/adapters/AdapterManager.js"></script>
+
+    <script>
+        // 日志功能
+        function log(message, type = 'info') {
+            const logArea = document.getElementById('log-area');
+            const timestamp = new Date().toLocaleTimeString();
+            const typeIcon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `[${timestamp}] ${typeIcon} ${message}`;
+            logArea.appendChild(logEntry);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log-area').innerHTML = '<div>📝 日志已清空</div>';
+        }
+
+        // 更新环境信息
+        function updateEnvironmentInfo() {
+            const envInfo = EnvironmentDetector.getEnvironmentInfo();
+            
+            // 更新环境徽章
+            const envBadge = document.getElementById('environment-info');
+            if (envInfo.isElectron) {
+                envBadge.innerHTML = '<span class="environment-badge badge-electron">⚡ Electron环境</span>';
+            } else {
+                envBadge.innerHTML = '<span class="environment-badge badge-web">🌐 Web环境</span>';
+            }
+            
+            // 更新详细信息
+            document.getElementById('environment-details').textContent = JSON.stringify(envInfo, null, 2);
+            
+            log(`环境检测完成: ${envInfo.isElectron ? 'Electron' : 'Web'}`, 'success');
+        }
+
+        // 更新Python服务状态
+        async function updatePythonStatus() {
+            try {
+                if (window.electronBridge) {
+                    const status = await window.electronBridge.getPythonStatus();
+                    document.getElementById('python-status').textContent = JSON.stringify(status, null, 2);
+                    log(`Python服务状态: ${status.isRunning ? '运行中' : '未运行'}`, status.isRunning ? 'success' : 'warning');
+                } else {
+                    document.getElementById('python-status').textContent = '等待适配器初始化...';
+                }
+            } catch (error) {
+                document.getElementById('python-status').textContent = `错误: ${error.message}`;
+                log(`获取Python状态失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 更新适配器状态
+        function updateAdapterStatus() {
+            if (window.adapterManager && window.adapterManager.isReady()) {
+                const capabilities = window.adapterManager.getCapabilities();
+                document.getElementById('adapter-status').textContent = JSON.stringify(capabilities, null, 2);
+                log('适配器初始化完成', 'success');
+            } else {
+                document.getElementById('adapter-status').textContent = '适配器未就绪';
+                log('适配器未就绪', 'warning');
+            }
+        }
+
+        // 测试文件选择
+        async function testFileSelection() {
+            try {
+                log('开始测试文件选择...');
+                const result = await window.fileAPI.selectFile({
+                    accept: '.zip,.rar,.cbz,.cbr'
+                });
+                
+                if (result) {
+                    log(`文件选择成功: ${result.name || result.file?.name}`, 'success');
+                } else {
+                    log('用户取消了文件选择', 'warning');
+                }
+            } catch (error) {
+                log(`文件选择失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试多文件选择
+        async function testMultipleFiles() {
+            try {
+                log('开始测试多文件选择...');
+                const results = await window.fileAPI.selectMultipleFiles({
+                    accept: '.zip,.rar,.cbz,.cbr'
+                });
+                
+                if (results && results.length > 0) {
+                    log(`多文件选择成功: 选择了 ${results.length} 个文件`, 'success');
+                } else {
+                    log('用户取消了多文件选择', 'warning');
+                }
+            } catch (error) {
+                log(`多文件选择失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试通知
+        async function testNotification() {
+            try {
+                log('测试系统通知...');
+                const success = await window.electronBridge.showNotification(
+                    '测试通知',
+                    '这是一个测试通知消息'
+                );
+                
+                if (success) {
+                    log('通知发送成功', 'success');
+                } else {
+                    log('通知发送失败或被阻止', 'warning');
+                }
+            } catch (error) {
+                log(`通知测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试进度条
+        async function testProgressBar() {
+            try {
+                log('测试进度条...');
+                
+                for (let i = 0; i <= 100; i += 10) {
+                    await window.electronBridge.setProgressBar(i / 100);
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+                
+                // 清除进度条
+                await window.electronBridge.setProgressBar(-1);
+                log('进度条测试完成', 'success');
+            } catch (error) {
+                log(`进度条测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 事件监听
+        window.addEventListener('adapters-ready', (event) => {
+            log('适配器就绪事件触发', 'success');
+            updateAdapterStatus();
+            updatePythonStatus();
+        });
+
+        window.addEventListener('adapters-error', (event) => {
+            log(`适配器初始化失败: ${event.detail.error}`, 'error');
+        });
+
+        window.addEventListener('adapter-status-change', (event) => {
+            log(`适配器状态变化: ${event.detail.type}`, 'info');
+        });
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            log('页面加载完成', 'info');
+            updateEnvironmentInfo();
+            
+            // 定期更新状态
+            setInterval(() => {
+                if (window.adapterManager && window.adapterManager.isReady()) {
+                    updatePythonStatus();
+                }
+            }, 5000);
+        });
+    </script>
+</body>
+</html>

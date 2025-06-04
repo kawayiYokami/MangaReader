@@ -6,25 +6,6 @@ window.UtilsMethods = {
         this.activeMenu = key;
     },
 
-    // 初始化iframe消息监听器
-    initIframeMessageListener() {
-        window.addEventListener('message', (event) => {
-            // 安全检查：确保消息来源是可信的
-            if (event.origin !== window.location.origin) {
-                return;
-            }
-
-            // 处理iframe发送的消息
-            if (event.data && event.data.type === 'closeMangaViewer') {
-                console.log('📨 收到iframe关闭请求');
-                if (this.closeCornerViewer) {
-                    this.closeCornerViewer();
-                }
-            }
-        });
-        console.log('👂 iframe消息监听器已初始化');
-    },
-
     getPageTitle() {
         const titles = {
             'home': '首页',
@@ -61,11 +42,6 @@ window.UtilsMethods = {
             this.currentTheme = window.themeManager.getCurrentTheme();
             this.themeDisplayName = window.themeManager.getThemeDisplayName();
             this.themeIcon = window.themeManager.getThemeIcon();
-
-            // 如果有打开的iframe查看器，同步主题
-            if (this.showMangaViewer && this.syncThemeToIframe) {
-                this.syncThemeToIframe();
-            }
         }
     },
 
@@ -140,30 +116,7 @@ window.UtilsMethods = {
 
     validateFiles(files, allowedTypes = ['zip', 'cbz', 'cbr']) {
         if (!files || files.length === 0) return [];
-
+        
         return Array.from(files).filter(file => this.validateFile(file, allowedTypes));
-    },
-
-    // ==================== URL处理 ====================
-
-    handleUrlFragment() {
-        // 处理URL片段，用于从查看器返回时恢复正确的页面
-        const hash = window.location.hash;
-        if (hash) {
-            const fragment = hash.substring(1); // 移除 # 号
-            console.log('🔗 处理URL片段:', fragment);
-
-            // 根据片段设置活动菜单
-            if (fragment === 'manga-browser') {
-                this.activeMenu = 'manga-browser';
-                console.log('📚 切换到漫画浏览页面');
-            } else if (['home', 'translation', 'compression', 'cache', 'settings'].includes(fragment)) {
-                this.activeMenu = fragment;
-                console.log(`📄 切换到${this.getPageTitle()}页面`);
-            }
-
-            // 清除URL片段，保持URL整洁
-            window.history.replaceState(null, null, window.location.pathname);
-        }
     }
 };
