@@ -119,7 +119,11 @@ class MangaListCacheManager(CacheInterface):
                     "is_valid": getattr(manga_item, "is_valid", False),
                     "last_modified": manga_item.last_modified,
                     "pages": getattr(manga_item, "pages", []),
-                    "is_translated": getattr(manga_item, "is_translated", False)
+                    "is_translated": getattr(manga_item, "is_translated", False),
+                    # 页面尺寸分析相关数据
+                    "page_dimensions": getattr(manga_item, "page_dimensions", []),
+                    "dimension_variance": getattr(manga_item, "dimension_variance", None),
+                    "is_likely_manga": getattr(manga_item, "is_likely_manga", None)
                 }
                 serializable_list.append(manga_info)
             else:

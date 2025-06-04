@@ -21,11 +21,10 @@ class ImageTranslator:
         初始化图片翻译器
         
         Args:
-            translator_type: 翻译器类型 ("智谱", "Google", "NLLB"). 如果为 None, 则从全局配置加载。
+            translator_type: 翻译器类型 ("智谱", "Google"). 如果为 None, 则从全局配置加载。
             **translator_kwargs: 翻译器相关参数
                 - 智谱: api_key, model
                 - Google: api_key (可选)
-                - NLLB: nllb_model_name, nllb_source_lang_code
         """
         self.ocr_manager = None
         self.translator = None 
@@ -74,15 +73,7 @@ class ImageTranslator:
                     translator_type="Google",
                     api_key=api_key
                 )
-            elif translator_type_to_init == "NLLB":
-                nllb_model_name = kwargs.get('nllb_model_name', config.nllb_model_name.value)
-                nllb_source_lang_code = kwargs.get('nllb_source_lang_code', config.nllb_source_lang.value)
-                self.translator = TranslatorFactory.create_translator(
-                    translator_type="NLLB",
-                    nllb_model_name=nllb_model_name,
-                    nllb_cache_dir=None, 
-                    nllb_source_lang_code=nllb_source_lang_code
-                )
+
             else:
                 log.error(f"不支持的翻译器类型: {translator_type_to_init}。将尝试使用默认Google翻译器。")
                 self.translator = TranslatorFactory.create_translator(translator_type="Google")

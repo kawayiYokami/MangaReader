@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端文件处理器 - 漫画压缩工具</title>
+    
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    
+    <!-- 自定义样式 -->
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .processor-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .upload-area {
+            border: 2px dashed #dcdfe6;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: #409eff;
+            background: #f0f9ff;
+        }
+        
+        .upload-area.dragover {
+            border-color: #67c23a;
+            background: #f0f9ff;
+        }
+        
+        .file-list {
+            margin-top: 20px;
+        }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border: 1px solid #ebeef5;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            color: #303133;
+        }
+        
+        .file-size {
+            font-size: 12px;
+            color: #909399;
+        }
+        
+        .progress-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .settings-panel {
+            margin-top: 20px;
+            padding: 20px;
+            border-top: 1px solid #ebeef5;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <!-- 标题 -->
+            <div class="header">
+                <h1>🗜️ 前端漫画压缩工具</h1>
+                <p>完全在浏览器中运行，无需上传文件到服务器</p>
+            </div>
+            
+            <!-- 主处理卡片 -->
+            <div class="processor-card">
+                <!-- 文件上传区域 -->
+                <div class="upload-area" 
+                     @click="triggerFileSelect"
+                     @dragover.prevent="handleDragOver"
+                     @dragleave.prevent="handleDragLeave"
+                     @drop.prevent="handleDrop"
+                     :class="{ dragover: isDragOver }">
+                    
+                    <el-icon size="48" color="#c0c4cc">
+                        <upload-filled />
+                    </el-icon>
+                    
+                    <h3>拖拽文件到此处，或点击选择文件</h3>
+                    <p>支持 ZIP、CBZ、CBR 格式的漫画文件</p>
+                    
+                    <input ref="fileInput" 
+                           type="file" 
+                           multiple 
+                           accept=".zip,.cbz,.cbr"
+                           @change="handleFileSelect"
+                           class="hidden">
+                </div>
+                
+                <!-- 文件列表 -->
+                <div v-if="selectedFiles.length > 0" class="file-list">
+                    <h4>已选择的文件 (<span v-text="selectedFiles.length"></span>)</h4>
+                    
+                    <div v-for="(file, index) in selectedFiles" 
+                         :key="index" 
+                         class="file-item">
+                        <div class="file-info">
+                            <div class="file-name" v-text="file.name"></div>
+                            <div class="file-size" v-text="formatFileSize(file.size)"></div>
+                        </div>
+                        
+                        <el-button type="danger" 
+                                   size="small" 
+                                   @click="removeFile(index)">
+                            移除
+                        </el-button>
+                    </div>
+                </div>
+                
+                <!-- 压缩设置 -->
+                <div v-if="selectedFiles.length > 0" class="settings-panel">
+                    <h4>压缩设置</h4>
+                    
+                    <el-row :gutter="20">
+                        <el-col :span="12">
+                            <el-form-item label="压缩模式">
+                                <el-radio-group v-model="compressionSettings.lossless">
+                                    <el-radio :value="false">有损压缩 (文件更小)</el-radio>
+                                    <el-radio :value="true">无损压缩 (保持质量)</el-radio>
+                                </el-radio-group>
+                            </el-form-item>
+                        </el-col>
+                        
+                        <el-col :span="12" v-if="!compressionSettings.lossless">
+                            <el-form-item label="压缩质量">
+                                <el-slider v-model="compressionSettings.quality"
+                                          :min="10"
+                                          :max="100"
+                                          :step="5"
+                                          show-input>
+                                </el-slider>
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+                    
+                    <el-button type="primary" 
+                               size="large"
+                               @click="startCompression"
+                               :loading="isProcessing"
+                               :disabled="selectedFiles.length === 0">
+                        <span v-if="isProcessing">处理中...</span>
+                        <span v-else>开始压缩</span>
+                    </el-button>
+                </div>
+                
+                <!-- 进度显示 -->
+                <div v-if="isProcessing" class="progress-section">
+                    <h4>处理进度</h4>
+                    
+                    <div v-for="(progress, index) in processingProgress" 
+                         :key="index"
+                         style="margin-bottom: 16px;">
+                        <div style="margin-bottom: 8px;">
+                            <span v-text="progress.fileName"></span>
+                            <span style="float: right;" v-text="progress.status"></span>
+                        </div>
+                        
+                        <el-progress :percentage="progress.percentage"
+                                    :status="progress.status === '完成' ? 'success' : 
+                                            progress.status === '错误' ? 'exception' : 'active'">
+                        </el-progress>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入依赖库 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.js"></script>
+    
+    <!-- 前端文件处理库 -->
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    
+    <script>
+        const { createApp } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
+        const { UploadFilled } = ElementPlusIconsVue;
+
+        createApp({
+            data() {
+                return {
+                    selectedFiles: [],
+                    isDragOver: false,
+                    isProcessing: false,
+                    processingProgress: [],
+                    compressionSettings: {
+                        lossless: false,
+                        quality: 75
+                    }
+                };
+            },
+            
+            methods: {
+                // 触发文件选择
+                triggerFileSelect() {
+                    this.$refs.fileInput.click();
+                },
+                
+                // 处理文件选择
+                handleFileSelect(event) {
+                    const files = Array.from(event.target.files);
+                    this.addFiles(files);
+                },
+                
+                // 处理拖拽
+                handleDragOver(event) {
+                    this.isDragOver = true;
+                },
+                
+                handleDragLeave(event) {
+                    this.isDragOver = false;
+                },
+                
+                handleDrop(event) {
+                    this.isDragOver = false;
+                    const files = Array.from(event.dataTransfer.files);
+                    this.addFiles(files);
+                },
+                
+                // 添加文件
+                addFiles(files) {
+                    const validFiles = files.filter(file => {
+                        const ext = file.name.toLowerCase();
+                        return ext.endsWith('.zip') || ext.endsWith('.cbz') || ext.endsWith('.cbr');
+                    });
+                    
+                    if (validFiles.length !== files.length) {
+                        ElMessage.warning('只支持 ZIP、CBZ、CBR 格式的文件');
+                    }
+                    
+                    this.selectedFiles.push(...validFiles);
+                    
+                    if (validFiles.length > 0) {
+                        ElMessage.success(`已添加 ${validFiles.length} 个文件`);
+                    }
+                },
+                
+                // 移除文件
+                removeFile(index) {
+                    this.selectedFiles.splice(index, 1);
+                },
+                
+                // 格式化文件大小
+                formatFileSize(bytes) {
+                    if (bytes === 0) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                },
+                
+                // 开始压缩处理
+                async startCompression() {
+                    if (this.selectedFiles.length === 0) {
+                        ElMessage.warning('请先选择文件');
+                        return;
+                    }
+
+                    this.isProcessing = true;
+                    this.processingProgress = this.selectedFiles.map(file => ({
+                        fileName: file.name,
+                        percentage: 0,
+                        status: '准备中'
+                    }));
+
+                    try {
+                        for (let i = 0; i < this.selectedFiles.length; i++) {
+                            await this.processFile(this.selectedFiles[i], i);
+                        }
+
+                        ElMessage.success('所有文件处理完成！');
+                    } catch (error) {
+                        console.error('处理失败:', error);
+                        ElMessage.error(`处理失败: ${error.message}`);
+                    } finally {
+                        this.isProcessing = false;
+                    }
+                },
+
+                // 处理单个文件
+                async processFile(file, index) {
+                    const progress = this.processingProgress[index];
+
+                    try {
+                        // 步骤1: 读取文件
+                        progress.status = '读取文件';
+                        progress.percentage = 10;
+
+                        const arrayBuffer = await this.readFileAsArrayBuffer(file);
+
+                        // 步骤2: 解压ZIP文件
+                        progress.status = '解压文件';
+                        progress.percentage = 20;
+
+                        const zip = new JSZip();
+                        const zipContent = await zip.loadAsync(arrayBuffer);
+
+                        // 步骤3: 提取图片文件
+                        progress.status = '提取图片';
+                        progress.percentage = 30;
+
+                        const imageFiles = [];
+                        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+
+                        for (const [filename, fileData] of Object.entries(zipContent.files)) {
+                            if (!fileData.dir) {
+                                const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+                                if (imageExtensions.includes(ext)) {
+                                    const imageBlob = await fileData.async('blob');
+                                    imageFiles.push({
+                                        name: filename,
+                                        blob: imageBlob,
+                                        originalSize: imageBlob.size
+                                    });
+                                }
+                            }
+                        }
+
+                        if (imageFiles.length === 0) {
+                            throw new Error('未找到图片文件');
+                        }
+
+                        // 步骤4: 转换图片格式
+                        progress.status = '转换图片';
+                        progress.percentage = 40;
+
+                        const convertedImages = [];
+                        let totalOriginalSize = 0;
+                        let totalCompressedSize = 0;
+
+                        for (let i = 0; i < imageFiles.length; i++) {
+                            const imageFile = imageFiles[i];
+                            totalOriginalSize += imageFile.originalSize;
+
+                            // 更新进度
+                            const imageProgress = 40 + (i / imageFiles.length) * 40;
+                            progress.percentage = Math.round(imageProgress);
+                            progress.status = `转换图片 ${i + 1}/${imageFiles.length}`;
+
+                            const convertedBlob = await this.convertImageToWebP(imageFile.blob);
+                            totalCompressedSize += convertedBlob.size;
+
+                            // 生成新的文件名
+                            const baseName = imageFile.name.substring(0, imageFile.name.lastIndexOf('.'));
+                            const newName = baseName + '.webp';
+
+                            convertedImages.push({
+                                name: newName,
+                                blob: convertedBlob
+                            });
+                        }
+
+                        // 检查压缩效果
+                        const compressionRatio = (totalOriginalSize - totalCompressedSize) / totalOriginalSize;
+                        console.log(`压缩效果: ${(compressionRatio * 100).toFixed(1)}% (${this.formatFileSize(totalOriginalSize)} → ${this.formatFileSize(totalCompressedSize)})`);
+
+                        // 步骤5: 重新打包
+                        progress.status = '打包文件';
+                        progress.percentage = 85;
+
+                        const newZip = new JSZip();
+
+                        // 添加转换后的图片
+                        for (const image of convertedImages) {
+                            newZip.file(image.name, image.blob);
+                        }
+
+                        // 步骤6: 生成最终文件
+                        progress.status = '生成文件';
+                        progress.percentage = 95;
+
+                        const finalBlob = await newZip.generateAsync({
+                            type: 'blob',
+                            compression: 'DEFLATE',
+                            compressionOptions: { level: 6 }
+                        });
+
+                        // 步骤7: 下载文件
+                        progress.status = '下载文件';
+                        progress.percentage = 100;
+
+                        const originalName = file.name.substring(0, file.name.lastIndexOf('.'));
+                        const newFileName = `${originalName}_compressed_webp.zip`;
+
+                        // 使用FileSaver.js下载文件
+                        saveAs(finalBlob, newFileName);
+
+                        progress.status = '完成';
+
+                        // 显示压缩统计
+                        ElMessage.success(`${file.name} 处理完成！压缩率: ${(compressionRatio * 100).toFixed(1)}%`);
+
+                    } catch (error) {
+                        progress.status = '错误';
+                        progress.percentage = 0;
+                        throw new Error(`处理 ${file.name} 时出错: ${error.message}`);
+                    }
+                },
+
+                // 读取文件为ArrayBuffer
+                readFileAsArrayBuffer(file) {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => reject(new Error('文件读取失败'));
+                        reader.readAsArrayBuffer(file);
+                    });
+                },
+
+                // 转换图片为WebP格式
+                async convertImageToWebP(imageBlob) {
+                    return new Promise((resolve, reject) => {
+                        const img = new Image();
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        img.onload = () => {
+                            // 设置画布尺寸
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+
+                            // 绘制图片
+                            ctx.drawImage(img, 0, 0);
+
+                            // 转换为WebP
+                            const quality = this.compressionSettings.lossless ? 1.0 : this.compressionSettings.quality / 100;
+                            const mimeType = this.compressionSettings.lossless ? 'image/webp' : 'image/webp';
+
+                            canvas.toBlob((blob) => {
+                                if (blob) {
+                                    resolve(blob);
+                                } else {
+                                    reject(new Error('图片转换失败'));
+                                }
+                            }, mimeType, quality);
+                        };
+
+                        img.onerror = () => reject(new Error('图片加载失败'));
+                        img.src = URL.createObjectURL(imageBlob);
+                    });
+                }
+            }
+        }).use(ElementPlus).component('UploadFilled', UploadFilled).mount('#app');
+    </script>
+</body>
+</html>

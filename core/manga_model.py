@@ -20,6 +20,12 @@ class MangaInfo:
         self.is_valid = False
         self.pages = []  # 存储页面路径
         self.last_modified = os.path.getmtime(file_path) if os.path.exists(file_path) else 0  # 获取文件最后修改时间
+
+        # 页面尺寸分析相关属性
+        self.page_dimensions = []  # 存储每页的尺寸 [(width, height), ...]
+        self.dimension_variance = None  # 尺寸方差分数 (0-1, 越小越一致)
+        self.is_likely_manga = None  # 基于尺寸分析的漫画可能性判断
+
         self._parse_metadata()
 
     def get_page_path(self, page_index):
@@ -118,6 +124,72 @@ class MangaInfo:
         has_title = any(tag.startswith("标题:") for tag in self.tags)
         self.is_valid = has_author and has_title
 
+    def analyze_page_dimensions(self):
+        """分析页面尺寸一致性，计算方差分数"""
+        if not self.page_dimensions or len(self.page_dimensions) < 2:
+            self.dimension_variance = 0.0
+            self.is_likely_manga = True
+            return
+
+        try:
+            import numpy as np
+
+            # 转换为numpy数组便于计算
+            dimensions = np.array(self.page_dimensions)
+            widths = dimensions[:, 0]
+            heights = dimensions[:, 1]
+
+            # 计算宽高比
+            aspect_ratios = widths / heights
+
+            # 计算面积
+            areas = widths * heights
+
+            # 使用变异系数 (CV = std/mean) 来衡量一致性
+            # 变异系数对尺寸大小不敏感，更适合评估相对变化
+
+            # 宽度变异系数
+            width_cv = np.std(widths) / np.mean(widths) if np.mean(widths) > 0 else 0
+
+            # 高度变异系数
+            height_cv = np.std(heights) / np.mean(heights) if np.mean(heights) > 0 else 0
+
+            # 宽高比变异系数
+            ratio_cv = np.std(aspect_ratios) / np.mean(aspect_ratios) if np.mean(aspect_ratios) > 0 else 0
+
+            # 面积变异系数
+            area_cv = np.std(areas) / np.mean(areas) if np.mean(areas) > 0 else 0
+
+            # 综合方差分数：取各项变异系数的加权平均
+            # 宽高比权重最高，因为漫画页面宽高比通常很一致
+            # 面积权重次之，宽高权重较低
+            variance_score = (
+                ratio_cv * 0.4 +      # 宽高比权重40%
+                area_cv * 0.3 +       # 面积权重30%
+                width_cv * 0.15 +     # 宽度权重15%
+                height_cv * 0.15      # 高度权重15%
+            )
+
+            # 限制分数在0-1范围内
+            self.dimension_variance = min(variance_score, 1.0)
+
+            # 判断是否可能是漫画
+            # 使用配置中的阈值
+            from core.config import config
+            manga_threshold = config.dimension_variance_threshold.value
+            self.is_likely_manga = self.dimension_variance < manga_threshold
+
+            log.debug(f"尺寸分析完成 {self.file_path}: "
+                     f"方差分数={self.dimension_variance:.3f}, "
+                     f"可能是漫画={self.is_likely_manga}, "
+                     f"页数={len(self.page_dimensions)}")
+
+        except Exception as e:
+            log.warning(f"页面尺寸分析失败 {self.file_path}: {e}")
+            # 分析失败时保守处理
+            self.dimension_variance = 0.0
+            self.is_likely_manga = True
+
 
 class MangaLoader:
     def __init__(self):
@@ -174,7 +246,7 @@ class MangaLoader:
         return manga_files
 
     @staticmethod
-    def load_manga(file_path):
+    def load_manga(file_path, analyze_dimensions=True):
         if not os.path.exists(file_path):
             log.warning(f"文件或目录不存在: {file_path}")
             return None
@@ -243,7 +315,120 @@ class MangaLoader:
             log.warning(f"不支持的文件类型: {file_path}")
             return None
 
+        # 执行页面尺寸分析
+        if analyze_dimensions and manga and manga.total_pages > 0:
+            MangaLoader._analyze_manga_dimensions(manga)
+
         return manga
+
+    @staticmethod
+    def _analyze_manga_dimensions(manga):
+        """分析漫画页面尺寸，提取尺寸信息"""
+        if not manga or not manga.pages:
+            return
+
+        try:
+            log.info(f"开始分析页面尺寸: {manga.file_path}")
+
+            # 采样策略：对于页数较多的漫画，采样分析以提高性能
+            total_pages = len(manga.pages)
+            if total_pages <= 10:
+                # 少于10页，全部分析
+                sample_indices = list(range(total_pages))
+            elif total_pages <= 50:
+                # 10-50页，采样70%
+                sample_size = max(7, int(total_pages * 0.7))
+                sample_indices = np.random.choice(total_pages, sample_size, replace=False)
+            else:
+                # 超过50页，采样30页
+                sample_indices = np.random.choice(total_pages, 30, replace=False)
+
+            dimensions = []
+
+            for i in sample_indices:
+                try:
+                    # 获取页面尺寸信息
+                    if os.path.isdir(manga.file_path):
+                        width, height = MangaLoader._get_page_dimensions_from_folder(manga, i)
+                    else:
+                        width, height = MangaLoader._get_page_dimensions_from_zip(manga, i)
+
+                    if width and height:
+                        dimensions.append((width, height))
+
+                except Exception as e:
+                    log.debug(f"获取页面 {i} 尺寸失败: {e}")
+                    continue
+
+            # 更新漫画对象的尺寸信息
+            manga.page_dimensions = dimensions
+
+            # 执行尺寸分析
+            manga.analyze_page_dimensions()
+
+            log.info(f"尺寸分析完成: {manga.file_path}, "
+                    f"采样页数={len(dimensions)}/{total_pages}, "
+                    f"方差分数={manga.dimension_variance:.3f}, "
+                    f"可能是漫画={manga.is_likely_manga}")
+
+        except Exception as e:
+            log.error(f"分析漫画尺寸失败 {manga.file_path}: {e}")
+            # 分析失败时设置默认值
+            manga.page_dimensions = []
+            manga.dimension_variance = 0.0
+            manga.is_likely_manga = True
+
+    @staticmethod
+    def _get_page_dimensions_from_zip(manga, page_index):
+        """从ZIP文件获取页面尺寸（不加载完整图像）"""
+        try:
+            with ZipFile(manga.file_path, "r") as zip_file:
+                image_files = [
+                    f for f in zip_file.namelist()
+                    if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
+                ]
+
+                if page_index >= len(image_files):
+                    return None, None
+
+                image_files.sort()
+                file_name = image_files[page_index]
+
+                # 读取图像数据
+                image_data = zip_file.read(file_name)
+
+                # 使用PIL快速获取尺寸（不加载完整图像）
+                image_io = io.BytesIO(image_data)
+                with Image.open(image_io) as pil_image:
+                    return pil_image.size  # 返回 (width, height)
+
+        except Exception as e:
+            log.debug(f"获取ZIP页面尺寸失败 {file_name}: {e}")
+            return None, None
+
+    @staticmethod
+    def _get_page_dimensions_from_folder(manga, page_index):
+        """从文件夹获取页面尺寸（不加载完整图像）"""
+        try:
+            image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+            image_files = [
+                f for f in os.listdir(manga.file_path)
+                if f.lower().endswith(image_extensions)
+            ]
+
+            if page_index >= len(image_files):
+                return None, None
+
+            image_files.sort()
+            image_path = os.path.join(manga.file_path, image_files[page_index])
+
+            # 使用PIL快速获取尺寸
+            with Image.open(image_path) as pil_image:
+                return pil_image.size  # 返回 (width, height)
+
+        except Exception as e:
+            log.debug(f"获取文件夹页面尺寸失败 {image_path}: {e}")
+            return None, None
 
     def _get_image_size(self, image):
         """估算图像内存占用"""

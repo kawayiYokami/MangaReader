@@ -185,6 +185,11 @@ class MangaManager(QObject):
                             manga.last_modified = manga_data.get("last_modified", 0)
                             manga.pages = manga_data.get("pages", []) # Assuming pages are serializable
                             # manga.is_translated = manga_data.get("is_translated", False) # If this field is used
+
+                            # 恢复页面尺寸分析数据
+                            manga.page_dimensions = manga_data.get("page_dimensions", [])
+                            manga.dimension_variance = manga_data.get("dimension_variance", None)
+                            manga.is_likely_manga = manga_data.get("is_likely_manga", None)
                             if manga.is_valid: # Double check validity if needed, or trust cache
                                 current_scan_mangas.append(manga)
                             else:
@@ -209,8 +214,18 @@ class MangaManager(QObject):
                 manga_files = MangaLoader.find_manga_files(config.manga_dir.value)
 
                 for file_path_scan in manga_files:
-                    manga = MangaLoader.load_manga(file_path_scan)
+                    # 根据配置决定是否进行尺寸分析
+                    analyze_dimensions = config.enable_dimension_analysis.value
+                    manga = MangaLoader.load_manga(file_path_scan, analyze_dimensions=analyze_dimensions)
+
                     if manga and manga.is_valid:
+                        # 根据配置决定是否过滤非漫画文件
+                        if config.filter_non_manga.value and manga.is_likely_manga is not None:
+                            if not manga.is_likely_manga:
+                                log.info(f"根据尺寸分析过滤非漫画文件: {file_path_scan} "
+                                        f"(方差分数: {manga.dimension_variance:.3f})")
+                                continue
+
                         current_scan_mangas.append(manga)
                     else:
                         log.warning(f"无法加载漫画: {file_path_scan}")

@@ -97,6 +97,16 @@ class Config(QConfig):
         validator=RangeValidator(0, 100)  # WebP 质量范围 0-100
     )
 
+    # ==================== 页面尺寸分析设置 ====================
+    enable_dimension_analysis = ConfigItem("Manga", "EnableDimensionAnalysis", True)
+    dimension_variance_threshold = RangeConfigItem(
+        "Manga",
+        "DimensionVarianceThreshold",
+        0.15,  # 默认方差阈值 0.15
+        validator=RangeValidator(0.0, 1.0)  # 方差阈值范围 0.0-1.0
+    )
+    filter_non_manga = ConfigItem("Manga", "FilterNonManga", False)  # 是否过滤非漫画文件
+
     # ==================== MangaManager 状态 ====================
     manga_dir = ConfigItem("Manager", "MangaDirectory", "")
     current_page = ConfigItem("Manager", "CurrentPage", 0)
@@ -146,23 +156,8 @@ class Config(QConfig):
     # Google翻译设置
     google_api_key = ConfigItem("Translation", "GoogleApiKey", "")
 
-    # NLLB翻译设置
-    nllb_model_name = ConfigItem(
-        "Translation", "NLLBModelName", 'facebook/nllb-200-distilled-600M'
-    )
-    # nllb_cache_dir 不再作为用户可配置项
-    # _project_root_for_nllb_cache = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    # _default_nllb_cache_dir = os.path.join(_project_root_for_nllb_cache, "models")
-    # nllb_cache_dir = ConfigItem(
-    #     "Translation", "NLLBCacheDir", _default_nllb_cache_dir
-    # )
-    nllb_source_lang = ConfigItem(
-        "Translation", "NLLBSourceLang", "jpn_Jpan"
-    )
-    _default_nllb_target_lang = "zho_Hans"
-    nllb_target_lang = ConfigItem(
-        "Translation", "NLLBTargetLang", _default_nllb_target_lang
-    )
+
+
 
 
 # 创建全局 config 对象

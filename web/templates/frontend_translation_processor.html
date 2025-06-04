@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端漫画翻译器 - AI翻译工具</title>
+    
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    
+    <!-- 自定义样式 -->
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        
+        .processor-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .upload-area {
+            border: 2px dashed #dcdfe6;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: #409eff;
+            background: #f0f9ff;
+        }
+        
+        .upload-area.dragover {
+            border-color: #67c23a;
+            background: #f0f9ff;
+        }
+        
+        .file-list {
+            margin-top: 20px;
+        }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border: 1px solid #ebeef5;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            color: #303133;
+        }
+        
+        .file-size {
+            font-size: 12px;
+            color: #909399;
+        }
+        
+        .settings-panel {
+            margin-top: 20px;
+            padding: 20px;
+            border-top: 1px solid #ebeef5;
+        }
+        
+        .progress-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .task-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .task-item {
+            padding: 16px;
+            border: 1px solid #ebeef5;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            background: white;
+        }
+        
+        .task-item.processing {
+            border-color: #409eff;
+            background: #f0f9ff;
+        }
+        
+        .task-item.completed {
+            border-color: #67c23a;
+            background: #f0f9ff;
+        }
+        
+        .task-item.error {
+            border-color: #f56c6c;
+            background: #fef0f0;
+        }
+        
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .task-name {
+            font-weight: 500;
+            color: #303133;
+        }
+        
+        .task-status {
+            font-size: 12px;
+            color: #909399;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #409eff;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #909399;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <!-- 标题 -->
+            <div class="header">
+                <h1>🌐 前端漫画翻译器</h1>
+                <p>完全在浏览器中运行，AI驱动的漫画翻译工具</p>
+            </div>
+            
+            <!-- 主布局 -->
+            <div class="main-layout">
+                <!-- 左侧：文件上传和设置 -->
+                <div class="processor-card">
+                    <!-- 文件上传区域 -->
+                    <div class="upload-area" 
+                         @click="triggerFileSelect"
+                         @dragover.prevent="handleDragOver"
+                         @dragleave.prevent="handleDragLeave"
+                         @drop.prevent="handleDrop"
+                         :class="{ dragover: isDragOver }">
+                        
+                        <el-icon size="48" color="#c0c4cc">
+                            <upload-filled />
+                        </el-icon>
+                        
+                        <h3>拖拽文件到此处，或点击选择文件</h3>
+                        <p>支持 ZIP、CBZ、CBR 格式的漫画文件</p>
+                        
+                        <input ref="fileInput" 
+                               type="file" 
+                               multiple 
+                               accept=".zip,.cbz,.cbr"
+                               @change="handleFileSelect"
+                               class="hidden">
+                    </div>
+                    
+                    <!-- 文件列表 -->
+                    <div v-if="selectedFiles.length > 0" class="file-list">
+                        <h4>已选择的文件 (<span v-text="selectedFiles.length"></span>)</h4>
+                        
+                        <div v-for="(file, index) in selectedFiles" 
+                             :key="index" 
+                             class="file-item">
+                            <div class="file-info">
+                                <div class="file-name" v-text="file.name"></div>
+                                <div class="file-size" v-text="formatFileSize(file.size)"></div>
+                            </div>
+                            
+                            <el-button type="danger" 
+                                       size="small" 
+                                       @click="removeFile(index)">
+                                移除
+                            </el-button>
+                        </div>
+                    </div>
+                    
+                    <!-- 翻译设置 -->
+                    <div v-if="selectedFiles.length > 0" class="settings-panel">
+                        <h4>翻译设置</h4>
+                        
+                        <el-form label-width="80px" size="default">
+                            <el-form-item label="源语言">
+                                <el-select v-model="translationSettings.sourceLang" style="width: 100%">
+                                    <el-option label="自动检测" value="auto"></el-option>
+                                    <el-option label="日语" value="ja"></el-option>
+                                    <el-option label="英语" value="en"></el-option>
+                                    <el-option label="韩语" value="ko"></el-option>
+                                </el-select>
+                            </el-form-item>
+                            
+                            <el-form-item label="目标语言">
+                                <el-select v-model="translationSettings.targetLang" style="width: 100%">
+                                    <el-option label="简体中文" value="zh-CN"></el-option>
+                                    <el-option label="繁体中文" value="zh-TW"></el-option>
+                                    <el-option label="英语" value="en"></el-option>
+                                    <el-option label="日语" value="ja"></el-option>
+                                </el-select>
+                            </el-form-item>
+                            
+                            <el-form-item label="翻译引擎">
+                                <el-select v-model="translationSettings.engine" style="width: 100%">
+                                    <el-option label="智谱AI" value="智谱"></el-option>
+                                    <el-option label="Google翻译" value="Google"></el-option>
+                                </el-select>
+                            </el-form-item>
+                            
+                            <el-form-item label="输出质量">
+                                <el-slider v-model="translationSettings.webpQuality"
+                                          :min="50"
+                                          :max="100"
+                                          :step="5"
+                                          show-input>
+                                </el-slider>
+                            </el-form-item>
+                        </el-form>
+                        
+                        <el-button type="primary" 
+                                   size="large"
+                                   @click="startTranslation"
+                                   :loading="isProcessing"
+                                   :disabled="selectedFiles.length === 0"
+                                   style="width: 100%;">
+                            <span v-if="isProcessing">翻译中...</span>
+                            <span v-else>开始翻译</span>
+                        </el-button>
+                    </div>
+                </div>
+                
+                <!-- 右侧：任务列表和进度 -->
+                <div class="processor-card">
+                    <div style="padding: 20px;">
+                        <h4>翻译任务</h4>
+                        
+                        <!-- 整体统计 -->
+                        <div v-if="translationTasks.length > 0" class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value" v-text="translationTasks.length"></div>
+                                <div class="stat-label">总任务</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" v-text="completedTasks"></div>
+                                <div class="stat-label">已完成</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" v-text="processingTasks"></div>
+                                <div class="stat-label">处理中</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" v-text="errorTasks"></div>
+                                <div class="stat-label">失败</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 空状态 -->
+                        <div v-if="translationTasks.length === 0" style="text-align: center; padding: 40px; color: #909399;">
+                            <el-icon size="64" color="#c0c4cc">
+                                <document />
+                            </el-icon>
+                            <p>暂无翻译任务</p>
+                            <p style="font-size: 12px;">请先选择漫画文件</p>
+                        </div>
+                        
+                        <!-- 任务列表 -->
+                        <div v-else class="task-list">
+                            <div v-for="(task, index) in translationTasks" 
+                                 :key="task.id"
+                                 class="task-item"
+                                 :class="{
+                                     processing: task.status === 'processing',
+                                     completed: task.status === 'completed',
+                                     error: task.status === 'error'
+                                 }">
+                                
+                                <div class="task-header">
+                                    <div class="task-name" v-text="task.fileName"></div>
+                                    <div class="task-status" v-text="getStatusText(task.status)"></div>
+                                </div>
+                                
+                                <!-- 进度条 -->
+                                <div v-if="task.status === 'processing'">
+                                    <el-progress :percentage="task.progress" 
+                                                :status="task.progress === 100 ? 'success' : 'active'"
+                                                :show-text="false"
+                                                :stroke-width="6">
+                                    </el-progress>
+                                    <div style="margin-top: 4px; font-size: 12px; color: #666;">
+                                        <span v-text="task.currentStep"></span>
+                                        <span style="float: right;" v-text="task.progress + '%'"></span>
+                                    </div>
+                                </div>
+                                
+                                <!-- 操作按钮 -->
+                                <div style="margin-top: 8px; text-align: right;">
+                                    <el-button v-if="task.status === 'completed'"
+                                              type="primary" 
+                                              size="small"
+                                              @click="downloadTask(task)">
+                                        📥 下载
+                                    </el-button>
+                                    
+                                    <el-button type="danger" 
+                                              size="small"
+                                              @click="removeTask(index)">
+                                        🗑️ 移除
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入依赖库 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    
+    <!-- 前端文件处理库 -->
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
