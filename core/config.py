@@ -133,7 +133,7 @@ class Config(QConfig):
         "Translation", 
         "TranslatorType", 
         "Google", 
-        validator=OptionsValidator(["Google", "智谱", "NLLB"])
+        validator=OptionsValidator(["Google", "智谱"])
     )
 
     # 文字替换设置

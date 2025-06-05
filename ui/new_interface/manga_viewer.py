@@ -658,9 +658,8 @@ class MangaViewer(CardWidget):
             source_lang = "auto"
             target_lang = "zh-CN"
 
-            if current_translator_engine == "NLLB":
-                source_lang = config.nllb_source_lang.value
-                target_lang = config.nllb_target_lang.value
+            
+                
 
             # 确定 original_archive_path
             # MangaInfo.file_path 存储的是完整路径

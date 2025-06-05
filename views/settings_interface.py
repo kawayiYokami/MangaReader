@@ -35,7 +35,7 @@ from core.manga_manager import MangaManager
 from core.config import config, ReadingOrder, DisplayMode
 import os
 from fontTools.ttLib import TTFont # 用于读取字体名称
-from core.translators.nllb_translator import NLLBTranslator
+
 
 
 class TranslationSettingsCard(GroupHeaderCardWidget):
@@ -94,65 +94,11 @@ class TranslationSettingsCard(GroupHeaderCardWidget):
         self.google_layout.addWidget(BodyLabel("API密钥 (可选):"), 0, 0)
         self.google_layout.addWidget(self.google_api_key_edit, 0, 1)
 
-        self.nllb_widget = QWidget(self.api_key_widget)
-        self.nllb_layout = QGridLayout(self.nllb_widget)
-        self.nllb_layout.setContentsMargins(0,0,0,0)
-        self.nllb_layout.setSpacing(8)
-
-        self.nllb_model_name_edit = LineEdit(self.nllb_widget)
-        self.nllb_model_name_edit.setPlaceholderText(f"默认为 {NLLBTranslator.DEFAULT_MODEL_NAME}")
-
-        # 将 NLLB 源语言从 LineEdit 改为 ComboBox
-        self.nllb_source_lang_combo = ComboBox(self.nllb_widget)
-        # NLLB 支持的常见源语言
-        common_nllb_sources = [
-            ("日语", "jpn_Jpan"),
-            ("英语", "eng_Latn"),
-            ("简体中文", "zho_Hans"),
-            ("韩语", "kor_Hang"),
-        ]
-        for display_name, code in common_nllb_sources:
-            # 使用QComboBox的setItemData方法
-            self.nllb_source_lang_combo.addItem(display_name)
-            index = self.nllb_source_lang_combo.count() - 1
-            self.nllb_source_lang_combo.setItemData(index, code)
-            # 验证数据是否正确设置
-            stored_data = self.nllb_source_lang_combo.itemData(index)
-        # 默认选择日语作为源语言，或从配置加载
-        default_src_lang_code = config.nllb_source_lang.value or NLLBTranslator.DEFAULT_SOURCE_LANG_CODE
-        default_src_index = self.nllb_source_lang_combo.findData(default_src_lang_code)
-        if default_src_index != -1:
-            self.nllb_source_lang_combo.setCurrentIndex(default_src_index)
-        elif self.nllb_source_lang_combo.count() > 0:
-             self.nllb_source_lang_combo.setCurrentIndex(0) # Fallback to first item
-
-
-        self.nllb_target_lang_combo = ComboBox(self.nllb_widget)
-        common_nllb_targets = [
-            ("简体中文", "zho_Hans"),
-            ("繁体中文", "zho_Hant"),
-            ("英文", "eng_Latn"),
-            ("日文", "jpn_Jpan"),
-            ("韩文", "kor_Hang"),
-        ]
-        for display_name, code in common_nllb_targets:
-            # 使用QComboBox的setItemData方法
-            self.nllb_target_lang_combo.addItem(display_name)
-            index = self.nllb_target_lang_combo.count() - 1
-            self.nllb_target_lang_combo.setItemData(index, code)
-            # 验证数据是否正确设置
-            stored_data = self.nllb_target_lang_combo.itemData(index)
-
-        self.nllb_layout.addWidget(BodyLabel("模型名称:"), 0, 0)
-        self.nllb_layout.addWidget(self.nllb_model_name_edit, 0, 1)
-        self.nllb_layout.addWidget(BodyLabel("源语言 (Tokenizer):"), 1, 0)
-        self.nllb_layout.addWidget(self.nllb_source_lang_combo, 1, 1) # 使用 ComboBox
-        self.nllb_layout.addWidget(BodyLabel("目标语言:"), 2, 0)
-        self.nllb_layout.addWidget(self.nllb_target_lang_combo, 2, 1)
+        
 
         self.api_key_layout.addWidget(self.zhipu_widget)
         self.api_key_layout.addWidget(self.google_widget)
-        self.api_key_layout.addWidget(self.nllb_widget)
+        
 
         self.addGroup(
             FIF.SETTING, "服务特定设置", "配置所选翻译服务的特定参数。", self.api_key_widget
@@ -186,9 +132,7 @@ class TranslationSettingsCard(GroupHeaderCardWidget):
         self.zhipu_model_combo.currentIndexChanged.connect(self._on_zhipu_model_changed)
         self.google_api_key_edit.textChanged.connect(self._on_google_api_key_changed)
         
-        self.nllb_model_name_edit.textChanged.connect(self._on_nllb_model_name_changed)
-        self.nllb_source_lang_combo.currentIndexChanged.connect(self._on_nllb_source_lang_changed) # 连接新的 ComboBox
-        self.nllb_target_lang_combo.currentIndexChanged.connect(self._on_nllb_target_lang_changed)
+        
         
         self.font_combo.currentIndexChanged.connect(self._on_font_name_changed)
         self.clear_translation_cache_btn.clicked.connect(self._on_clear_translation_cache_clicked)
@@ -200,26 +144,7 @@ class TranslationSettingsCard(GroupHeaderCardWidget):
         self.zhipu_model_combo.setCurrentText(config.zhipu_model.value)
         self.google_api_key_edit.setText(config.google_api_key.value)
 
-        self.nllb_model_name_edit.setText(config.nllb_model_name.value or NLLBTranslator.DEFAULT_MODEL_NAME)
         
-        # 加载 NLLB 源语言下拉框
-        nllb_source_code_from_config = config.nllb_source_lang.value or NLLBTranslator.DEFAULT_SOURCE_LANG_CODE
-        source_index = self.nllb_source_lang_combo.findData(nllb_source_code_from_config)
-        if source_index != -1:
-            self.nllb_source_lang_combo.setCurrentIndex(source_index)
-        elif self.nllb_source_lang_combo.count() > 0: # 如果配置值无效，选择第一个作为默认
-            self.nllb_source_lang_combo.setCurrentIndex(0)
-            # 更新配置为当前选中的默认值
-            # config.nllb_source_lang.value = self.nllb_source_lang_combo.currentData() # 避免在加载时保存
-
-        # 加载 NLLB 目标语言下拉框
-        nllb_target_code_from_config = config.nllb_target_lang.value or NLLBTranslator.NLLB_LANG_CODE_MAP.get("zh")
-        target_index = self.nllb_target_lang_combo.findData(nllb_target_code_from_config)
-        if target_index != -1:
-            self.nllb_target_lang_combo.setCurrentIndex(target_index)
-        elif self.nllb_target_lang_combo.count() > 0:
-            self.nllb_target_lang_combo.setCurrentIndex(0)
-            # config.nllb_target_lang.value = self.nllb_target_lang_combo.currentData() # 避免在加载时保存
 
     def _load_available_fonts(self):
         self.font_combo.clear()
@@ -304,7 +229,7 @@ class TranslationSettingsCard(GroupHeaderCardWidget):
         current_translator = config.translator_type.value
         self.zhipu_widget.setVisible(current_translator == "智谱")
         self.google_widget.setVisible(current_translator == "Google")
-        self.nllb_widget.setVisible(current_translator == "NLLB")
+        
     
     def _on_zhipu_api_key_changed(self, text):
         config.zhipu_api_key.value = text
@@ -318,47 +243,7 @@ class TranslationSettingsCard(GroupHeaderCardWidget):
         config.google_api_key.value = text
         self.manga_manager.save_config()
 
-    def _on_nllb_model_name_changed(self, text):
-        config.nllb_model_name.value = text or NLLBTranslator.DEFAULT_MODEL_NAME
-        self.manga_manager.save_config()
-
-    def _on_nllb_source_lang_changed(self, index): 
-        if index < 0:
-            print(f"警告：无效的源语言索引值 {index}")
-            return
-            
-        selected_source_code = self.nllb_source_lang_combo.itemData(index)
-        selected_text = self.nllb_source_lang_combo.itemText(index)
-        print(f"选中源语言索引 {index}:")
-        print(f"- 显示文本: {selected_text}")
-        print(f"- 数据值: {selected_source_code}")
-        print(f"- ComboBox总项目数: {self.nllb_source_lang_combo.count()}")
-        
-        if selected_source_code:
-            config.nllb_source_lang.value = selected_source_code
-            print(f"设置 NLLB 源语言为: {selected_source_code}")
-            self.manga_manager.save_config()  # 使用manga_manager来保存配置
-        else:
-            print(f"警告：索引 {index} 的源语言项目没有关联的数据值")
-
-    def _on_nllb_target_lang_changed(self, index):
-        if index < 0:
-            print(f"警告：无效的索引值 {index}")
-            return
-            
-        selected_target_code = self.nllb_target_lang_combo.itemData(index)
-        selected_text = self.nllb_target_lang_combo.itemText(index)
-        print(f"选中索引 {index}:")
-        print(f"- 显示文本: {selected_text}")
-        print(f"- 数据值: {selected_target_code}")
-        print(f"- ComboBox总项目数: {self.nllb_target_lang_combo.count()}")
-        
-        if selected_target_code:
-            config.nllb_target_lang.value = selected_target_code
-            print(f"设置 NLLB 目标语言为: {selected_target_code}")
-            self.manga_manager.save_config()  # 使用manga_manager来保存配置
-        else:
-            print(f"警告：索引 {index} 的项目没有关联的数据值")
+    
 
     def _on_font_name_changed(self, index):
         selected_font_file_name = self.font_combo.itemData(index)

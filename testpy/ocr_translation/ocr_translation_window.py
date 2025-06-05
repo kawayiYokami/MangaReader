@@ -213,8 +213,7 @@ class OCRTestWindow(QMainWindow):
                 if api_key:
                     translator_kwargs["api_key"] = api_key
             
-            elif translator_type == "NLLB":
-                nllb_model_name = config.nllb_model_name.value
+            
                 nllb_source_lang_code = config.nllb_source_lang.value
                 translator_kwargs.update({
                     "nllb_model_name": nllb_model_name,
