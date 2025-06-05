@@ -54,25 +54,25 @@
                     v-if="task.status === 'completed'"
                     type="success"
                     size="small">
-                    ✅ 完成
+                    <span class="material-symbols-rounded" style="font-size: 1em; vertical-align: text-bottom;">check_circle</span> 完成
                 </el-tag>
                 <el-tag
                     v-else-if="task.status === 'error'"
                     type="danger"
                     size="small">
-                    ❌ 失败
+                    <span class="material-symbols-rounded" style="font-size: 1em; vertical-align: text-bottom;">cancel</span> 失败
                 </el-tag>
                 <el-tag
                     v-else-if="task.status === 'processing'"
                     type="warning"
                     size="small">
-                    ⏳ 处理中
+                    <span class="material-symbols-rounded" style="font-size: 1em; vertical-align: text-bottom;">autorenew</span> 处理中
                 </el-tag>
                 <el-tag
                     v-else
                     type="info"
                     size="small">
-                    ⏸️ 等待
+                    <span class="material-symbols-rounded" style="font-size: 1em; vertical-align: text-bottom;">pause</span> 等待
                 </el-tag>
             </div>
 
@@ -82,13 +82,13 @@
                     size="small"
                     type="primary"
                     @click="downloadCompressionTask(task)">
-                    📥 下载
+                    <span class="material-symbols-rounded" style="font-size: 1.1em; vertical-align: middle;">download</span> 下载
                 </el-button>
                 <el-button
                     size="small"
                     type="danger"
                     @click="removeCompressionTask(index)">
-                    🗑️ 移除
+                    <span class="material-symbols-rounded" style="font-size: 1.1em; vertical-align: middle;">delete</span> 移除
                 </el-button>
             </div>
         </div>

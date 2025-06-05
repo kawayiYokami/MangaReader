@@ -3,7 +3,7 @@
 
     <!-- 页面头部 -->
     <div style="margin-bottom: 40px; text-align: center;">
-        <h1 style="margin-bottom: 8px; font-size: 28px; font-weight: 600;">🎌 漫画翻译工具 - Web版</h1>
+        <h1 style="margin-bottom: 8px; font-size: 28px;"><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 8px; font-size: 1.2em;">translate</span> 漫画翻译工具 - Web版</h1>
         <p v-if="isLocalAccess" style="font-size: 16px; color: var(--color-text-secondary); margin-bottom: 16px;">本地访问模式 - 提供完整的翻译和压缩功能</p> <!-- Increased bottom margin -->
         <p v-else style="font-size: 16px; color: var(--color-text-secondary); margin-bottom: 16px;">远程访问模式 - 提供安全的漫画处理功能</p> <!-- Increased bottom margin -->
         <!-- 可以保留或移除 "开始使用" 按钮，这里暂时移除，让用户通过功能卡片导航 -->
@@ -20,8 +20,8 @@
         <el-col :xs="24" :sm="12" :lg="8" style="margin-bottom: 20px;">
             <el-card shadow="hover" body-style="padding: 24px; text-align: center; cursor: pointer;" @click="handleMenuSelect('manga-browser')">
                 <!-- TODO: Replace Emoji with proper el-icon component, e.g., <el-icon size="36"><Files /></el-icon> -->
-                <div style="font-size: 36px; margin-bottom: 16px;">📚</div>
-                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">漫画浏览</h3>
+                <div style="font-size: 36px; margin-bottom: 16px;"><span class="material-symbols-rounded">menu_book</span></div>
+                <h3 style="margin: 0 0 8px 0; font-size: 18px;">漫画浏览</h3>
                 <p style="font-size: 14px; color: var(--color-text-secondary); line-height: 1.5;">
                     浏览和管理你的漫画收藏，支持多种格式和标签过滤。
                 </p>
@@ -32,8 +32,8 @@
         <el-col :xs="24" :sm="12" :lg="8" style="margin-bottom: 20px;">
             <el-card shadow="hover" body-style="padding: 24px; text-align: center; cursor: pointer;" @click="handleMenuSelect('translation')"> <!-- Assuming OCR is part of translation -->
                 <!-- TODO: Replace Emoji with proper el-icon component, e.g., <el-icon size="36"><Scan /></el-icon> -->
-                <div style="font-size: 36px; margin-bottom: 16px;">🔤</div>
-                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">OCR识别</h3>
+                <div style="font-size: 36px; margin-bottom: 16px;"><span class="material-symbols-rounded">text_fields</span></div>
+                <h3 style="margin: 0 0 8px 0; font-size: 18px;">OCR识别</h3>
                 <p style="font-size: 14px; color: var(--color-text-secondary); line-height: 1.5;">
                     精准识别漫画中的文字，支持多种语言。
                 </p>
@@ -44,8 +44,8 @@
         <el-col :xs="24" :sm="12" :lg="8" style="margin-bottom: 20px;">
             <el-card shadow="hover" body-style="padding: 24px; text-align: center; cursor: pointer;" @click="handleMenuSelect('translation')">
                 <!-- TODO: Replace Emoji with proper el-icon component, e.g., <el-icon size="36"><Guide /></el-icon> -->
-                <div style="font-size: 36px; margin-bottom: 16px;">🌐</div>
-                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">多引擎翻译</h3>
+                <div style="font-size: 36px; margin-bottom: 16px;"><span class="material-symbols-rounded">language</span></div>
+                <h3 style="margin: 0 0 8px 0; font-size: 18px;">多引擎翻译</h3>
                 <p style="font-size: 14px; color: var(--color-text-secondary); line-height: 1.5;">
                     支持Google翻译、智谱AI等多种翻译引擎。
                 </p>
@@ -56,8 +56,8 @@
         <el-col :xs="24" :sm="12" :lg="8" style="margin-bottom: 20px;">
             <el-card shadow="hover" body-style="padding: 24px; text-align: center; cursor: pointer;" @click="handleMenuSelect('compression')">
                 <!-- TODO: Replace Emoji with proper el-icon component, e.g., <el-icon size="36"><Zip /></el-icon> -->
-                <div style="font-size: 36px; margin-bottom: 16px;">🗜️</div>
-                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">WebP压缩</h3>
+                <div style="font-size: 36px; margin-bottom: 16px;"><span class="material-symbols-rounded">compress</span></div>
+                <h3 style="margin: 0 0 8px 0; font-size: 18px;">WebP压缩</h3>
                 <p style="font-size: 14px; color: var(--color-text-secondary); line-height: 1.5;">
                     将漫画转换为WebP格式，大幅减小文件大小。
                 </p>
@@ -68,8 +68,8 @@
         <el-col :xs="24" :sm="12" :lg="8" style="margin-bottom: 20px;">
             <el-card shadow="hover" body-style="padding: 24px; text-align: center; cursor: pointer;" @click="handleMenuSelect('translation')"> <!-- Assuming batch is related to translation/compression -->
                 <!-- TODO: Replace Emoji with proper el-icon component, e.g., <el-icon size="36"><Lightning /></el-icon> -->
-                <div style="font-size: 36px; margin-bottom: 16px;">⚡</div>
-                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">批量处理</h3>
+                <div style="font-size: 36px; margin-bottom: 16px;"><span class="material-symbols-rounded">bolt</span></div>
+                <h3 style="margin: 0 0 8px 0; font-size: 18px;">批量处理</h3>
                 <p style="font-size: 14px; color: var(--color-text-secondary); line-height: 1.5;">
                     一键翻译或压缩整个章节，提高工作效率。
                 </p>
@@ -80,8 +80,8 @@
         <el-col :xs="24" :sm="12" :lg="8" style="margin-bottom: 20px;">
             <el-card shadow="hover" body-style="padding: 24px; text-align: center; cursor: pointer;" @click="handleMenuSelect('cache-management')">
                 <!-- TODO: Replace Emoji with proper el-icon component, e.g., <el-icon size="36"><Coin /></el-icon> -->
-                <div style="font-size: 36px; margin-bottom: 16px;">💾</div>
-                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">缓存管理</h3>
+                <div style="font-size: 36px; margin-bottom: 16px;"><span class="material-symbols-rounded">database</span></div>
+                <h3 style="margin: 0 0 8px 0; font-size: 18px;">缓存管理</h3>
                 <p style="font-size: 14px; color: var(--color-text-secondary); line-height: 1.5;">
                     查看和清理应用程序使用的缓存数据。
                 </p>

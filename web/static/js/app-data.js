@@ -6,7 +6,7 @@ window.AppData = {
     activeMenu: 'home',
     currentTheme: 'auto',
     themeDisplayName: '跟随系统',
-    themeIcon: '🔄',
+    themeIcon: 'brightness_auto', // Replaced Emoji with Material Symbol name
     sidebarCollapsed: false,
 
     // 漫画浏览相关数据
@@ -33,10 +33,10 @@ window.AppData = {
 
     // 缓存管理相关数据 - 全新设计
     cacheTypes: [
-        { key: 'manga_list', name: '漫画列表', icon: '📚', description: '漫画文件扫描结果缓存' },
-        { key: 'ocr', name: 'OCR识别', icon: '🔤', description: '文字识别结果缓存' },
-        { key: 'translation', name: '翻译结果', icon: '🌐', description: '翻译结果缓存' },
-        { key: 'harmonization_map', name: '和谐映射', icon: '🛡️', description: '内容和谐化映射缓存' }
+        { key: 'manga_list', name: '漫画列表', icon: 'menu_book', description: '漫画文件扫描结果缓存' }, // Replaced Emoji
+        { key: 'ocr', name: 'OCR识别', icon: 'translate', description: '文字识别结果缓存' },        // Replaced Emoji
+        { key: 'translation', name: '翻译结果', icon: 'language', description: '翻译结果缓存' },    // Replaced Emoji
+        { key: 'harmonization_map', name: '和谐映射', icon: 'shield', description: '内容和谐化映射缓存' } // Replaced Emoji
     ],
     selectedCacheType: null,
     cacheStats: {},

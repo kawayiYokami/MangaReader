@@ -10,27 +10,27 @@
     <!-- 导航菜单 -->
     <nav class="nav-menu">
         <div class="nav-item" :class="{ active: activeMenu === 'home' }" @click="handleMenuSelect('home')">
-            <div class="nav-icon">🏠</div>
+            <div class="nav-icon"><span class="material-symbols-rounded">home</span></div>
             <span class="nav-text">首页</span>
         </div>
 
         <div class="nav-item" :class="{ active: activeMenu === 'manga-browser' }" @click="handleMenuSelect('manga-browser')">
-            <div class="nav-icon">📚</div>
+            <div class="nav-icon"><span class="material-symbols-rounded">menu_book</span></div>
             <span class="nav-text">漫画浏览</span>
         </div>
 
         <div class="nav-item" :class="{ active: activeMenu === 'translation' }" @click="handleMenuSelect('translation')">
-            <div class="nav-icon">🔤</div>
+            <div class="nav-icon"><span class="material-symbols-rounded">translate</span></div>
             <span class="nav-text">漫画翻译</span>
         </div>
 
         <div class="nav-item" :class="{ active: activeMenu === 'compression' }" @click="handleMenuSelect('compression')">
-            <div class="nav-icon">🗜️</div>
+            <div class="nav-icon"><span class="material-symbols-rounded">compress</span></div>
             <span class="nav-text">漫画压缩</span>
         </div>
 
         <div v-if="isLocalAccess" class="nav-item" :class="{ active: activeMenu === 'cache' }" @click="handleMenuSelect('cache')">
-            <div class="nav-icon">💾</div>
+            <div class="nav-icon"><span class="material-symbols-rounded">database</span></div>
             <span class="nav-text">缓存管理</span>
         </div>
     </nav>
@@ -38,7 +38,7 @@
     <!-- 底部设置 -->
     <div class="nav-footer">
         <div class="nav-item" :class="{ active: activeMenu === 'settings' }" @click="handleMenuSelect('settings')">
-            <div class="nav-icon">⚙️</div>
+            <div class="nav-icon"><span class="material-symbols-rounded">settings</span></div>
             <span class="nav-text">设置</span>
         </div>
     </div>

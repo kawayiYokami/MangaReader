@@ -16,16 +16,16 @@
 
         <!-- 加载中状态 -->
         <div v-else-if="isThumbnailLoading(manga.file_path)" class="cover-loading">
-            <div class="loading-spinner">⏳</div>
+            <div class="loading-spinner"><span class="material-symbols-rounded">progress_activity</span></div>
             <div class="loading-text">加载中...</div>
         </div>
 
         <!-- 无图片占位符 -->
         <div v-else class="cover-placeholder">
             <div class="placeholder-icon">
-                <span v-if="manga.file_type === 'folder'">📁</span>
-                <span v-else-if="manga.file_type === 'zip'">📦</span>
-                <span v-else>📄</span>
+                <span v-if="manga.file_type === 'folder'"><span class="material-symbols-rounded">folder</span></span>
+                <span v-else-if="manga.file_type === 'zip'"><span class="material-symbols-rounded">archive</span></span>
+                <span v-else><span class="material-symbols-rounded">draft</span></span>
             </div>
         </div>
 

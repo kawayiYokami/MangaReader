@@ -7,7 +7,7 @@
         <div class="translation-control"> <!-- 复用翻译页面的控制面板类 -->
             <el-card>
                 <template #header>
-                    <span>📁 文件选择</span>
+                    <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">folder_open</span> 文件选择</span>
                 </template>
                 <!-- 压缩文件上传组件 -->
                 {% include 'components/widgets/compression-upload.html' %}
@@ -15,7 +15,7 @@
 
             <el-card style="margin-top: 16px;">
                 <template #header>
-                    <span>⚙️ 压缩设置</span>
+                    <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">settings</span> 压缩设置</span>
                 </template>
                 <!-- 压缩参数设置 -->
                 <div class="compression-params">
@@ -44,7 +44,7 @@
 
             <el-card style="margin-top: 16px;">
                 <template #header>
-                    <div style="text-align: center;">🎯 操作</div>
+                    <div style="text-align: center;"><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">play_arrow</span> 操作</div>
                 </template>
 
                 <!-- 操作按钮 (垂直排列) -->
@@ -58,9 +58,9 @@
                              style="width: 100%; height: 40px; display: block; margin: 0 auto;">
                              <!-- 使用 inline-flex 来垂直居中图标和文字 -->
                              <span style="display: inline-flex; align-items: center; gap: 6px;">
-                                 <span v-if="isCompressing">🔄</span>
+                                 <span v-if="isCompressing" class="material-symbols-rounded">autorenew</span>
                                  <span v-if="isCompressing">压缩中...</span>
-                                 <span v-else>🗜️</span>
+                                 <span v-else class="material-symbols-rounded">compress</span>
                                  <span v-else>开始压缩</span>
                              </span>
                          </el-button>
@@ -73,7 +73,7 @@
                              :disabled="!isCompressing"
                              style="width: 100%; height: 40px; display: block; margin: 0 auto;">
                               <span style="display: inline-flex; align-items: center; gap: 6px;">
-                                 <span>⏹️</span>
+                                 <span class="material-symbols-rounded">stop</span>
                                  <span>停止压缩</span>
                              </span>
                          </el-button>
@@ -85,7 +85,7 @@
                              :disabled="compressionTasks.length === 0"
                              style="width: 100%; height: 40px; display: block; margin: 0 auto;">
                               <span style="display: inline-flex; align-items: center; gap: 6px;">
-                                 <span>🗑️</span>
+                                 <span class="material-symbols-rounded">delete</span>
                                  <span>清空任务</span>
                              </span>
                          </el-button>
@@ -94,7 +94,7 @@
 
                 <!-- 提示信息 -->
                  <div class="notice-box" style="margin-top: 16px;">
-                     <div class="notice-title">💡 压缩说明</div>
+                     <div class="notice-title"><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">lightbulb</span> 压缩说明</div>
                      <ul class="notice-list">
                          <li>文件处理完全在浏览器中进行</li>
                          <li>压缩完成后自动下载结果文件</li>
@@ -110,7 +110,7 @@
             <el-card>
                 <template #header>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>📋 压缩任务</span>
+                        <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">list_alt</span> 压缩任务</span>
                         <span class="task-count"><span v-text="compressionTasks.length"></span> 个任务</span>
                     </div>
                 </template>

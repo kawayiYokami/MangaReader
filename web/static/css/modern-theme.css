@@ -4,37 +4,47 @@
 /* 默认浅色模式 */
 :root,
 html.theme-light {
-    /* 浅色模式 - 现代扁平化 */
-    --color-bg-default: #ffffff;
-    --color-bg-subtle: #f6f8fa;
-    --color-bg-elevated: #f1f3f4;
-    --bg-tertiary: var(--color-bg-elevated); /* Added tertiary background */
+    /* --- 浅色模式 (Light Theme) --- */
 
-    --color-text-default: #24292f;
-    --color-text-secondary: #656d76;
-    --color-text-muted: #8c959f;
+    /* 背景色 (Background Colors) */
+    --color-bg-default: #ffffff;        /* 默认背景 (如卡片、侧边栏) */
+    --color-bg-subtle: #f6f8fa;         /* 次级背景 (如内容区域) */
+    --color-bg-elevated: #f1f3f4;        /* 抬高背景 (如输入框、悬停) */
+    --bg-tertiary: var(--color-bg-elevated); /* 第三级背景 (备用) */
 
-    --color-border-default: #d0d7de;
-    --color-border-subtle: #e1e4e8;
+    /* 文本色 (Text Colors) */
+    --color-text-default: #24292f;       /* 默认文本 (主要内容) */
+    --color-text-default-rgb: 36, 41, 47;
+    --color-text-secondary: #656d76;    /* 次要文本 (描述、辅助信息) */
+    --color-text-muted: #8c959f;         /* 禁用/提示文本 */
 
-    --color-accent-default: #0969da;
-    --color-accent-hover: #0550ae;
-    --color-accent-active: #044294; /* Added active state color */
+    /* 边框色 (Border Colors) */
+    --color-border-default: #d0d7de;     /* 默认边框 (元素分割) */
+    --color-border-subtle: #e1e4e8;      /* 次级/内部边框 */
 
-    /* 状态颜色 */
-    --color-state-success: #1a7f37;
-    --color-state-warning: #9a6700;
-    --color-state-error: #cf222e;
+    /* 强调色 (Accent Colors - 通常是品牌色) */
+    --color-accent-default: #0969da;     /* 默认强调色 (按钮、链接、选中状态) */
+    --color-accent-default-rgb: 9, 105, 218;
+    --color-accent-hover: #0550ae;       /* 强调色悬停 */
+    --color-accent-active: #044294;      /* 强调色激活/按下 */
 
-    /* Element Plus 颜色映射 */
-    --el-color-primary: var(--color-accent-default);
-    --el-color-success: var(--color-state-success);
-    --el-color-warning: var(--color-state-warning);
-    --el-color-danger: var(--color-state-error);
-    --el-color-info: var(--color-text-muted); /* Using muted text for info */
+    /* 状态色 (State Colors) */
+    --color-state-success: #1a7f37;     /* 成功状态 */
+    --color-state-success-rgb: 26, 127, 55;
+    --color-state-warning: #9a6700;     /* 警告状态 */
+    --color-state-warning-rgb: 154, 103, 0;
+    --color-state-error: #cf222e;       /* 错误状态 */
+    --color-state-error-rgb: 207, 34, 46;
 
-    /* 布局 */
-    --border-radius: 6px;
+    /* Element Plus UI库 颜色映射 */
+    --el-color-primary: var(--color-accent-default); /* 主要颜色 */
+    --el-color-success: var(--color-state-success); /* 成功颜色 */
+    --el-color-warning: var(--color-state-warning); /* 警告颜色 */
+    --el-color-danger: var(--color-state-error);   /* 危险/错误颜色 */
+    --el-color-info: var(--color-text-secondary); /* 信息颜色 (使用次要文本色) */
+
+    /* --- 布局与字体 (Layout & Typography) --- */
+    --border-radius: 16px; /* 再次增大圆角半径 */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 16px;
@@ -42,12 +52,110 @@ html.theme-light {
     --spacing-xl: 32px;
 
     /* 字体 */
-    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+    --font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; /* Prioritize Noto Sans SC from Google Fonts */
+/* --- M3 Typography Scale Tokens --- */
+    /* Weights */
+    --m3-font-weight-regular: 400;
+    --m3-font-weight-medium: 500;
+    --m3-font-weight-bold: 700; /* 备用 */
+
+    /* Letter Spacing (Tracking) */
+    --m3-letter-spacing-none: 0px;
+    --m3-letter-spacing-tight: +0.1px;
+    --m3-letter-spacing-normal: +0.15px;
+    --m3-letter-spacing-wide: +0.25px;
+    --m3-letter-spacing-wider: +0.4px;
+    --m3-letter-spacing-widest: +0.5px;
+
+    /* Display Large */
+    --m3-font-display-large-size: 57px;
+    --m3-font-display-large-weight: var(--m3-font-weight-regular);
+    --m3-font-display-large-line-height: 64px;
+    --m3-font-display-large-letter-spacing: var(--m3-letter-spacing-none);
+    /* Display Medium */
+    --m3-font-display-medium-size: 45px;
+    --m3-font-display-medium-weight: var(--m3-font-weight-regular);
+    --m3-font-display-medium-line-height: 52px;
+    --m3-font-display-medium-letter-spacing: var(--m3-letter-spacing-none);
+    /* Display Small */
+    --m3-font-display-small-size: 36px;
+    --m3-font-display-small-weight: var(--m3-font-weight-regular);
+    --m3-font-display-small-line-height: 44px;
+    --m3-font-display-small-letter-spacing: var(--m3-letter-spacing-none);
+
+    /* Headline Large */
+    --m3-font-headline-large-size: 32px;
+    --m3-font-headline-large-weight: var(--m3-font-weight-regular);
+    --m3-font-headline-large-line-height: 40px;
+    --m3-font-headline-large-letter-spacing: var(--m3-letter-spacing-none);
+    /* Headline Medium */
+    --m3-font-headline-medium-size: 28px;
+    --m3-font-headline-medium-weight: var(--m3-font-weight-regular);
+    --m3-font-headline-medium-line-height: 36px;
+    --m3-font-headline-medium-letter-spacing: var(--m3-letter-spacing-none);
+    /* Headline Small */
+    --m3-font-headline-small-size: 24px;
+    --m3-font-headline-small-weight: var(--m3-font-weight-regular);
+    --m3-font-headline-small-line-height: 32px;
+    --m3-font-headline-small-letter-spacing: var(--m3-letter-spacing-none);
+
+    /* Title Large */
+    --m3-font-title-large-size: 22px;
+    --m3-font-title-large-weight: var(--m3-font-weight-medium); /* M3 uses 400, but 500 often looks better for titles */
+    --m3-font-title-large-line-height: 28px;
+    --m3-font-title-large-letter-spacing: var(--m3-letter-spacing-tight);
+    /* Title Medium */
+    --m3-font-title-medium-size: 16px;
+    --m3-font-title-medium-weight: var(--m3-font-weight-medium);
+    --m3-font-title-medium-line-height: 24px;
+    --m3-font-title-medium-letter-spacing: var(--m3-letter-spacing-normal);
+    /* Title Small */
+    --m3-font-title-small-size: 14px;
+    --m3-font-title-small-weight: var(--m3-font-weight-medium);
+    --m3-font-title-small-line-height: 20px;
+    --m3-font-title-small-letter-spacing: var(--m3-letter-spacing-tight);
+
+    /* Label Large */
+    --m3-font-label-large-size: 14px;
+    --m3-font-label-large-weight: var(--m3-font-weight-medium);
+    --m3-font-label-large-line-height: 20px;
+    --m3-font-label-large-letter-spacing: var(--m3-letter-spacing-tight);
+    /* Label Medium */
+    --m3-font-label-medium-size: 12px;
+    --m3-font-label-medium-weight: var(--m3-font-weight-medium);
+    --m3-font-label-medium-line-height: 16px;
+    --m3-font-label-medium-letter-spacing: var(--m3-letter-spacing-widest);
+    /* Label Small */
+    --m3-font-label-small-size: 11px;
+    --m3-font-label-small-weight: var(--m3-font-weight-medium);
+    --m3-font-label-small-line-height: 16px;
+    --m3-font-label-small-letter-spacing: var(--m3-letter-spacing-widest);
+
+    /* Body Large */
+    --m3-font-body-large-size: 16px;
+    --m3-font-body-large-weight: var(--m3-font-weight-regular);
+    --m3-font-body-large-line-height: 24px;
+    --m3-font-body-large-letter-spacing: var(--m3-letter-spacing-widest);
+    /* Body Medium (Default Body) */
+    --m3-font-body-medium-size: 14px;
+    --m3-font-body-medium-weight: var(--m3-font-weight-regular);
+    --m3-font-body-medium-line-height: 20px;
+    --m3-font-body-medium-letter-spacing: var(--m3-letter-spacing-wide);
+    /* Body Small */
+    --m3-font-body-small-size: 12px;
+    --m3-font-body-small-weight: var(--m3-font-weight-regular);
+    --m3-font-body-small-line-height: 16px;
+    --m3-font-body-small-letter-spacing: var(--m3-letter-spacing-wider);
+
+    /* --- 移除旧的字体变量 (注释掉以备回滚) --- */
+    /*
     --font-size-sm: 12px;
     --font-size-base: 14px;
     --font-size-lg: 16px;
     --font-size-xl: 20px;
     --font-size-2xl: 24px;
+    */
+    /* Removed old font-size variables */
 
     /* 动画和过渡 */
     --transition-fast: 0.1s cubic-bezier(0.1, 0.9, 0.2, 1);
@@ -63,64 +171,113 @@ html.theme-light {
 
 /* JetBrains风格深色主题 - 漫画工具优化版 */
 html.theme-dark {
-    --color-bg-default: #2d2f33;  /* 暖灰蓝 */
-    --color-bg-subtle: #36393e;   /* 稍浅 */
-    --color-bg-elevated: #40444b; /* 高亮层 */
-    --bg-tertiary: var(--color-bg-elevated); /* Added tertiary background */
+    /* --- 深色模式 (Dark Theme) - 基于 Google Material Design --- */
 
-    --color-text-default: #d1d5db; /* 柔白 */
-    --color-text-secondary: #9ca3af; /* 浅灰 */
-    --color-text-muted: #6b7280;   /* 中灰 */
+    /* Specific Dark Theme Overrides for Components */
+    .el-select__popper.el-popper {
+        background-color: var(--color-bg-elevated) !important; /* Dark theme uses elevated BG for menus */
+        border-color: var(--color-border-default) !important; /* Use default border for better contrast */
+    }
+    /* Increased specificity for dark theme selected item */
+    html.theme-dark .el-select__popper .el-select-dropdown__item.selected {
+        background-color: rgba(var(--color-accent-default-rgb), 0.12) !important; /* M3 state layer for selected */
+        color: var(--color-accent-default) !important;
+        font-weight: 500 !important; /* M3 uses medium weight, not bold */
+    }
 
-    --color-border-default: #3e4145; /* 柔和分割线 */
-    --color-border-subtle: #2d3033;  /* 次级分割线 */
+    /* 背景色 (基于 Material Design Elevation 概念) */
+    --color-bg-default: #252525;     /* 基础背景 (Elevation 0) */
+    --color-bg-subtle: #181818;      /* 次级背景 (Elevation +1, 如内容区) */
+    --color-bg-elevated: #2f2f2f;    /* 抬高背景 (Elevation +4, 如卡片、输入框) */
+    --bg-tertiary: #000000;         /* 第三级背景 (Elevation +8, 如悬停) */
 
-    --color-accent-default: #7aa2f7; /* 柔和蓝 */
-    --color-accent-hover: #8dabf8;
-    --color-accent-active: #6a8fd8;
+    /* 文本色 (基于 Material Design 透明度指南) */
+    --color-text-default: #E0E0E0;     /* 主要文本 (高强调 - 约 87% 白色) */
+    --color-text-default-rgb: 224, 224, 224;
+    --color-text-secondary: #A0A0A0;   /* 次要文本 (中强调 - 约 60% 白色) */
+    --color-text-muted: #6E6E6E;       /* 禁用/提示文本 (低强调 - 约 38% 白色) */
 
-    --color-state-success: #73c990; /* 柔绿 */
-    --color-state-warning: #e0b354; /* 淡金 */
-    --color-state-error: #f28b82;   /* 粉红 */
+    /* 边框色 (通常基于白色叠加在背景色上计算) */
+    --color-border-default: #3A3A3A;   /* 默认边框 (在抬高背景上约 12% 白色叠加) */
+    --color-border-subtle: #2A2A2A;    /* 次级边框 (在次级背景上约 8% 白色叠加) */
 
-    /* Element Plus 颜色映射 */
-    --el-color-primary: var(--color-accent-default);
-    --el-color-success: var(--color-state-success);
-    --el-color-warning: var(--color-state-warning);
-    --el-color-danger: var(--color-state-error);
-    --el-color-info: #64b5f6;
+    /* 强调色 (选择适合深色背景的 Material 色板颜色) - 更新为 Blue 400 */
+    --color-accent-default: #42A5F5;  /* Material Blue 400 (主强调色) */
+    --color-accent-default-rgb: 66, 165, 245;
+    --color-accent-hover: #64B5F6;   /* Material Blue 300 (悬停 - M3通常用overlay，这里先用浅色) */
+    --color-accent-active: #1E88E5;  /* Material Blue 500 (激活 - M3通常用overlay，这里先用深色) */
+
+    /* 状态色 (选择适合深色背景的 Material 色板颜色) */
+    --color-state-success: #81C784; /* Material Green 300 */
+    --color-state-success-rgb: 129, 199, 132;
+    --color-state-warning: #FFB74D; /* Material Orange 300 */
+    --color-state-warning-rgb: 255, 183, 77;
+    --color-state-error: #E57373;   /* Material Red 300 */
+    --color-state-error-rgb: 229, 115, 115;
+
+    /* Element Plus UI库 颜色映射 */
+    --el-color-primary: var(--color-accent-default); /* 主要颜色 */
+    --el-color-success: var(--color-state-success); /* 成功颜色 */
+    --el-color-warning: var(--color-state-warning); /* 警告颜色 */
+    --el-color-danger: var(--color-state-error);   /* 危险/错误颜色 */
+    --el-color-info: var(--color-text-secondary); /* 信息颜色 (使用次要文本色) */
 }
 
-/* 自动模式 - 跟随系统设置 */
+/* 自动模式 - 跟随系统设置 (使用新的Material Design深色调色板) */
 @media (prefers-color-scheme: dark) {
     html:not(.theme-light):not(.theme-dark),
     html.theme-auto {
-        --color-bg-default: #2d2f33;  /* 暖灰蓝 */
-        --color-bg-subtle: #36393e;   /* 稍浅 */
-        --color-bg-elevated: #40444b; /* 高亮层 */
-        --bg-tertiary: var(--color-bg-elevated); /* Added tertiary background */
+        /* --- 深色模式 (Dark Theme) - 基于 Google Material Design --- */
 
-        --color-text-default: #d1d5db; /* 柔白 */
-        --color-text-secondary: #9ca3af; /* 浅灰 */
-        --color-text-muted: #6b7280;   /* 中灰 */
+        /* Specific Dark Theme Overrides for Components */
+       .el-select__popper.el-popper {
+            background-color: var(--color-bg-elevated) !important; /* Dark theme uses elevated BG for menus */
+            border-color: var(--color-border-default) !important; /* Use default border for better contrast */
+        }
+        /* Increased specificity for dark theme selected item (auto mode) */
+        html:not(.theme-light):not(.theme-dark) .el-select__popper .el-select-dropdown__item.selected,
+        html.theme-auto .el-select__popper .el-select-dropdown__item.selected {
+             background-color: rgba(var(--color-accent-default-rgb), 0.12) !important; /* M3 state layer for selected */
+             color: var(--color-accent-default) !important;
+             font-weight: 500 !important; /* M3 uses medium weight, not bold */
+         }
 
-        --color-border-default: #3e4145; /* 柔和分割线 */
-        --color-border-subtle: #2d3033;  /* 次级分割线 */
+        /* 背景色 (基于 Material Design Elevation 概念) */
+        --color-bg-default: #121212;     /* 基础背景 (Elevation 0) */
+        --color-bg-subtle: #1E1E1E;      /* 次级背景 (Elevation +1, 如内容区) */
+        --color-bg-elevated: #272727;    /* 抬高背景 (Elevation +4, 如卡片、输入框) */
+        --bg-tertiary: #2E2E2E;         /* 第三级背景 (Elevation +8, 如悬停) */
 
-        --color-accent-default: #7aa2f7; /* 柔和蓝 */
-        --color-accent-hover: #8dabf8;
-        --color-accent-active: #6a8fd8;
+        /* 文本色 (基于 Material Design 透明度指南) */
+        --color-text-default: #E0E0E0;     /* 主要文本 (高强调 - 约 87% 白色) */
+        --color-text-default-rgb: 224, 224, 224;
+        --color-text-secondary: #A0A0A0;   /* 次要文本 (中强调 - 约 60% 白色) */
+        --color-text-muted: #6E6E6E;       /* 禁用/提示文本 (低强调 - 约 38% 白色) */
 
-        --color-state-success: #73c990; /* 柔绿 */
-        --color-state-warning: #e0b354; /* 淡金 */
-        --color-state-error: #f28b82;   /* 粉红 */
+        /* 边框色 (通常基于白色叠加在背景色上计算) */
+        --color-border-default: #3A3A3A;   /* 默认边框 (在抬高背景上约 12% 白色叠加) */
+        --color-border-subtle: #2A2A2A;    /* 次级边框 (在次级背景上约 8% 白色叠加) */
 
-        /* Element Plus 颜色映射 */
-        --el-color-primary: var(--color-accent-default);
-        --el-color-success: var(--color-state-success);
-        --el-color-warning: var(--color-state-warning);
-        --el-color-danger: var(--color-state-error);
-        --el-color-info: #64b5f6;
+        /* 强调色 (选择适合深色背景的 Material 色板颜色) - 更新为 Blue 400 */
+        --color-accent-default: #42A5F5;  /* Material Blue 400 (主强调色) */
+        --color-accent-default-rgb: 66, 165, 245;
+        --color-accent-hover: #64B5F6;   /* Material Blue 300 (悬停 - M3通常用overlay，这里先用浅色) */
+        --color-accent-active: #1E88E5;  /* Material Blue 500 (激活 - M3通常用overlay，这里先用深色) */
+
+        /* 状态色 (选择适合深色背景的 Material 色板颜色) */
+        --color-state-success: #81C784; /* Material Green 300 */
+        --color-state-success-rgb: 129, 199, 132;
+        --color-state-warning: #FFB74D; /* Material Orange 300 */
+        --color-state-warning-rgb: 255, 183, 77;
+        --color-state-error: #E57373;   /* Material Red 300 */
+        --color-state-error-rgb: 229, 115, 115;
+
+        /* Element Plus UI库 颜色映射 */
+        --el-color-primary: var(--color-accent-default); /* 主要颜色 */
+        --el-color-success: var(--color-state-success); /* 成功颜色 */
+        --el-color-warning: var(--color-state-warning); /* 警告颜色 */
+        --el-color-danger: var(--color-state-error);   /* 危险/错误颜色 */
+        --el-color-info: var(--color-text-secondary); /* 信息颜色 (使用次要文本色) */
     }
 }
 
@@ -133,20 +290,60 @@ body {
     margin: 0;
     padding: 0;
     font-family: var(--font-family);
-    font-size: var(--font-size-base);
-    line-height: 1.5;
+    /* Apply M3 Body Medium */
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-body-medium-weight);
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
     background: var(--color-bg-subtle); /* Use new variable */
     color: var(--color-text-default); /* Use new variable */
     transition: background-color var(--transition), color var(--transition);
 }
 
 /* Base Heading Styles */
+/* Apply M3 Typography to Headings */
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-text-default);
-  margin-top: 1em; /* Add some default top spacing */
-  margin-bottom: 0.6em; /* Add some default bottom spacing */
-  font-weight: 600; /* Common default bolding */
-  line-height: 1.3; /* Adjust line height for headings */
+  margin-top: 1em; /* Keep default spacing for now */
+  margin-bottom: 0.6em;
+}
+
+h1 { /* Mapped to Headline Large */
+  font-size: var(--m3-font-headline-large-size);
+  font-weight: var(--m3-font-headline-large-weight);
+  line-height: var(--m3-font-headline-large-line-height);
+  letter-spacing: var(--m3-font-headline-large-letter-spacing);
+}
+h2 { /* Mapped to Headline Medium */
+  font-size: var(--m3-font-headline-medium-size);
+  font-weight: var(--m3-font-headline-medium-weight);
+  line-height: var(--m3-font-headline-medium-line-height);
+  letter-spacing: var(--m3-font-headline-medium-letter-spacing);
+}
+h3 { /* Mapped to Title Large */
+  font-size: var(--m3-font-title-large-size);
+  font-weight: var(--m3-font-title-large-weight);
+  line-height: var(--m3-font-title-large-line-height);
+  letter-spacing: var(--m3-font-title-large-letter-spacing);
+}
+h4 { /* Mapped to Title Medium */
+  font-size: var(--m3-font-title-medium-size);
+  font-weight: var(--m3-font-title-medium-weight);
+  line-height: var(--m3-font-title-medium-line-height);
+  letter-spacing: var(--m3-font-title-medium-letter-spacing);
+}
+h5 { /* Mapped to Title Small */
+  font-size: var(--m3-font-title-small-size);
+  font-weight: var(--m3-font-title-small-weight);
+  line-height: var(--m3-font-title-small-line-height);
+  letter-spacing: var(--m3-font-title-small-letter-spacing);
+}
+h6 { /* Mapped to Label Medium (or Title Small if preferred, Label provides more distinction) */
+  font-size: var(--m3-font-label-medium-size);
+  font-weight: var(--m3-font-label-medium-weight);
+  line-height: var(--m3-font-label-medium-line-height);
+  letter-spacing: var(--m3-font-label-medium-letter-spacing);
+  text-transform: uppercase; /* Labels are often uppercase */
 }
 /* 主布局 */
 .app-container {
@@ -254,9 +451,14 @@ h1, h2, h3, h4, h5, h6 {
 
 .nav-text {
     margin-left: 12px;
-    font-size: 14px;
-    font-weight: 500;
+    /* font-size: 14px; */ /* Replaced by M3 Label Large */
+    /* font-weight: 500; */ /* Replaced by M3 Label Large */
     transition: opacity var(--transition);
+    /* Apply M3 Label Large */
+    font-size: var(--m3-font-label-large-size) !important;
+    font-weight: var(--m3-font-label-large-weight) !important;
+    line-height: var(--m3-font-label-large-line-height) !important;
+    letter-spacing: var(--m3-font-label-large-letter-spacing) !important;
 }
 
 /* 折叠状态 */
@@ -312,17 +514,27 @@ html.theme-dark .content-area {
 
 .welcome-card h2 {
     margin: 0 0 var(--spacing-md) 0;
-    font-size: var(--font-size-2xl);
-    font-weight: 600;
+    /* font-size: var(--font-size-2xl); */ /* Replaced by M3 Headline Small */
+    /* font-weight: 600; */ /* Replaced by M3 Headline Small */
     color: var(--color-text-default); /* Use new variable */
     transition: color var(--transition);
+    /* Apply M3 Headline Small */
+    font-size: var(--m3-font-headline-small-size) !important;
+    font-weight: var(--m3-font-headline-small-weight) !important;
+    line-height: var(--m3-font-headline-small-line-height) !important;
+    letter-spacing: var(--m3-font-headline-small-letter-spacing) !important;
 }
 
 .welcome-card p {
     margin: 0 0 var(--spacing-lg) 0;
     color: var(--color-text-secondary); /* Use new variable */
-    font-size: var(--font-size-base);
+    /* font-size: var(--font-size-base); */ /* Replaced by M3 Body Medium */
     transition: color var(--transition);
+    /* Apply M3 Body Medium (explicitly, though might inherit) */
+    font-size: var(--m3-font-body-medium-size) !important;
+    font-weight: var(--m3-font-body-medium-weight) !important;
+    line-height: var(--m3-font-body-medium-line-height) !important;
+    letter-spacing: var(--m3-font-body-medium-letter-spacing) !important;
 }
 /* Dark theme specific styles for welcome card */
 html.theme-dark .welcome-card {
@@ -348,7 +560,9 @@ html.theme-dark .welcome-card p {
 
 .feature-card {
     background: var(--color-bg-default); /* Use new variable */
-    border: 1px solid var(--color-border-default); /* Use new variable */
+    /* border: 1px solid var(--color-border-default); */ /* 移除边框 */
+    border: none; /* 显式移除边框 */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06); /* 添加细微阴影 */
     border-radius: var(--border-radius);
     padding: var(--spacing-lg);
     transition: all var(--transition);
@@ -378,18 +592,28 @@ html.theme-dark .welcome-card p {
 
 .feature-card h3 {
     margin: 0 0 var(--spacing-sm) 0;
-    font-size: var(--font-size-lg);
-    font-weight: 600;
+    /* font-size: var(--font-size-lg); */ /* Replaced by M3 Title Medium */
+    /* font-weight: 600; */ /* Replaced by M3 Title Medium */
     color: var(--color-text-default); /* Use new variable */
     transition: color var(--transition);
+    /* Apply M3 Title Medium */
+    font-size: var(--m3-font-title-medium-size) !important;
+    font-weight: var(--m3-font-title-medium-weight) !important;
+    line-height: var(--m3-font-title-medium-line-height) !important;
+    letter-spacing: var(--m3-font-title-medium-letter-spacing) !important;
 }
 
 .feature-card p {
     margin: 0;
     color: var(--color-text-secondary); /* Use new variable */
-    font-size: var(--font-size-base);
-    line-height: 1.5;
+    /* font-size: var(--font-size-base); */ /* Replaced by M3 Body Medium */
+    /* line-height: 1.5; */ /* Replaced by M3 Body Medium */
     transition: color var(--transition);
+    /* Apply M3 Body Medium (explicitly, though might inherit) */
+    font-size: var(--m3-font-body-medium-size) !important;
+    font-weight: var(--m3-font-body-medium-weight) !important;
+    line-height: var(--m3-font-body-medium-line-height) !important;
+    letter-spacing: var(--m3-font-body-medium-letter-spacing) !important;
 }
 
 /* 状态指示器 - 扁平化 */
@@ -399,9 +623,14 @@ html.theme-dark .welcome-card p {
     gap: var(--spacing-xs);
     padding: var(--spacing-xs) var(--spacing-sm);
     border-radius: var(--border-radius);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
+    /* font-size: var(--font-size-sm); */ /* Replaced by M3 Label Small */
+    /* font-weight: 500; */ /* Replaced by M3 Label Small */
     border: 1px solid var(--color-border-default); /* Use new variable */
+    /* Apply M3 Label Small */
+    font-size: var(--m3-font-label-small-size) !important;
+    font-weight: var(--m3-font-label-small-weight) !important;
+    line-height: var(--m3-font-label-small-line-height) !important;
+    letter-spacing: var(--m3-font-label-small-letter-spacing) !important;
 }
 
 .status-healthy {
@@ -424,9 +653,14 @@ html.theme-dark .welcome-card p {
 
 .toolbar-left h2 {
     margin: 0 0 8px 0;
-    font-size: var(--font-size-xl);
-    font-weight: 600;
+    /* font-size: var(--font-size-xl); */ /* Replaced by M3 Headline Small */
+    /* font-weight: 600; */ /* Replaced by M3 Headline Small */
     color: var(--color-text-default); /* Use new variable */
+    /* Apply M3 Headline Small (Consistent with global h2) */
+    font-size: var(--m3-font-headline-small-size) !important;
+    font-weight: var(--m3-font-headline-small-weight) !important;
+    line-height: var(--m3-font-headline-small-line-height) !important;
+    letter-spacing: var(--m3-font-headline-small-letter-spacing) !important;
 }
 
 .directory-info {
@@ -533,9 +767,14 @@ html.theme-dark .welcome-card p {
 }
 
 .loading-text {
-    font-size: 12px;
+    /* font-size: 12px; */ /* Replaced by M3 Body Small */
     margin-top: 8px;
     opacity: 0.7;
+    /* Apply M3 Body Small */
+    font-size: var(--m3-font-body-small-size) !important;
+    font-weight: var(--m3-font-body-small-weight) !important;
+    line-height: var(--m3-font-body-small-line-height) !important;
+    letter-spacing: var(--m3-font-body-small-letter-spacing) !important;
 }
 
 @keyframes spin {
@@ -552,24 +791,35 @@ html.theme-dark .welcome-card p {
     color: white; /* Keep white for contrast */
     padding: 4px 8px;
     border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
+    /* font-size: 12px; */ /* Replaced by M3 Label Small */
+    /* font-weight: 500; */ /* Replaced by M3 Label Small */
     backdrop-filter: blur(4px);
+    /* Apply M3 Label Small */
+    font-size: var(--m3-font-label-small-size) !important;
+    font-weight: var(--m3-font-label-small-weight) !important;
+    line-height: var(--m3-font-label-small-line-height) !important;
+    letter-spacing: var(--m3-font-label-small-letter-spacing) !important;
 }
 
-/* 标题区域 */
+/* 标题区域 (M3 Title Small) */
 .manga-title {
     padding: 12px 12px 8px 12px;
-    font-size: 13px;
-    font-weight: 500;
+    /* font-size: 13px; */ /* Replaced by M3 Title Small */
+    /* font-weight: 500; */ /* Replaced by M3 Title Small */
     color: var(--color-text-default); /* Use new variable */
-    line-height: 1.3;
+    /* line-height: 1.3; */ /* Replaced by M3 Title Small */
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    min-height: 34px;
+    /* min-height: 34px; */ /* Height determined by line-height * clamp */
     opacity: 0.8;
+    /* Apply M3 Title Small */
+    font-size: var(--m3-font-title-small-size) !important;
+    font-weight: var(--m3-font-title-small-weight) !important;
+    line-height: var(--m3-font-title-small-line-height) !important;
+    letter-spacing: var(--m3-font-title-small-letter-spacing) !important;
+    min-height: calc(var(--m3-font-title-small-line-height) * 2); /* Adjust min-height based on line clamp */
 }
 
 /* 标签区域 */
@@ -596,14 +846,19 @@ html.theme-dark .welcome-card p {
     transform: translateY(0) translateZ(0);
 }
 
-.manga-tags .tag {
-    font-size: 11px;
+.manga-tags .tag { /* Custom tag, not el-tag */
+    /* font-size: 11px; */ /* Replaced by M3 Label Small */
     padding: 2px 6px;
     background: var(--color-bg-subtle); /* Use new variable */
     color: var(--color-text-secondary); /* Use new variable */
     border-radius: 4px;
     border: 1px solid var(--color-border-default); /* Use new variable */
     white-space: nowrap;
+    /* Apply M3 Label Small */
+    font-size: var(--m3-font-label-small-size) !important;
+    font-weight: var(--m3-font-label-small-weight) !important;
+    line-height: var(--m3-font-label-small-line-height) !important;
+    letter-spacing: var(--m3-font-label-small-letter-spacing) !important;
 }
 
 .manga-tags .more-tag {
@@ -709,7 +964,12 @@ html.theme-dark .welcome-card p {
 
 .show-more-btn {
     margin-left: 8px;
-    font-size: 12px;
+    /* font-size: 12px; */ /* Replaced by M3 Label Medium */
+    /* Apply M3 Label Medium */
+    font-size: var(--m3-font-label-medium-size) !important;
+    font-weight: var(--m3-font-label-medium-weight) !important;
+    line-height: var(--m3-font-label-medium-line-height) !important;
+    letter-spacing: var(--m3-font-label-medium-letter-spacing) !important;
 }
 
 
@@ -736,8 +996,13 @@ html.theme-dark .welcome-card p {
     .manga-pages-badge {
         top: 8px;
         right: 8px;
-        font-size: 11px;
+        /* font-size: 11px; */ /* Replaced by M3 Label Small */
         padding: 3px 6px;
+        /* Apply M3 Label Small */
+        font-size: var(--m3-font-label-small-size) !important;
+        font-weight: var(--m3-font-label-small-weight) !important;
+        line-height: var(--m3-font-label-small-line-height) !important;
+        letter-spacing: var(--m3-font-label-small-letter-spacing) !important;
     }
 
     .manga-info-overlay {
@@ -745,8 +1010,13 @@ html.theme-dark .welcome-card p {
     }
 
     .manga-title-tag {
-        font-size: 12px;
+        /* font-size: 12px; */ /* Replaced by M3 Label Medium */
         padding: 4px 8px;
+        /* Apply M3 Label Medium */
+        font-size: var(--m3-font-label-medium-size) !important;
+        font-weight: var(--m3-font-label-medium-weight) !important;
+        line-height: var(--m3-font-label-medium-line-height) !important;
+        letter-spacing: var(--m3-font-label-medium-letter-spacing) !important;
     }
 
     .cover-placeholder {
@@ -755,42 +1025,151 @@ html.theme-dark .welcome-card p {
 }
 
 /* Element Plus 组件样式覆盖 */
-/* 确保 Element Plus Card Header 颜色正确 */
+/* 确保 Element Plus Card Header 颜色和字体正确 (M3 Title Medium) */
 .el-card__header {
-    color: var(--color-text-default) !important; /* 使用 !important 强制覆盖 Element Plus 默认样式 */
-    border-bottom: 1px solid var(--color-border-default) !important; /* 确保边框也使用主题颜色 */
-    /* Element Plus 默认 padding: 18px 20px; 可根据需要保留或修改 */
-    padding: 14px 20px; /* 稍微减小一点垂直内边距 */
+    color: var(--color-text-default) !important;
+    border-bottom: 1px solid var(--color-border-default) !important;
+    padding: 14px 20px;
     box-sizing: border-box;
+    /* Apply M3 Title Medium */
+    font-size: var(--m3-font-title-medium-size) !important;
+    font-weight: var(--m3-font-title-medium-weight) !important;
+    line-height: var(--m3-font-title-medium-line-height) !important;
+    letter-spacing: var(--m3-font-title-medium-letter-spacing) !important;
 }
 
 .el-card {
-    border: 1px solid var(--color-border-default) !important; /* Use new variable */
-    box-shadow: none !important;
+    /* border: 1px solid var(--color-border-default) !important; */ /* 移除边框 */
+    border: none !important; /* 显式移除边框 */
+    /* Updated to Elevation 2 shadow for light mode */
+    box-shadow: 0 3px 4px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.06) !important;
+    /* 对于深色模式可能需要不同阴影，暂时统一 */
     border-radius: var(--border-radius) !important;
     background: var(--color-bg-default) !important; /* Use new variable */
 }
 
+/* M3 Filled Button Style */
 .el-button--primary {
     background: var(--el-color-primary) !important; /* Use mapped variable */
-    border: 1px solid var(--el-color-primary) !important; /* Use mapped variable */
+    color: #ffffff !important; /* White text for contrast */
+    border: none !important; /* M3 Filled buttons usually have no border */
     border-radius: var(--border-radius) !important;
-    transition: background-color var(--transition) !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* Subtle shadow */
+    transition: background-color var(--transition-fast), box-shadow var(--transition-fast) !important;
 }
 
+/* M3 Filled Button Hover/Focus/Active */
 .el-button--primary:hover {
-    background: var(--color-accent-hover) !important; /* Use new variable */
-    border-color: var(--color-accent-hover) !important; /* Use new variable */
+    background: var(--color-accent-hover) !important; /* Use defined hover color */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Slightly more shadow on hover */
 }
 
+.el-button--primary:focus,
+.el-button--primary:active {
+    background: var(--color-accent-active) !important; /* Use defined active color */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* Reset shadow on active */
+}
+
+/* M3 Outlined Button Style (Default Button) */
 .el-button {
     border-radius: var(--border-radius) !important;
-    font-size: var(--font-size-base) !important;
+    /* font-size: var(--font-size-base) !important; */ /* Replaced by M3 Label Large */
+    /* Apply M3 Label Large */
+    font-size: var(--m3-font-label-large-size) !important;
+    font-weight: var(--m3-font-label-large-weight) !important;
+    line-height: var(--m3-font-label-large-line-height) !important;
+    letter-spacing: var(--m3-font-label-large-letter-spacing) !important;
+    background: transparent !important;
+    border: 1px solid var(--color-border-default) !important; /* Default border for non-primary */
+    color: var(--color-text-default) !important; /* Default text color */
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast) !important;
+    box-shadow: none !important; /* No shadow for outlined */
 }
 
+/* Override for default buttons that should use primary color (M3 Outlined style with emphasis) */
+.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not([type="text"]) {
+    border-color: var(--el-color-primary) !important;
+    color: var(--el-color-primary) !important;
+}
+
+
+/* M3 Outlined Button Hover/Focus/Active */
+.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):hover,
+.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):focus {
+    background-color: rgba(var(--color-accent-default-rgb), 0.08) !important; /* Subtle overlay */
+    border-color: var(--el-color-primary) !important; /* Keep border color */
+    color: var(--el-color-primary) !important; /* Keep text color */
+}
+
+.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):active {
+    background-color: rgba(var(--color-accent-default-rgb), 0.12) !important; /* Slightly darker overlay */
+}
+
+/* Ensure specific non-primary types keep their text colors */
+.el-button--success { color: var(--el-color-success) !important; border-color: var(--el-color-success) !important; }
+.el-button--warning { color: var(--el-color-warning) !important; border-color: var(--el-color-warning) !important; }
+.el-button--danger { color: var(--el-color-danger) !important; border-color: var(--el-color-danger) !important; }
+.el-button--info { color: var(--el-color-info) !important; border-color: var(--color-border-default) !important; }
+
+/* Hover/Focus/Active for State Outlined Buttons */
+.el-button--success:hover, .el-button--success:focus { background-color: rgba(var(--color-state-success-rgb), 0.08) !important; }
+.el-button--warning:hover, .el-button--warning:focus { background-color: rgba(var(--color-state-warning-rgb), 0.08) !important; }
+.el-button--danger:hover, .el-button--danger:focus { background-color: rgba(var(--color-state-error-rgb), 0.08) !important; }
+.el-button--info:hover, .el-button--info:focus { background-color: rgba(101, 109, 118, 0.08) !important; } /* Estimate info RGB */
+
+.el-button--success:active { background-color: rgba(var(--color-state-success-rgb), 0.12) !important; }
+.el-button--warning:active { background-color: rgba(var(--color-state-warning-rgb), 0.12) !important; }
+.el-button--danger:active { background-color: rgba(var(--color-state-error-rgb), 0.12) !important; }
+.el-button--info:active { background-color: rgba(101, 109, 118, 0.12) !important; }
+
+/* M3 Text Button Style */
+.el-button--text {
+    background: transparent !important;
+    border: none !important;
+    color: var(--el-color-primary) !important; /* Text color is primary by default */
+    box-shadow: none !important;
+    border-radius: var(--border-radius) !important;
+    transition: background-color var(--transition-fast) !important;
+    padding: 8px 12px !important; /* Adjust padding for text buttons */
+    height: auto !important; /* Allow height to adjust */
+    min-height: 36px; /* Ensure minimum touch target size */
+}
+
+/* M3 Text Button Hover/Focus/Active */
+.el-button--text:not(.is-disabled):hover,
+.el-button--text:not(.is-disabled):focus {
+    background-color: rgba(var(--color-accent-default-rgb), 0.08) !important; /* Subtle overlay for primary */
+    color: var(--el-color-primary) !important; /* Keep primary color */
+}
+.el-button--text:not(.is-disabled):active {
+    background-color: rgba(var(--color-accent-default-rgb), 0.12) !important; /* Slightly darker overlay */
+}
+
+/* State variants for Text Buttons */
+.el-button--text.el-button--success { color: var(--el-color-success) !important; }
+.el-button--text.el-button--warning { color: var(--el-color-warning) !important; }
+.el-button--text.el-button--danger { color: var(--el-color-danger) !important; }
+.el-button--text.el-button--info { color: var(--el-color-info) !important; }
+
+/* Hover/Focus/Active for State Text Buttons */
+.el-button--text.el-button--success:not(.is-disabled):hover,
+.el-button--text.el-button--success:not(.is-disabled):focus { background-color: rgba(var(--color-state-success-rgb), 0.08) !important; }
+.el-button--text.el-button--warning:not(.is-disabled):hover,
+.el-button--text.el-button--warning:not(.is-disabled):focus { background-color: rgba(var(--color-state-warning-rgb), 0.08) !important; }
+.el-button--text.el-button--danger:not(.is-disabled):hover,
+.el-button--text.el-button--danger:not(.is-disabled):focus { background-color: rgba(var(--color-state-error-rgb), 0.08) !important; }
+.el-button--text.el-button--info:not(.is-disabled):hover,
+.el-button--text.el-button--info:not(.is-disabled):focus { background-color: rgba(101, 109, 118, 0.08) !important; } /* Estimate info RGB */
+
+.el-button--text.el-button--success:not(.is-disabled):active { background-color: rgba(var(--color-state-success-rgb), 0.12) !important; }
+.el-button--text.el-button--warning:not(.is-disabled):active { background-color: rgba(var(--color-state-warning-rgb), 0.12) !important; }
+.el-button--text.el-button--danger:not(.is-disabled):active { background-color: rgba(var(--color-state-error-rgb), 0.12) !important; }
+.el-button--text.el-button--info:not(.is-disabled):active { background-color: rgba(101, 109, 118, 0.12) !important; }
 /* Element Plus Tag 样式覆盖 */
 .el-tag {
-    font-size: var(--font-size-sm) !important; /* Use variable */
+    /* Apply M3 Label Small */
+    font-size: var(--m3-font-label-small-size) !important;
+    font-weight: var(--m3-font-label-small-weight) !important;
     border-radius: 4px !important; /* Use hardcoded value for smaller tag radius */
     height: auto !important; /* Allow height to adjust to content */
     line-height: 1.2 !important; /* Adjust line height */
@@ -863,26 +1242,42 @@ html.theme-dark .el-tabs__item {
 }
 }
 
-/* Element Plus Input 样式覆盖 */
+/* Element Plus Input 样式覆盖 (M3 Outlined Text Field) */
 .el-input__wrapper {
-    background-color: var(--color-bg-default) !important; /* Use new variable */
-    box-shadow: 0 0 0 1px var(--color-border-default) inset !important; /* Use new variable */
+    background-color: var(--color-bg-default) !important;
+    border: 1px solid var(--color-border-default) !important; /* M3 uses border, not inset shadow */
+    box-shadow: none !important; /* Remove inset shadow */
     border-radius: var(--border-radius) !important;
-    transition: box-shadow var(--transition) !important;
+    transition: border-color var(--transition-fast), border-width var(--transition-fast), padding var(--transition-fast) !important; /* Adjust transition */
+    /* Set proper padding: ~6px vertical, 12px horizontal */
+    padding: 6px 12px !important;
 }
 
 .el-input__wrapper.is-focus {
-    box-shadow: 0 0 0 1px var(--color-accent-default) inset !important; /* Use new variable */
-    border-color: var(--color-accent-default) !important; /* Use new variable */
+    border: 2px solid var(--color-accent-default) !important; /* M3 uses thicker 2px border on focus */
+    /* padding is needed to compensate for the border width change, handled above */
+    box-shadow: none !important; /* Ensure no shadow */
+    /* border-color is implicit in border */
 }
 
 .el-input__inner {
     color: var(--color-text-default) !important; /* Use new variable */
-    font-size: var(--font-size-base) !important;
+    /* font-size: var(--font-size-base) !important; */ /* Replaced by M3 Body Large */
+    /* Apply M3 Body Large */
+    font-size: var(--m3-font-body-large-size) !important;
+    font-weight: var(--m3-font-body-large-weight) !important;
+    line-height: var(--m3-font-body-large-line-height) !important;
+    letter-spacing: var(--m3-font-body-large-letter-spacing) !important;
 }
 
 .el-input__inner::placeholder {
     color: var(--color-text-muted) !important; /* Use new variable */
+    /* Apply M3 Body Large (same as input text) */
+    font-size: var(--m3-font-body-large-size) !important;
+    font-weight: var(--m3-font-body-large-weight) !important;
+    line-height: var(--m3-font-body-large-line-height) !important; /* Match input's line height */
+    letter-spacing: var(--m3-font-body-large-letter-spacing) !important;
+    opacity: 1; /* Ensure placeholder is not faded by default browser styles */
 }
 
 
@@ -955,15 +1350,20 @@ html.theme-dark .el-tabs__item {
 }
 
 .notice-box .notice-title {
-    font-size: 12px;
-    font-weight: bold;
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
     text-align: center;
     color: var(--color-text-default); /* Using default text color for title, can be adjusted */
     margin-bottom: 8px;
 }
 
 .notice-box .notice-list {
-    font-size: 11px;
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
     color: var(--color-text-secondary);
     margin: 0 0 0 16px; /* Adjusted margin for better alignment */
     padding: 0;
@@ -972,19 +1372,28 @@ html.theme-dark .el-tabs__item {
 /* Style for task count display in card headers */
 .task-count {
   color: var(--color-text-secondary);
-  font-size: 0.9em; /* Slightly smaller font size for visual distinction */
+  /* Apply M3 Label Small */
+  font-size: var(--m3-font-label-small-size);
+  font-weight: var(--m3-font-label-small-weight);
+  line-height: var(--m3-font-label-small-line-height);
+  letter-spacing: var(--m3-font-label-small-letter-spacing);
   margin-left: 8px; /* Add some space from the title */
 }
 /* Cache Management Page Styles */
 .cache-list .cache-name {
   /* Explicitly set default color, can be removed if inherited is fine */
   color: var(--color-text-default);
-  font-weight: 500; /* Make name slightly bolder */
+  /* Apply M3 Title Small weight */
+  font-weight: var(--m3-font-title-small-weight);
 }
 
 .cache-list .stat-text {
   color: var(--color-text-secondary);
-  font-size: 0.9em;
+  /* Apply M3 Label Small */
+  font-size: var(--m3-font-label-small-size);
+  font-weight: var(--m3-font-label-small-weight);
+  line-height: var(--m3-font-label-small-line-height);
+  letter-spacing: var(--m3-font-label-small-letter-spacing);
 }
 
 /* Styles for the cache detail table */
@@ -1045,7 +1454,8 @@ html.theme-dark .el-tabs__item {
 
 .task-item .task-name {
   color: var(--color-text-default);
-  font-weight: 500;
+  /* Apply M3 Title Small weight */
+  font-weight: var(--m3-font-title-small-weight);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1054,7 +1464,11 @@ html.theme-dark .el-tabs__item {
 }
 
 .task-item .task-details {
-  font-size: 0.9em;
+  /* Apply M3 Label Small */
+  font-size: var(--m3-font-label-small-size);
+  font-weight: var(--m3-font-label-small-weight);
+  line-height: var(--m3-font-label-small-line-height);
+  letter-spacing: var(--m3-font-label-small-letter-spacing);
   color: var(--color-text-secondary);
   white-space: nowrap; /* Prevent wrapping */
 }
@@ -1079,7 +1493,11 @@ html.theme-dark .el-tabs__item {
 }
 
 .task-item .progress-detail {
-  font-size: 0.85em;
+  /* Apply M3 Label Small */
+  font-size: var(--m3-font-label-small-size);
+  font-weight: var(--m3-font-label-small-weight);
+  line-height: var(--m3-font-label-small-line-height);
+  letter-spacing: var(--m3-font-label-small-letter-spacing);
   color: var(--color-text-secondary);
   margin-left: 8px;
   white-space: nowrap;
@@ -1093,11 +1511,12 @@ html.theme-dark .el-tabs__item {
 
 /* Manga Card Widget Styles */
 .manga-card {
-    border-radius: 8px;
+    border-radius: var(--border-radius); /* 使用全局圆角 */
     overflow: hidden; /* Ensure children conform */
     background-color: var(--color-bg-default);
     position: relative; /* For absolute positioning of page-count */
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08); /* Softer shadow */
+    border: none; /* 移除边框 */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06); /* 添加/统一阴影 */
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
     display: flex; /* Use flex for vertical layout */
     flex-direction: column;
@@ -1143,7 +1562,11 @@ html.theme-dark .el-tabs__item {
   right: 4px;
   background-color: rgba(0, 0, 0, 0.65); /* Semi-transparent dark background */
   color: #ffffff; /* White text */
-  font-size: 0.75em;
+  /* Apply M3 Label Small */
+  font-size: var(--m3-font-label-small-size);
+  font-weight: var(--m3-font-label-small-weight);
+  line-height: var(--m3-font-label-small-line-height);
+  letter-spacing: var(--m3-font-label-small-letter-spacing);
   padding: 1px 5px; /* Adjust padding */
   border-radius: 3px;
   font-weight: 500;
@@ -1158,7 +1581,11 @@ html.theme-dark .el-tabs__item {
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center; /* Center title */
-  font-size: 0.9em; /* Slightly smaller title */
+  /* Apply M3 Title Small */
+  font-size: var(--m3-font-title-small-size);
+  font-weight: var(--m3-font-title-small-weight);
+  line-height: var(--m3-font-title-small-line-height);
+  letter-spacing: var(--m3-font-title-small-letter-spacing);
 }
 
 .manga-card .manga-tags {
@@ -1179,7 +1606,11 @@ html.theme-dark .el-tabs__item {
 .manga-card .tag {
   background-color: var(--color-bg-subtle);
   color: var(--color-text-secondary);
-  font-size: 0.75em; /* Smaller tags */
+  /* Apply M3 Label Small */
+  font-size: var(--m3-font-label-small-size);
+  font-weight: var(--m3-font-label-small-weight);
+  line-height: var(--m3-font-label-small-line-height);
+  letter-spacing: var(--m3-font-label-small-letter-spacing);
   padding: 2px 5px;
   border-radius: 4px;
   cursor: pointer;
@@ -1213,7 +1644,11 @@ html.theme-dark .el-tabs__item {
 
 .upload-area-themed p {
   margin: 0;
-  font-size: 14px;
+  /* Apply M3 Body Medium */
+  font-size: var(--m3-font-body-medium-size);
+  font-weight: var(--m3-font-body-medium-weight);
+  line-height: var(--m3-font-body-medium-line-height);
+  letter-spacing: var(--m3-font-body-medium-letter-spacing);
   color: var(--color-text-secondary);
 }
 
@@ -1231,7 +1666,12 @@ html.theme-dark .el-tabs__item {
 /* Specific style for theme setting description text - ensure this is effective */
 /* Placed here for review, original was around line 928 */
 .theme-setting-description {
-    color: var(--color-text-secondary);
+    /* Apply M3 Body Small */
+    font-size: var(--m3-font-body-small-size) !important;
+    font-weight: var(--m3-font-body-small-weight) !important;
+    line-height: var(--m3-font-body-small-line-height) !important;
+    letter-spacing: var(--m3-font-body-small-letter-spacing) !important;
+    color: var(--color-text-secondary) !important; /* Ensure color is applied */
 }
 /* ==================== 缓存管理样式 ==================== */
 
@@ -1244,7 +1684,9 @@ html.theme-dark .el-tabs__item {
 .cache-overview-card {
     cursor: pointer;
     transition: all 0.3s ease;
-    border: 2px solid transparent;
+    /* border: 2px solid transparent; */ /* 移除边框 */
+    border: none; /* 移除边框 */
+    /* box-shadow: 0 1px 3px rgba(0,0,0,0.06); */ /* 注释掉局部阴影，让全局 .el-card 生效 */
     height: 160px;
 }
 
@@ -1254,8 +1696,9 @@ html.theme-dark .el-tabs__item {
 }
 
 .cache-overview-card.active {
-    border-color: var(--color-accent-default); /* Use new variable */
-    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2); /* Keep original shadow for now, could use a variable */
+    /* border-color: var(--color-accent-default); */ /* 移除边框高亮 */
+    /* 改为增强阴影 */
+    box-shadow: 0 4px 12px rgba(var(--color-accent-default-rgb, 9, 105, 218), 0.2); /* 使用RGB变量或备用值 */
 }
 
 .cache-card-header {
@@ -1270,8 +1713,11 @@ html.theme-dark .el-tabs__item {
 }
 
 .cache-title {
-    font-size: 16px;
-    font-weight: 600;
+    /* Apply M3 Title Medium */
+    font-size: var(--m3-font-title-medium-size);
+    font-weight: var(--m3-font-title-medium-weight);
+    line-height: var(--m3-font-title-medium-line-height);
+    letter-spacing: var(--m3-font-title-medium-letter-spacing);
     color: var(--color-text-default); /* Use new variable */
 }
 
@@ -1287,13 +1733,18 @@ html.theme-dark .el-tabs__item {
 }
 
 .stat-label {
-    font-size: 14px;
+    /* Apply M3 Body Medium */
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-body-medium-weight);
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
     color: var(--color-text-secondary); /* Use new variable */
 }
 
 .stat-value {
     font-size: 14px;
-    font-weight: 600;
+    /* Use M3 Medium weight */
+    font-weight: var(--m3-font-weight-medium);
     color: var(--color-text-default); /* Use new variable */
 }
 
@@ -1312,7 +1763,11 @@ html.theme-dark .el-tabs__item {
 
 .action-group h4 {
     margin: 0 0 12px 0;
-    font-size: 16px;
+    /* Apply M3 Title Medium */
+    font-size: var(--m3-font-title-medium-size);
+    font-weight: var(--m3-font-title-medium-weight);
+    line-height: var(--m3-font-title-medium-line-height);
+    letter-spacing: var(--m3-font-title-medium-letter-spacing);
     color: var(--color-text-default); /* Use new variable */
 }
 
@@ -1323,7 +1778,11 @@ html.theme-dark .el-tabs__item {
 }
 
 .system-info span {
-    font-size: 14px;
+    /* Apply M3 Body Medium */
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-body-medium-weight);
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
     color: var(--color-text-secondary); /* Use new variable */
 }
 
@@ -1345,12 +1804,20 @@ html.theme-dark .el-tabs__item {
 
 .cache-key {
     font-family: 'Courier New', monospace;
-    font-size: 12px;
+    /* Apply M3 Body Small */
+    font-size: var(--m3-font-body-small-size);
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height);
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
     color: var(--color-text-default); /* Use new variable */
 }
 
 .cache-preview {
-    font-size: 13px;
+    /* Apply M3 Body Small */
+    font-size: var(--m3-font-body-small-size);
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height);
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
     color: var(--color-text-secondary); /* Use new variable */
 }
 
@@ -1406,8 +1873,11 @@ html.theme-dark .el-tabs__item {
 
 .cache-overview h2 {
     margin: 0 0 var(--spacing-md) 0;
-    font-size: var(--font-size-xl);
-    font-weight: 600;
+    /* Apply M3 Headline Small */
+    font-size: var(--m3-font-headline-small-size);
+    font-weight: var(--m3-font-headline-small-weight);
+    line-height: var(--m3-font-headline-small-line-height);
+    letter-spacing: var(--m3-font-headline-small-letter-spacing);
     color: var(--color-text-default); /* Use new variable */
 }
 
@@ -1423,19 +1893,24 @@ html.theme-dark .el-tabs__item {
     justify-content: space-between;
     padding: var(--spacing-md);
     background: var(--color-bg-default); /* Use new variable */
-    border: 1px solid var(--color-border-default); /* Use new variable */
+    /* border: 1px solid var(--color-border-default); */ /* 移除边框 */
+    border: none; /* 显式移除 */
+    /* 直接应用与 .el-card 一致的阴影 */
+    box-shadow: 0 3px 4px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.06) !important;
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: all var(--transition);
 }
 
 .cache-item:hover {
-    border-color: var(--color-accent-default); /* Use new variable */
+    /* border-color: var(--color-accent-default); */ /* 移除边框高亮 */
+    background-color: var(--color-bg-elevated); /* 悬停时改变背景 */
 }
 
 .cache-item.active {
-    border-color: var(--color-accent-default); /* Use new variable */
-    background: rgba(9, 105, 218, 0.05); /* Keep original for now */
+    /* border-color: var(--color-accent-default); */ /* 移除边框高亮 */
+    background: rgba(var(--color-accent-default-rgb, 9, 105, 218), 0.1); /* 使用RGB变量或备用值, 增加透明度 */
+    box-shadow: 0 2px 6px rgba(var(--color-accent-default-rgb, 9, 105, 218), 0.15); /* 激活时加重阴影 */
 }
 
 .cache-basic-info {
@@ -1452,8 +1927,11 @@ html.theme-dark .el-tabs__item {
 }
 
 .cache-name {
-    font-size: var(--font-size-base);
-    font-weight: 500;
+    /* Apply M3 Body Medium */
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-body-medium-weight);
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
     color: var(--color-text-default); /* Use new variable */
 }
 
@@ -1462,7 +1940,11 @@ html.theme-dark .el-tabs__item {
     align-items: center;
     gap: var(--spacing-sm);
     color: var(--color-text-secondary); /* Use new variable */
-    font-size: var(--font-size-sm);
+    /* Apply M3 Label Small */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
 }
 
 .stat-divider {
@@ -1490,8 +1972,11 @@ html.theme-dark .el-tabs__item {
 
 .detail-header h3 {
     margin: 0;
-    font-size: var(--font-size-lg);
-    font-weight: 600;
+    /* Apply M3 Title Large */
+    font-size: var(--m3-font-title-large-size);
+    font-weight: var(--m3-font-title-large-weight);
+    line-height: var(--m3-font-title-large-line-height);
+    letter-spacing: var(--m3-font-title-large-letter-spacing);
     color: var(--color-text-default); /* Use new variable */
 }
 
@@ -1505,7 +1990,11 @@ html.theme-dark .el-tabs__item {
 
 .cache-key {
     font-family: 'Courier New', monospace;
-    font-size: var(--font-size-sm);
+    /* Apply M3 Body Small */
+    font-size: var(--m3-font-body-small-size);
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height);
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
     color: var(--color-text-default); /* Use new variable */
 }
 
@@ -1539,7 +2028,12 @@ html.theme-dark .el-tabs__item {
 .el-table td.el-table__cell {
     background-color: var(--color-bg-default) !important;
     color: var(--color-text-default) !important;
-    border-bottom: 1px solid var(--color-border-subtle) !important; /* Lighter border for rows */
+    border-bottom: 1px solid var(--color-border-subtle) !important;
+    /* Apply M3 Body Medium */
+    font-size: var(--m3-font-body-medium-size) !important;
+    font-weight: var(--m3-font-body-medium-weight) !important;
+    line-height: var(--m3-font-body-medium-line-height) !important;
+    letter-spacing: var(--m3-font-body-medium-letter-spacing) !important;
 }
 
 .el-table--enable-row-hover .el-table__row:hover > td.el-table__cell {
@@ -1613,9 +2107,10 @@ html.theme-dark .el-tabs__item {
 }
 
 .danger-label {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-sm); /* Consider using an M3 Label style if more appropriate */
     color: var(--color-state-error); /* Use new variable */
-    font-weight: 500;
+    /* Apply M3 Medium weight (or Label Large weight) */
+    font-weight: var(--m3-font-label-large-weight);
 }
 
 .delete-button {
@@ -1710,14 +2205,17 @@ html.theme-dark .el-tabs__item {
     padding: var(--spacing-sm);
     margin-bottom: var(--spacing-xs);
     background: var(--color-bg-default); /* Use new variable */
-    border: 1px solid var(--color-border-default); /* Use new variable */
+    /* border: 1px solid var(--color-border-default); */ /* 移除边框 */
+    border: none; /* 显式移除 */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04); /* 更细微的阴影 */
     border-radius: var(--border-radius);
     transition: all var(--transition);
 }
 
 .selected-file-item:hover {
-    border-color: var(--color-accent-default); /* Use new variable */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    /* border-color: var(--color-accent-default); */ /* 移除边框高亮 */
+    background-color: var(--color-bg-elevated); /* 悬停改变背景 */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08); /* 稍微增强阴影 */
 }
 
 .file-info {
@@ -1731,18 +2229,30 @@ html.theme-dark .el-tabs__item {
     color: var(--color-text-default); /* Use new variable */
     margin-bottom: 2px;
     word-break: break-all;
-    font-size: var(--font-size-base);
+    /* Apply M3 Body Medium */
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-body-medium-weight);
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
 }
 
 .file-path {
-    font-size: var(--font-size-sm);
+    /* Apply M3 Body Small */
+    font-size: var(--m3-font-body-small-size);
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height);
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
     color: var(--color-text-secondary); /* Use new variable */
     margin-bottom: 2px;
     word-break: break-all;
 }
 
 .file-size {
-    font-size: var(--font-size-sm);
+    /* Apply M3 Label Small */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
     color: var(--color-text-muted); /* Use new variable */
 }
 
@@ -1824,7 +2334,11 @@ html.theme-dark .el-tabs__item {
 
 .progress-text {
     margin-top: var(--spacing-sm);
-    font-size: var(--font-size-sm);
+    /* Apply M3 Body Small */
+    font-size: var(--m3-font-body-small-size);
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height);
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
     color: var(--color-text-secondary); /* Use new variable */
 }
 
@@ -1833,45 +2347,72 @@ html.theme-dark .el-tabs__item {
 }
 
 .task-count {
-/* Element Plus Select Styles */
+/* Element Plus Select Styles (Trigger based on M3 Outlined) */
 .el-select .el-input__wrapper {
     background-color: var(--color-bg-default) !important;
-    box-shadow: none !important; /* Remove default shadow */
-    border: 1px solid var(--color-border-default) !important;
-    transition: border-color var(--transition-fast) ease !important;
+    border: 1px solid var(--color-border-default) !important; /* Match input border */
+    box-shadow: none !important;
+    border-radius: var(--border-radius) !important; /* Ensure consistent radius */
+    transition: border-color var(--transition-fast), border-width var(--transition-fast) !important; /* Match input transition */
+    padding: 1px; /* Match input padding for layout consistency */
 }
 
-.el-select .el-input__wrapper.is-focused,
+/* M3 Select Hover: Subtle border color change */
 .el-select .el-input__wrapper:hover {
-    border-color: var(--color-accent-default) !important;
+    border-color: var(--color-text-default) !important; /* Darken border slightly on hover */
+}
+
+/* M3 Select Focus: Thicker accent border */
+.el-select .el-input__wrapper.is-focused {
+    border: 2px solid var(--color-accent-default) !important; /* Match input focus */
 }
 
 .el-select .el-input__inner {
     color: var(--color-text-default) !important;
 }
 
-/* Select dropdown */
+/* Select dropdown (M3 Menu Style) - Base (Light Theme) */
 .el-select__popper.el-popper {
-    background-color: var(--color-bg-elevated) !important;
-    border: 1px solid var(--color-border-default) !important;
-    box-shadow: var(--shadow-elevation-2) !important;
+    background-color: var(--color-bg-default) !important; /* Light theme uses default BG */
+    border: 1px solid var(--color-border-subtle) !important; /* Subtle border */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08) !important; /* M3 Elevation 2 */
+    border-radius: var(--border-radius) !important; /* Consistent radius */
+    padding: 4px 0 !important; /* M3 menu padding */
+    overflow: hidden; /* Ensure border radius applies */
 }
 
 .el-select-dropdown__item {
     color: var(--color-text-default) !important;
+    padding: 0 12px !important; /* M3 list item padding */
+    height: 48px !important; /* M3 list item height */
+    line-height: 48px !important; /* Center text vertically */
+    border-radius: 0 !important; /* Remove individual item radius */
+    /* Apply M3 Body Large */
+    font-size: var(--m3-font-body-large-size) !important;
+    font-weight: var(--m3-font-body-large-weight) !important;
+    /* line-height is already handled by fixed height */
+    letter-spacing: var(--m3-font-body-large-letter-spacing) !important;
+    transition: background-color var(--transition-fast);
 }
 
+/* M3 Menu Item Hover/Focus */
 .el-select-dropdown__item.hover,
 .el-select-dropdown__item:hover {
-    background-color: var(--color-bg-subtle) !important;
+    background-color: rgba(var(--color-text-default-rgb), 0.08) !important; /* M3 state layer on hover */
     color: var(--color-text-default) !important;
 }
 
+/* M3 Menu Item Selected */
 .el-select-dropdown__item.selected {
+    background-color: rgba(var(--color-accent-default-rgb), 0.12); /* M3 state layer for selected - REMOVED !important */
     color: var(--color-accent-default) !important;
-    font-weight: bold !important;
+    font-weight: 500 !important; /* M3 uses medium weight, not bold */
 }
-    font-size: var(--font-size-sm);
+    /* Apply M3 Label Small */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
     color: var(--color-text-secondary); /* Use new variable */
 }
 
@@ -1885,30 +2426,38 @@ html.theme-dark .el-tabs__item {
 
 .task-item {
     padding: var(--spacing-md);
-    border: 1px solid var(--color-border-default); /* Use new variable */
+    /* border: 1px solid var(--color-border-default); */ /* 移除边框 */
+    border: none; /* 显式移除 */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04); /* 更细微的阴影 */
     border-radius: var(--border-radius);
-    background: var(--color-bg-subtle); /* Use new variable */
+    background: var(--color-bg-default); /* 背景改回 default 可能更合适 */
     transition: all 0.2s ease;
 }
 
 .task-item:hover {
-    border-color: var(--el-color-primary); /* Use mapped variable */
+    /* border-color: var(--el-color-primary); */ /* 移除边框高亮 */
+    background-color: var(--color-bg-elevated); /* 悬停改变背景 */
     transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08); /* 稍微增强阴影 */
 }
 
 .task-item.task-processing {
-    border-color: var(--el-color-warning); /* Use mapped variable */
-    background: rgba(230, 162, 60, 0.05); /* Keep original for now */
+    /* border-color: var(--el-color-warning); */ /* 移除状态边框 */
+    /* 可以考虑用左侧彩色条代替 */
+    border-left: 3px solid var(--color-state-warning);
+    background: rgba(var(--color-state-warning-rgb, 255, 183, 77), 0.1); /* 使用RGB变量或备用值 */
 }
 
 .task-item.task-completed {
-    border-color: var(--el-color-success); /* Use mapped variable */
-    background: rgba(103, 194, 58, 0.05); /* Keep original for now */
+    /* border-color: var(--el-color-success); */ /* 移除状态边框 */
+    border-left: 3px solid var(--color-state-success);
+    background: rgba(var(--color-state-success-rgb, 129, 199, 132), 0.1); /* 使用RGB变量或备用值 */
 }
 
 .task-item.task-error {
-    border-color: var(--el-color-danger); /* Use mapped variable */
-    background: rgba(245, 108, 108, 0.05); /* Keep original for now */
+    /* border-color: var(--el-color-danger); */ /* 移除状态边框 */
+    border-left: 3px solid var(--color-state-error);
+    background: rgba(var(--color-state-error-rgb, 229, 115, 115), 0.1); /* 使用RGB变量或备用值 */
 }
 
 .task-info {
@@ -1916,7 +2465,11 @@ html.theme-dark .el-tabs__item {
 }
 
 .task-name {
-    font-weight: 500;
+    /* Apply M3 Body Medium */
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-body-medium-weight);
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
     margin-bottom: var(--spacing-xs);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1926,7 +2479,11 @@ html.theme-dark .el-tabs__item {
 .task-details {
     display: flex;
     justify-content: space-between;
-    font-size: var(--font-size-sm);
+    /* Apply M3 Label Small */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
     color: var(--color-text-secondary); /* Use new variable */
 }
 
@@ -1935,7 +2492,11 @@ html.theme-dark .el-tabs__item {
 }
 
 .progress-detail {
-    font-size: var(--font-size-sm);
+    /* Apply M3 Label Small */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
     color: var(--color-text-secondary); /* Use new variable */
     margin-left: var(--spacing-sm);
 }
@@ -2054,3 +2615,232 @@ html.theme-dark .viewer-close-btn:hover {
     }
 }
 
+
+/* 确保漫画卡片使用全局圆角 */
+.manga-card {
+    border-radius: var(--border-radius);
+    /* 可能还需要确保内部图片等也适应圆角 */
+    overflow: hidden; /* 这有助于裁剪内部超出圆角边界的内容 */
+}
+
+/* 如果卡片内有图片，也可能需要设置圆角 (根据实际情况取消注释) */
+/*
+.manga-card img,
+.manga-card .cover-image {
+   border-radius: var(--border-radius);
+}
+*/
+
+
+
+/* 如果上面的无效，并且这些是 Element Plus Tabs 的一部分，可以试试下面的规则（需要根据实际情况调整） */
+/*
+.el-tabs__item {
+     border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+}
+.el-tabs--card > .el-tabs__header .el-tabs__nav {
+    border-radius: var(--border-radius);
+    border: none;
+}
+.el-tabs--card > .el-tabs__header .el-tabs__item {
+     border-radius: var(--border-radius) var(--border-radius) 0 0;
+     border: 1px solid var(--color-border-default);
+     margin-right: 2px;
+}
+.el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
+    border-bottom-color: var(--color-bg-elevated);
+}
+*/
+
+
+
+/* --- 漫画浏览器 - 标签分类样式 (仿 Chrome 标签页) --- */
+
+/* 移除包裹 Tabs 的 Card 组件的边框和内边距 */
+.manga-browser > .el-card {
+    border: none !important;
+    /* box-shadow: none !important; */ /* 注释掉，让全局 .el-card 的阴影生效 */
+    background-color: transparent !important; /* 使其背景透明 */
+}
+.manga-browser > .el-card > .el-card__body {
+    padding: 0 !important; /* 移除内边距 */
+}
+
+/* 标签页导航区域整体 */
+.tag-category-filters .el-tabs--card > .el-tabs__header {
+    /* border-bottom: 1px solid var(--color-border-subtle); */ /* 移除底部边框，实现无缝连接 */
+    border-bottom: none !important; /* 强制移除底部边框 */
+    margin-bottom: 0; /* 移除标签头和内容区的间距 */
+}
+
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__nav {
+    border: none !important; /* 移除导航区域本身的边框 */
+}
+
+/* 单个标签项 (非激活状态) - 移除边框，改用背景区分 */
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__item {
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important; /* 顶部圆角 */
+    /* border: 1px solid var(--color-border-subtle) !important; */ /* 移除所有边框 */
+    border: none !important;
+    background-color: transparent; /* 非激活背景透明 */
+    color: var(--color-text-secondary); /* 非激活文字颜色 */
+    margin-right: 2px; /* 保留标签间距 */
+    transition: all 0.3s ease; /* 过渡效果 */
+    position: relative;
+    padding: 0 16px; /* 调整内边距 */
+    /* bottom: -1px; */ /* 移除 bottom */
+}
+
+/* 第一个标签特殊处理 */
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__item:first-child {
+    /* 无需特殊处理边框 */
+}
+
+/* 最后一个标签特殊处理 */
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__item:last-child {
+     margin-right: 0; /* 移除右侧间距 */
+}
+
+/* 激活状态的标签 */
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
+    background-color: var(--color-bg-default) !important; /* 激活背景色 (与下方内容区域一致) */
+    color: var(--color-text-default) !important; /* 激活文字颜色 (使用默认文本色以保证对比度) */
+    /* Use M3 Medium weight */
+    font-weight: var(--m3-font-weight-medium);
+    border-bottom: 2px solid var(--color-primary) !important; /* 保留下划线作为激活指示器 */
+    /* 移除其他冲突或多余的边框/背景/颜色设置 */
+    position: relative; /* 保留 */
+    z-index: 1; /* 保留 */
+}
+
+/* 鼠标悬停在非激活标签上 */
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__item:not(.is-active):hover {
+    background-color: var(--color-bg-elevated); /* 悬停背景色 */
+    color: var(--color-text-default); /* 悬停文字颜色用默认 */
+}
+
+/* 标签页内容区域 - 移除边框 */
+.tag-category-filters .el-tabs__content {
+    padding: 16px; /* 保留内边距 */
+    background-color: var(--color-bg-default); /* 确保内容区域背景 */
+    /* border: 1px solid var(--color-border-subtle); */ /* 移除边框 */
+    border: none !important; /* 强制移除边框 */
+    border-radius: 0 0 var(--border-radius) var(--border-radius); /* 内容区域只应用底部圆角 */
+    /* margin-top: -1px; */ /* 移除负边距 */
+    position: relative; /* 保留 */
+    z-index: 0; /* 保留 */
+    /* box-shadow: 0 1px 3px rgba(0,0,0,0.06); */ /* 移除标签内容区域的独立阴影 */
+    margin-top: 0 !important; /* 强制移除顶部间距，使其紧贴 */
+}
+
+/* Element Plus Input Number Styles */
+.el-input-number__decrease,
+.el-input-number__increase {
+    background-color: var(--color-bg-elevated) !important; /* 使用抬高背景以便区分 */
+    border-left: 1px solid var(--color-border-default) !important;
+    border-right: 1px solid var(--color-border-default) !important;
+    color: var(--color-text-secondary) !important; /* 图标颜色使用次要文本色 */
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.el-input-number__decrease {
+    border-top-left-radius: var(--border-radius) !important;
+    border-bottom-left-radius: var(--border-radius) !important;
+    border-right: none !important; /* 通常左侧按钮右边框由输入框提供 */
+}
+
+.el-input-number__increase {
+    border-top-right-radius: var(--border-radius) !important;
+    border-bottom-right-radius: var(--border-radius) !important;
+    border-left: 1px solid var(--color-border-default) !important; /* 右侧按钮需要左边框 */
+}
+
+/* 按钮内部图标颜色 */
+.el-input-number__decrease .el-icon,
+.el-input-number__increase .el-icon {
+    color: var(--color-text-secondary) !important;
+    transition: color var(--transition-fast);
+}
+
+/* 悬停状态 */
+.el-input-number__decrease:hover,
+.el-input-number__increase:hover {
+    background-color: var(--bg-tertiary) !important; /* 使用第三级背景或更深的抬高背景 */
+    color: var(--color-text-default) !important; /* 悬停时图标变为主文本色 */
+}
+.el-input-number__decrease:hover .el-icon,
+.el-input-number__increase:hover .el-icon {
+    color: var(--color-text-default) !important;
+}
+
+/* 禁用状态 */
+.el-input-number__decrease.is-disabled,
+.el-input-number__increase.is-disabled {
+    background-color: var(--color-bg-subtle) !important;
+    border-color: var(--color-border-subtle) !important;
+    color: var(--color-text-muted) !important;
+    cursor: not-allowed;
+}
+.el-input-number__decrease.is-disabled .el-icon,
+.el-input-number__increase.is-disabled .el-icon {
+    color: var(--color-text-muted) !important;
+}
+
+/* 确保 InputNumber 内的 Input Wrapper 边框与按钮协调 */
+/* (注意：这可能会覆盖之前的 .el-input__wrapper 规则，需要小心) */
+/* 特别是左右边框可能不需要，因为按钮提供了 */
+.el-input-number .el-input__wrapper {
+    border-radius: 0 !important; /* 中间输入框无圆角 */
+    border-left: none !important;
+    border-right: none !important;
+    padding-left: 5px; /* 微调内边距 */
+    padding-right: 5px;
+}
+
+/* 整体 InputNumber 容器可能需要调整，确保一致性 */
+.el-input-number {
+    border-radius: var(--border-radius) !important; /* 确保整体容器有圆角 */
+    /* border: 1px solid var(--color-border-default); */ /* 容器本身可能不需要边框，由内部元素提供 */
+    overflow: hidden; /* 隐藏内部元素的溢出部分以保持圆角 */
+}
+
+
+/* 深色模式下的特定覆盖 (如果需要的话) */
+/* 通常上面的变量已经处理了深色模式，但可以加固 */
+/*
+html.theme-dark .el-input-number__decrease,
+html.theme-dark .el-input-number__increase {
+     background-color: var(--color-bg-elevated) !important;
+     border-color: var(--color-border-default) !important;
+     color: var(--color-text-secondary) !important;
+}
+
+html.theme-dark .el-input-number__decrease .el-icon,
+html.theme-dark .el-input-number__increase .el-icon {
+     color: var(--color-text-secondary) !important;
+}
+
+html.theme-dark .el-input-number__decrease:hover,
+html.theme-dark .el-input-number__increase:hover {
+     background-color: var(--bg-tertiary) !important;
+     color: var(--color-text-default) !important;
+}
+html.theme-dark .el-input-number__decrease:hover .el-icon,
+html.theme-dark .el-input-number__increase:hover .el-icon {
+    color: var(--color-text-default) !important;
+}
+*/
+
+/* REMOVED - Redundant rule for suffix inner padding, handled by wrapper padding now */
+/*
+.el-input--suffix .el-input__inner {
+    padding-right: 36px !important;
+}
+*/
+
+/* 可以选择性地微调图标本身的边距，但这通常不如调整输入框内边距有效 */
+/*
+.el-input__suffix {
+    margin-left: var(--spacing-xs);
+}
+*/

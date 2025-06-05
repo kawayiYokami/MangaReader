@@ -5,7 +5,7 @@
         <div class="translation-control">
             <el-card>
                 <template #header>
-                    <span>📁 文件选择</span>
+                    <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">folder_open</span> 文件选择</span>
                 </template>
 
                 <!-- 文件选择区域 -->
@@ -14,7 +14,7 @@
 
             <el-card style="margin-top: 16px;">
                 <template #header>
-                    <span>⚙️ 翻译设置</span>
+                    <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">settings</span> 翻译设置</span>
                 </template>
 
                 <!-- 翻译参数设置 -->
@@ -64,7 +64,7 @@
 
             <el-card style="margin-top: 16px;">
                 <template #header>
-                    <div style="text-align: center;">🎯 操作</div>
+                    <div style="text-align: center;"><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">play_arrow</span> 操作</div>
                 </template>
 
                 <!-- 操作按钮 -->
@@ -76,8 +76,8 @@
                             :disabled="translationTasks.length === 0 || taskIsProcessing"
                             :loading="taskIsProcessing"
                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
-                            <span v-if="taskIsProcessing">🔄 翻译中...</span>
-                            <span v-else>🌐 开始翻译</span>
+                            <span style="display: inline-flex; align-items: center; gap: 6px;" v-if="taskIsProcessing"><span class="material-symbols-rounded">autorenew</span> <span>翻译中...</span></span>
+                            <span style="display: inline-flex; align-items: center; gap: 6px;" v-else><span class="material-symbols-rounded">translate</span> <span>开始翻译</span></span>
                         </el-button>
                     </div>
 
@@ -87,7 +87,7 @@
                             @click="stopTranslation"
                             :disabled="false"
                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
-                            ⏹️ 停止翻译
+                            <span style="display: inline-flex; align-items: center; gap: 6px;"><span class="material-symbols-rounded">stop</span> <span>停止翻译</span></span>
                         </el-button>
                     </div>
 
@@ -96,14 +96,14 @@
                             @click="clearTranslationTasks"
                             :disabled="translationTasks.length === 0"
                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
-                            🗑️ 清空任务列表
+                            <span style="display: inline-flex; align-items: center; gap: 6px;"><span class="material-symbols-rounded">delete</span> <span>清空任务列表</span></span>
                         </el-button>
                     </div>
                 </div>
 
                 <!-- 提示信息 -->
                 <div class="notice-box">
-                    <div class="notice-title">💡 翻译说明</div>
+                    <div class="notice-title"><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">lightbulb</span> 翻译说明</div>
                     <ul class="notice-list">
                         <li>文件处理完全在浏览器中进行</li>
                         <li>翻译完成后自动下载结果文件</li>
@@ -119,7 +119,7 @@
             <el-card>
                 <template #header>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>📋 翻译任务</span>
+                        <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">list_alt</span> 翻译任务</span>
                         <span class="task-count"><span v-text="translationTasks.length"></span> 个任务</span>
                     </div>
                 </template>
