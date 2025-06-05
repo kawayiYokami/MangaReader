@@ -1,20 +1,15 @@
 <!-- 漫画压缩页面 -->
 <div class="compression-interface">
-    <!-- 页面标题 -->
-    <div class="welcome-card">
-        <h2>🗜️ 前端漫画压缩器</h2>
-        <p>完全在浏览器中运行的WebP压缩工具，大幅减小文件大小</p>
-    </div>
+    <!-- 采用与翻译页面类似的左右布局 -->
+    <div class="translation-layout"> <!-- 复用翻译页面的布局类 -->
 
-    <div class="compression-layout" style="display: grid; grid-template-columns: 400px 1fr; gap: 20px; align-items: start;">
         <!-- 左侧控制面板 -->
-        <div class="compression-control">
+        <div class="translation-control"> <!-- 复用翻译页面的控制面板类 -->
             <el-card>
                 <template #header>
                     <span>📁 文件选择</span>
                 </template>
-
-                <!-- 文件选择区域 -->
+                <!-- 压缩文件上传组件 -->
                 {% include 'components/widgets/compression-upload.html' %}
             </el-card>
 
@@ -22,34 +17,27 @@
                 <template #header>
                     <span>⚙️ 压缩设置</span>
                 </template>
-
                 <!-- 压缩参数设置 -->
                 <div class="compression-params">
                     <el-form label-width="80px" size="default">
-                        <el-form-item label="压缩模式">
-                            <el-radio-group v-model="compressionSettings.lossless" style="width: 100%;">
-                                <el-radio :value="false" style="width: 100%; margin-bottom: 8px;">
-                                    🎯 有损压缩 (推荐)
-                                </el-radio>
-                                <el-radio :value="true" style="width: 100%;">
-                                    💎 无损压缩
-                                </el-radio>
-                            </el-radio-group>
-                        </el-form-item>
-
-                        <el-form-item label="压缩质量" v-if="!compressionSettings.lossless">
+                        <el-form-item label="压缩质量">
                             <el-slider
                                 v-model="compressionSettings.quality"
-                                :min="10"
+                                :min="50"
                                 :max="100"
                                 :step="5"
                                 show-input
                                 style="width: 100%;">
                             </el-slider>
-                            <div style="font-size: 12px; color: #666; margin-top: 4px;">
-                                10=最小文件，75=推荐值，100=最高质量
-                            </div>
+                             <div style="font-size: 12px; margin-top: 4px;">
+                                输出图片的WebP质量 (50-100)
+                             </div>
                         </el-form-item>
+                        <!-- 移除输出格式选项，直接提示使用WebP -->
+                         <div style="display: flex; align-items: center; margin-bottom: 18px; font-size: var(--el-form-label-font-size); color: var(--el-text-color-regular);">
+                            <label style="width: 80px; text-align: right; padding-right: 12px; color: var(--el-text-color-secondary);">输出格式</label>
+                            <span style="color: var(--color-text-secondary);">WebP (推荐)</span>
+                         </div>
                     </el-form>
                 </div>
             </el-card>
@@ -59,55 +47,66 @@
                     <div style="text-align: center;">🎯 操作</div>
                 </template>
 
-                <!-- 操作按钮 -->
-                <div style="padding: 0;">
-                    <div style="margin-bottom: 8px;">
-                        <el-button
-                            type="primary"
-                            @click="startCompression"
-                            :disabled="compressionTasks.length === 0 || isCompressing"
-                            :loading="isCompressing"
-                            style="width: 100%; height: 40px; display: block; margin: 0 auto;">
-                            <span v-if="isCompressing">🔄 压缩中...</span>
-                            <span v-else>🗜️ 开始压缩</span>
-                        </el-button>
-                    </div>
+                <!-- 操作按钮 (垂直排列) -->
+                 <div style="padding: 0;">
+                     <div style="margin-bottom: 8px;">
+                         <el-button
+                             type="primary"
+                             @click="startCompression"
+                             :disabled="compressionTasks.length === 0 || isCompressing"
+                             :loading="isCompressing"
+                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
+                             <!-- 使用 inline-flex 来垂直居中图标和文字 -->
+                             <span style="display: inline-flex; align-items: center; gap: 6px;">
+                                 <span v-if="isCompressing">🔄</span>
+                                 <span v-if="isCompressing">压缩中...</span>
+                                 <span v-else>🗜️</span>
+                                 <span v-else>开始压缩</span>
+                             </span>
+                         </el-button>
+                     </div>
 
-                    <div style="margin-bottom: 8px;">
-                        <el-button
-                            type="warning"
-                            @click="stopCompression"
-                            :disabled="!isCompressing"
-                            style="width: 100%; height: 40px; display: block; margin: 0 auto;">
-                            ⏹️ 停止压缩
-                        </el-button>
-                    </div>
+                     <div style="margin-bottom: 8px;">
+                         <el-button
+                             type="warning"
+                             @click="stopCompression"
+                             :disabled="!isCompressing"
+                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
+                              <span style="display: inline-flex; align-items: center; gap: 6px;">
+                                 <span>⏹️</span>
+                                 <span>停止压缩</span>
+                             </span>
+                         </el-button>
+                     </div>
 
-                    <div style="margin-bottom: 0;">
-                        <el-button
-                            @click="clearCompressionTasks"
-                            :disabled="compressionTasks.length === 0"
-                            style="width: 100%; height: 40px; display: block; margin: 0 auto;">
-                            🗑️ 清空任务列表
-                        </el-button>
-                    </div>
-                </div>
+                     <div style="margin-bottom: 0;">
+                         <el-button
+                             @click="clearCompressionTasks"
+                             :disabled="compressionTasks.length === 0"
+                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
+                              <span style="display: inline-flex; align-items: center; gap: 6px;">
+                                 <span>🗑️</span>
+                                 <span>清空任务</span>
+                             </span>
+                         </el-button>
+                     </div>
+                 </div>
 
                 <!-- 提示信息 -->
-                <div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 4px; padding: 12px; margin-top: 16px;">
-                    <div style="color: #0369a1; font-size: 12px; font-weight: bold; text-align: center;">💡 压缩说明</div>
-                    <ul style="color: #666; font-size: 11px; margin: 8px 0 0 16px; padding: 0;">
-                        <li>文件处理完全在浏览器中进行</li>
-                        <li>压缩完成后自动下载结果文件</li>
-                        <li>支持25%压缩率预检测</li>
-                        <li>输出为WebP格式压缩包</li>
-                    </ul>
-                </div>
+                 <div class="notice-box" style="margin-top: 16px;">
+                     <div class="notice-title">💡 压缩说明</div>
+                     <ul class="notice-list">
+                         <li>文件处理完全在浏览器中进行</li>
+                         <li>压缩完成后自动下载结果文件</li>
+                         <li>始终使用 WebP 格式进行压缩输出</li>
+                         <li>优化图片大小以节省存储空间</li>
+                     </ul>
+                 </div>
             </el-card>
         </div>
 
         <!-- 右侧任务列表 -->
-        <div class="compression-tasks">
+        <div class="translation-tasks"> <!-- 复用翻译页面的任务列表类 -->
             <el-card>
                 <template #header>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -115,7 +114,7 @@
                         <span class="task-count"><span v-text="compressionTasks.length"></span> 个任务</span>
                     </div>
                 </template>
-
+                <!-- 压缩任务列表组件 -->
                 {% include 'components/widgets/compression-task-list.html' %}
             </el-card>
         </div>

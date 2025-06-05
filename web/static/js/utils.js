@@ -45,6 +45,11 @@ window.UtilsMethods = {
             ElMessage.error('API连接失败: ' + error.message);
         }
     },
+    // 检测是否运行在PyWebView桌面环境中
+    isDesktop() {
+        // 检查由desktop_main.py注入的全局变量或API对象
+        return !!window.PYWEBVIEW_DESKTOP || (!!window.pywebview && !!window.pywebview.api); // Corrected logical AND
+    },
 
     // ==================== 主题管理 ====================
 
@@ -133,7 +138,7 @@ window.UtilsMethods = {
 
     validateFile(file, allowedTypes = ['zip', 'cbz', 'cbr']) {
         if (!file) return false;
-        
+
         const extension = file.name.toLowerCase().split('.').pop();
         return allowedTypes.includes(extension);
     },

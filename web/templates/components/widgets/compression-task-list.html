@@ -19,31 +19,36 @@
             'task-processing': task.status === 'processing',
             'task-completed': task.status === 'completed',
             'task-error': task.status === 'error'
-        }"
-        style="padding: 16px; border: 1px solid #ebeef5; border-radius: 8px; margin-bottom: 12px;">
+        }">
+        <!-- Removed inline style from task-item div -->
 
         <div class="task-info">
-            <div class="task-name" style="font-weight: 500; margin-bottom: 8px;" :title="task.fileName">
+            <div class="task-name" :title="task.fileName">
+                <!-- Removed inline style from task-name div -->
                 <span v-text="task.fileName"></span>
             </div>
-            <div class="task-details" style="font-size: 12px; color: #909399;">
+            <div class="task-details">
+                <!-- Removed inline style from task-details div -->
                 <span class="task-status" v-text="getCompressionTaskStatusText(task.status)"></span>
             </div>
         </div>
 
-        <div class="task-progress" v-if="task.status === 'processing'" style="margin: 12px 0;">
+        <div class="task-progress" v-if="task.status === 'processing'">
+             <!-- Removed inline style margin from task-progress div, handled by task-item padding/margins -->
             <el-progress
                 :percentage="task.progress"
                 :show-text="false"
                 :stroke-width="6">
             </el-progress>
-            <div style="margin-top: 4px; font-size: 12px; color: #666;">
+            <div class="progress-detail" style="margin-top: 4px;">
+                 <!-- Removed inline style color, added progress-detail class -->
                 <span v-text="task.currentStep"></span>
-                <span style="float: right;" v-text="task.progress + '%'"></span>
+                <span style="float: right;" v-text="task.progress + '%'"></span> <!-- Keep float for layout -->
             </div>
         </div>
 
-        <div class="task-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+        <div class="task-actions" style="margin-top: 12px;">
+             <!-- Removed inline style display/justify/align from task-actions, handled by task-item flex -->
             <div class="task-status">
                 <el-tag
                     v-if="task.status === 'completed'"

@@ -87,7 +87,8 @@ window.AppData = {
     // 压缩功能数据
     compressionSettings: {
         lossless: false,  // false=有损压缩, true=无损压缩
-        quality: 75  // 压缩质量
+        quality: 75, // 压缩质量
+        format: 'webp' // 明确默认输出格式为webp
     },
     compressionTasks: [],
     isCompressing: false,

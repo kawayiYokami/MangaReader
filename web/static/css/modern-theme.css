@@ -8,6 +8,7 @@ html.theme-light {
     --color-bg-default: #ffffff;
     --color-bg-subtle: #f6f8fa;
     --color-bg-elevated: #f1f3f4;
+    --bg-tertiary: var(--color-bg-elevated); /* Added tertiary background */
 
     --color-text-default: #24292f;
     --color-text-secondary: #656d76;
@@ -60,64 +61,66 @@ html.theme-light {
     --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 
-/* 深色模式 - 优化配色 */
+/* JetBrains风格深色主题 - 漫画工具优化版 */
 html.theme-dark {
-    --color-bg-default: #121212;
-    --color-bg-subtle: #1e1e1e;
-    --color-bg-elevated: #242424;
+    --color-bg-default: #2d2f33;  /* 暖灰蓝 */
+    --color-bg-subtle: #36393e;   /* 稍浅 */
+    --color-bg-elevated: #40444b; /* 高亮层 */
+    --bg-tertiary: var(--color-bg-elevated); /* Added tertiary background */
 
-    --color-text-default: #e0e0e0;
-    --color-text-secondary: #b0b0b0;
-    --color-text-muted: #757575;
+    --color-text-default: #d1d5db; /* 柔白 */
+    --color-text-secondary: #9ca3af; /* 浅灰 */
+    --color-text-muted: #6b7280;   /* 中灰 */
 
-    --color-border-default: #2c2c2c;
-    --color-border-subtle: #222222;
+    --color-border-default: #3e4145; /* 柔和分割线 */
+    --color-border-subtle: #2d3033;  /* 次级分割线 */
 
-    --color-accent-default: #bb86fc;
-    --color-accent-hover: #a36efc;
-    --color-accent-active: #8a56e6; /* Added active state color */
+    --color-accent-default: #7aa2f7; /* 柔和蓝 */
+    --color-accent-hover: #8dabf8;
+    --color-accent-active: #6a8fd8;
 
-    --color-state-success: #107c10;
-    --color-state-warning: #fce100;
-    --color-state-error: #d13438;
+    --color-state-success: #73c990; /* 柔绿 */
+    --color-state-warning: #e0b354; /* 淡金 */
+    --color-state-error: #f28b82;   /* 粉红 */
 
     /* Element Plus 颜色映射 */
     --el-color-primary: var(--color-accent-default);
     --el-color-success: var(--color-state-success);
     --el-color-warning: var(--color-state-warning);
     --el-color-danger: var(--color-state-error);
-    --el-color-info: var(--color-text-muted);
+    --el-color-info: #64b5f6;
 }
 
 /* 自动模式 - 跟随系统设置 */
 @media (prefers-color-scheme: dark) {
     html:not(.theme-light):not(.theme-dark),
     html.theme-auto {
-        --color-bg-default: #121212;
-        --color-bg-subtle: #1e1e1e;
-        --color-bg-elevated: #242424;
+        --color-bg-default: #2d2f33;  /* 暖灰蓝 */
+        --color-bg-subtle: #36393e;   /* 稍浅 */
+        --color-bg-elevated: #40444b; /* 高亮层 */
+        --bg-tertiary: var(--color-bg-elevated); /* Added tertiary background */
 
-        --color-text-default: #e0e0e0;
-        --color-text-secondary: #b0b0b0;
-        --color-text-muted: #757575;
+        --color-text-default: #d1d5db; /* 柔白 */
+        --color-text-secondary: #9ca3af; /* 浅灰 */
+        --color-text-muted: #6b7280;   /* 中灰 */
 
-        --color-border-default: #2c2c2c;
-        --color-border-subtle: #222222;
+        --color-border-default: #3e4145; /* 柔和分割线 */
+        --color-border-subtle: #2d3033;  /* 次级分割线 */
 
-        --color-accent-default: #bb86fc;
-        --color-accent-hover: #a36efc;
-        --color-accent-active: #8a56e6;
+        --color-accent-default: #7aa2f7; /* 柔和蓝 */
+        --color-accent-hover: #8dabf8;
+        --color-accent-active: #6a8fd8;
 
-        --color-state-success: #107c10;
-        --color-state-warning: #fce100;
-        --color-state-error: #d13438;
+        --color-state-success: #73c990; /* 柔绿 */
+        --color-state-warning: #e0b354; /* 淡金 */
+        --color-state-error: #f28b82;   /* 粉红 */
 
         /* Element Plus 颜色映射 */
         --el-color-primary: var(--color-accent-default);
         --el-color-success: var(--color-state-success);
         --el-color-warning: var(--color-state-warning);
         --el-color-danger: var(--color-state-error);
-        --el-color-info: var(--color-text-muted);
+        --el-color-info: #64b5f6;
     }
 }
 
@@ -137,6 +140,14 @@ body {
     transition: background-color var(--transition), color var(--transition);
 }
 
+/* Base Heading Styles */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text-default);
+  margin-top: 1em; /* Add some default top spacing */
+  margin-bottom: 0.6em; /* Add some default bottom spacing */
+  font-weight: 600; /* Common default bolding */
+  line-height: 1.3; /* Adjust line height for headings */
+}
 /* 主布局 */
 .app-container {
     height: 100vh;
@@ -276,6 +287,7 @@ body {
     background: var(--color-bg-subtle); /* Use new variable */
     transition: background-color var(--transition);
 }
+
 /* Ensure content area has correct dark mode background */
 html.theme-dark .content-area {
     background-color: var(--color-bg-subtle) !important;
@@ -314,7 +326,7 @@ html.theme-dark .content-area {
 }
 /* Dark theme specific styles for welcome card */
 html.theme-dark .welcome-card {
-    background-color: var(--color-bg-default) !important;
+    background: var(--color-bg-default) !important;
     border-color: var(--color-border-default) !important;
 }
 
@@ -743,6 +755,14 @@ html.theme-dark .welcome-card p {
 }
 
 /* Element Plus 组件样式覆盖 */
+/* 确保 Element Plus Card Header 颜色正确 */
+.el-card__header {
+    color: var(--color-text-default) !important; /* 使用 !important 强制覆盖 Element Plus 默认样式 */
+    border-bottom: 1px solid var(--color-border-default) !important; /* 确保边框也使用主题颜色 */
+    /* Element Plus 默认 padding: 18px 20px; 可根据需要保留或修改 */
+    padding: 14px 20px; /* 稍微减小一点垂直内边距 */
+    box-sizing: border-box;
+}
 
 .el-card {
     border: 1px solid var(--color-border-default) !important; /* Use new variable */
@@ -924,6 +944,295 @@ html.theme-dark .el-tabs__item {
 .border { border: 1px solid var(--color-border-default); } /* Use new variable */
 .rounded { border-radius: var(--border-radius); }
 
+/* Specific style for theme setting description text */
+/* Notice Box Styles */
+.notice-box {
+    padding: 12px;
+    margin-top: 16px;
+    border-radius: 4px;
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border-default);
+}
+
+.notice-box .notice-title {
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    color: var(--color-text-default); /* Using default text color for title, can be adjusted */
+    margin-bottom: 8px;
+}
+
+.notice-box .notice-list {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    margin: 0 0 0 16px; /* Adjusted margin for better alignment */
+    padding: 0;
+    list-style-position: outside;
+}
+/* Style for task count display in card headers */
+.task-count {
+  color: var(--color-text-secondary);
+  font-size: 0.9em; /* Slightly smaller font size for visual distinction */
+  margin-left: 8px; /* Add some space from the title */
+}
+/* Cache Management Page Styles */
+.cache-list .cache-name {
+  /* Explicitly set default color, can be removed if inherited is fine */
+  color: var(--color-text-default);
+  font-weight: 500; /* Make name slightly bolder */
+}
+
+.cache-list .stat-text {
+  color: var(--color-text-secondary);
+  font-size: 0.9em;
+}
+
+/* Styles for the cache detail table */
+.cache-detail .el-table .cache-key {
+   /* Explicitly set default color for key */
+   color: var(--color-text-default);
+   /* Add other styles if needed, e.g., font-family for monospace */
+}
+/* File Upload Widget Styles */
+.upload-area-themed {
+  border: 2px dashed var(--color-border-default); /* Use theme variable */
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  transition: all 0.3s;
+  cursor: pointer;
+  background-color: var(--color-bg-subtle); /* Add subtle background */
+}
+
+.upload-area-themed:hover {
+   border-color: var(--color-primary); /* Optional: Highlight border */
+   background-color: var(--color-bg-elevated);
+}
+
+.upload-area-themed.dragover { /* Style when dragging file over */
+    border-color: var(--color-primary);
+    background-color: var(--color-bg-elevated);
+}
+
+.upload-area-themed .el-icon { /* Style the icon inside */
+  color: var(--color-text-muted); /* Use theme variable */
+  /* Size is set via attribute */
+}
+
+/* Define colors for h3/p explicitly here for robustness */
+.upload-area-themed h3 {
+  margin: 16px 0 8px 0;
+  color: var(--color-text-default);
+/* Task List Widget Styles */
+.task-item {
+    border: 1px solid var(--color-border-default);
+    background-color: var(--color-bg-default); /* Ensure background matches theme */
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background-color 0.2s ease-in-out; /* Smooth hover transition */
+}
+.task-item:last-child {
+    margin-bottom: 0;
+}
+
+.task-item:hover {
+    background-color: var(--color-bg-subtle);
+}
+
+.task-item .task-name {
+  color: var(--color-text-default);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-grow: 1; /* Allow name to take up space */
+  margin-right: 16px;
+}
+
+.task-item .task-details {
+  font-size: 0.9em;
+  color: var(--color-text-secondary);
+  white-space: nowrap; /* Prevent wrapping */
+}
+
+.task-item .task-details .task-pages {
+  display: inline-block; /* Ensure spacing works */
+  margin-right: 8px;
+}
+.task-item .task-details .task-status {
+  display: inline-block; /* Ensure spacing works */
+}
+
+.task-item .task-progress {
+    display: flex;
+    align-items: center;
+    min-width: 100px; /* Give progress bar some space */
+    margin: 0 16px;
+}
+
+.task-item .task-progress .el-progress {
+    flex-grow: 1;
+}
+
+.task-item .progress-detail {
+  font-size: 0.85em;
+  color: var(--color-text-secondary);
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.task-item .task-actions {
+    display: flex;
+    align-items: center;
+    white-space: nowrap; /* Prevent wrapping */
+}
+
+/* Manga Card Widget Styles */
+.manga-card {
+    border-radius: 8px;
+    overflow: hidden; /* Ensure children conform */
+    background-color: var(--color-bg-default);
+    position: relative; /* For absolute positioning of page-count */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); /* Softer shadow */
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    display: flex; /* Use flex for vertical layout */
+    flex-direction: column;
+}
+
+.manga-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.1); /* Slightly larger hover shadow */
+}
+
+.manga-card .manga-cover {
+    position: relative;
+    aspect-ratio: 2 / 3; /* Common comic book aspect ratio */
+    background-color: var(--color-bg-subtle); /* Placeholder background */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden; /* Ensure image fits */
+}
+
+.manga-card .cover-image {
+    display: block; /* Remove extra space below image */
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.manga-card .cover-loading .loading-text,
+.manga-card .cover-placeholder .placeholder-icon { /* Style loading text and placeholder icon */
+  color: var(--color-text-secondary);
+  font-size: 0.9em;
+  margin-top: 4px;
+}
+.manga-card .cover-placeholder .placeholder-icon {
+    font-size: 2em; /* Make placeholder icon larger */
+    margin-top: 0;
+}
+
+
+.manga-card .page-count {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background-color: rgba(0, 0, 0, 0.65); /* Semi-transparent dark background */
+  color: #ffffff; /* White text */
+  font-size: 0.75em;
+  padding: 1px 5px; /* Adjust padding */
+  border-radius: 3px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.manga-card .manga-title {
+  color: var(--color-text-default);
+  font-weight: 500;
+  margin: 8px 6px 4px 6px; /* Consistent padding L/R */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center; /* Center title */
+  font-size: 0.9em; /* Slightly smaller title */
+}
+
+.manga-card .manga-tags {
+  margin: 0px 6px 8px 6px; /* Bottom margin, consistent padding L/R */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center; /* Center tags */
+  gap: 4px;
+  min-height: 22px; /* Reserve space even if empty initially */
+  opacity: 0; /* Hidden normally */
+  transition: opacity 0.2s ease-in-out;
+}
+
+.manga-card:hover .manga-tags {
+  opacity: 1; /* Show tags on card hover */
+}
+
+.manga-card .tag {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-size: 0.75em; /* Smaller tags */
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.manga-card .tag:hover {
+  background-color: var(--color-primary-muted);
+  color: var(--color-primary-contrast);
+}
+
+/* Ensure clickable tags have pointer */
+.manga-card .clickable-title,
+.manga-card .clickable-tag {
+    cursor: pointer;
+}
+.manga-card .clickable-title:hover {
+    color: var(--color-primary); /* Highlight title on hover */
+}
+.task-item .task-status {
+    margin-right: 12px; /* Space between status tag and buttons */
+}
+
+/* Optional: Add status indicators if desired */
+/*
+.task-item.task-processing { border-left: 3px solid var(--color-warning); }
+.task-item.task-completed { border-left: 3px solid var(--color-success); }
+.task-item.task-error { border-left: 3px solid var(--color-danger); }
+*/
+}
+
+.upload-area-themed p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.cache-detail .el-table .cache-content {
+  color: var(--color-text-secondary);
+}
+
+.notice-box .notice-list li {
+    margin-bottom: 4px; /* Add some spacing between list items */
+}
+.notice-box .notice-list li:last-child {
+    margin-bottom: 0;
+}
+
+/* Specific style for theme setting description text - ensure this is effective */
+/* Placed here for review, original was around line 928 */
+.theme-setting-description {
+    color: var(--color-text-secondary);
+}
 /* ==================== 缓存管理样式 ==================== */
 
 .cache-management {
@@ -1083,11 +1392,11 @@ html.theme-dark .el-tabs__item {
 
 /* ==================== 极简缓存管理页面样式 ==================== */
 
-/* 缓存管理主容器 */
+/* 缓存管理主容器 - 应用居中 */
 .cache-management-minimal {
-    padding: 0;
-    max-width: 1200px;
-    margin: 0 auto;
+    padding: 0; /* 可能需要根据内容调整 */
+    max-width: 1400px; /* 统一最大宽度 */
+    margin: 0 auto; /* 居中 */
 }
 
 /* 缓存概览 */
@@ -1337,11 +1646,26 @@ html.theme-dark .el-tabs__item {
     border-left: 3px solid #e6a23c; /* Keep original for now */
 }
 
-/* 翻译界面样式 */
+/* 翻译界面样式 - 应用居中 */
 .translation-interface {
     max-width: 1400px;
     margin: 0 auto;
+    /* 保留其他特定于翻译页面的样式（如果需要） */
 }
+
+/* 压缩界面样式 - 应用居中 */
+.compression-interface {
+    max-width: 1400px;
+    margin: 0 auto;
+    /* 保留其他特定于压缩页面的样式（如果需要） */
+}
+
+/* 设置界面样式 - 应用居中 (假设根元素类名为 settings-interface) */
+.settings-interface {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
 
 .translation-layout {
     display: grid;
@@ -1477,6 +1801,21 @@ html.theme-dark .el-tabs__item {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
+}
+
+/* 统一的操作按钮样式 */
+.action-button-wrapper {
+    margin-bottom: 8px; /* 按钮间距 */
+}
+.action-button-wrapper:last-child {
+    margin-bottom: 0; /* 最后一个按钮无下间距 */
+}
+
+.action-button-full {
+    width: 100%;
+    height: 40px;
+    display: block !important; /* 确保块级显示 */
+    margin: 0 auto; /* 水平居中（虽然宽度100%使其不明显，但保持一致） */
 }
 
 .overall-progress {
@@ -1714,3 +2053,4 @@ html.theme-dark .viewer-close-btn:hover {
         font-size: 16px;
     }
 }
+

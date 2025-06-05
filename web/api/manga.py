@@ -318,7 +318,7 @@ async def add_manga_files(
         raise HTTPException(status_code=500, detail=str(e))
 
 # Web版本不支持文件对话框功能，该功能已移除
-# 如需文件选择功能，请使用Electron版本
+# 文件选择功能在此Web版本中不可用
 
 @router.post("/scan-directory")
 @local_only

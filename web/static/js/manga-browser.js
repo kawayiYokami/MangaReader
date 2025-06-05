@@ -504,11 +504,11 @@ window.MangaBrowserMethods = {
 
     // ==================== Web版本说明 ====================
     // Web版本不支持文件选择功能，所有文件操作功能已移除
-    // 如需添加漫画功能，请使用Electron版本
+    // 添加漫画功能在此Web版本中不可用
 
     // 保留空的方法以防止错误，但不执行任何操作
     async handleAddManga(command) {
-        ElMessage.warning('Web版本不支持添加漫画功能，请使用Electron版本');
+        ElMessage.warning('Web版本不支持添加漫画功能。');
     },
 
     async onFilesSelected(event) {
