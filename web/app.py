@@ -111,10 +111,24 @@ async def health_check():
         "version": "1.0.0"
     }
 
+# ==================== 调试端点 ====================
+@app.get("/api/show_routes")
+async def show_routes():
+    """调试接口：显示所有已注册的路由"""
+    routes = []
+    for route in app.routes:
+        routes.append({
+            "path": getattr(route, 'path', 'N/A'),
+            "name": getattr(route, 'name', 'N/A'),
+            "methods": sorted(list(getattr(route, 'methods', {}))) if hasattr(route, 'methods') else 'N/A'
+        })
+    return routes
+# =================================================
+
 # 导入API路由
 try:
     from web.api import manga, translation, cache, settings
-    
+
     # 注册API路由
     app.include_router(manga.router, prefix="/api/manga", tags=["漫画管理"])
     app.include_router(translation.router, prefix="/api/translation", tags=["翻译功能"])

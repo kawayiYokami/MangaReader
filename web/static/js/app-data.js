@@ -74,8 +74,12 @@ window.AppData = {
     translationSettings: {
         sourceLang: 'auto',
         targetLang: 'zh-CN',
-        engine: '智谱',
-        webpQuality: 75  // Google推荐的默认质量
+        translator_type: '智谱', // 重命名以匹配后端
+        zhipuApiKey: '',
+        zhipuModel: 'glm-4-flash',
+        googleApiKey: '',
+        font_name: '', // 重命名以匹配后端
+        availableFonts: [], // 用于存储字体列表
     },
     translationTasks: [],
     generalDragOver: false,  // 通用拖拽状态（保留兼容性）
@@ -129,6 +133,9 @@ window.AppComputed = {
 window.AppLifecycle = {
     mounted() {
 
+        // 首先加载初始设置
+        this.loadInitialSettings();
+
         this.updateThemeState();
         window.addEventListener('themechange', () => {
             this.updateThemeState();
@@ -162,6 +169,14 @@ window.AppLifecycle = {
             this.initCacheManagement();
         }
 
+        // 添加：初始化时加载可用字体列表
+        if (this.fetchAvailableFonts) {
+            console.log('[Mounted] 调用 this.fetchAvailableFonts()'); // 添加日志
+            this.fetchAvailableFonts();
+        } else {
+            console.warn('[Mounted] this.fetchAvailableFonts 未找到'); // 添加警告日志
+        }
+
 
     },
 
@@ -171,4 +186,5 @@ window.AppLifecycle = {
             this.thumbnailObserver.disconnect();
         }
     }
+    // loadInitialSettings 函数已移至 utils.js
 };
