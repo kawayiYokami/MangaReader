@@ -33,10 +33,7 @@ window.MangaBrowserMethods = {
                 ElMessage.success(`加载完成，共 ${this.mangaList.length} 本漫画`);
             }
 
-            // 初始化缩略图加载
-            if (this.mangaList.length > 0) {
-                this.loadThumbnail(this.mangaList[0].file_path);
-            }
+            // 不再自动加载缩略图，等待用户滚动或Intersection Observer触发
         } catch (error) {
             console.error('加载漫画数据失败:', error);
             ElMessage.error('加载漫画数据失败: ' + (error.response?.data?.detail || error.message));
@@ -324,15 +321,11 @@ window.MangaBrowserMethods = {
                 }
             }
 
-            // 使用POST请求发送路径，避免URL编码问题
-            const response = await axios.post('/api/manga/thumbnail', {
-                manga_path: mangaPath,
-                size: 300
-            });
-
-            if (response.data && response.data.thumbnail) {
-                // 缓存缩略图
-                this.thumbnailCache.set(mangaPath, response.data.thumbnail);
+            // 生成缩略图URL，让浏览器自动缓存
+            const thumbnailUrl = await this.generateThumbnailUrl(mangaPath, 300);
+            if (thumbnailUrl) {
+                // 缓存缩略图URL
+                this.thumbnailCache.set(mangaPath, thumbnailUrl);
 
                 // 如果是当前视口内的图片，立即更新显示
                 if (!isPreload) {
@@ -355,6 +348,25 @@ window.MangaBrowserMethods = {
             if (isPreload) {
                 this.preloadQueue.delete(mangaPath);
             }
+        }
+    },
+
+    async generateThumbnailUrl(mangaPath, size) {
+        try {
+            // 使用POST请求触发缩略图生成
+            const response = await axios.post('/api/manga/thumbnail', {
+                manga_path: mangaPath,
+                size: size
+            }, {
+                responseType: 'blob'  // 直接获取文件
+            });
+
+            // 创建临时URL
+            const thumbnailUrl = URL.createObjectURL(response.data);
+            return thumbnailUrl;
+        } catch (error) {
+            console.error('生成缩略图URL失败:', error);
+            return null;
         }
     },
 
@@ -773,13 +785,15 @@ window.MangaBrowserMethods = {
 
     scheduleIdlePreload() {
         requestIdleCallback((deadline) => {
-            // 在浏览器空闲时预加载缩略图
-            if (deadline.timeRemaining() > 10) {
+            // 在浏览器空闲时预加载缩略图，但要求更多空闲时间
+            if (deadline.timeRemaining() > 50) {
                 this.idlePreload();
             }
 
-            // 继续调度下一次空闲预加载
-            this.scheduleIdlePreload();
+            // 继续调度下一次空闲预加载，但间隔更长
+            setTimeout(() => {
+                this.scheduleIdlePreload();
+            }, 5000); // 5秒后再次调度
         });
     },
 

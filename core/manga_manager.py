@@ -51,17 +51,8 @@ class MangaManager(QObject):
         self.current_manga = None
 
         log.info(
-            f"MangaManager初始化完成，当前目录: {config.manga_dir.value}, 漫画数量: {len(self.manga_list)}"
+            f"MangaManager初始化完成，最新目录: {config.manga_dir.value}, 漫画数量: {len(self.manga_list)}"
         )
-
-        if (
-            config.manga_dir.value
-            and os.path.exists(config.manga_dir.value)
-            and os.path.isdir(config.manga_dir.value)
-        ):
-            self.scan_manga_files()
-        elif config.manga_dir.value:
-            log.warning(f"配置文件中的漫画目录不存在或无效: {config.manga_dir.value}")
 
     def set_manga_dir(self, dir_path, force_rescan=False):
         log.info(f"设置漫画目录: {dir_path}")
@@ -329,6 +320,80 @@ class MangaManager(QObject):
                 manga.title = zhconv.convert(manga.title, "zh-hans")
         log.info("作品名和标题翻译完成")
 
+    def analyze_manga_dimensions(self, force_reanalyze: bool = False):
+        """
+        为需要的ZIP漫画进行尺寸分析（只分析ZIP文件，文件夹漫画不需要分析）
+
+        Args:
+            force_reanalyze: 是否强制重新分析（即使已有分析结果）
+        """
+        from core.manga_model import MangaLoader
+        import os
+
+        # 筛选需要分析的ZIP漫画（排除文件夹）
+        need_analysis = []
+        for manga in self.manga_list:
+            # 只分析ZIP文件，跳过文件夹
+            if os.path.isdir(manga.file_path):
+                continue
+            if force_reanalyze or manga.dimension_variance is None:
+                need_analysis.append(manga)
+
+        # DEBUG: 检查漫画列表中的方差数据
+        zip_count = 0
+        analyzed_count = 0
+        for manga in self.manga_list[:10]:  # 只检查前10个
+            if not os.path.isdir(manga.file_path):
+                zip_count += 1
+                if manga.dimension_variance is not None:
+                    analyzed_count += 1
+                log.debug(f"DEBUG ZIP漫画: {os.path.basename(manga.file_path)}, 方差={manga.dimension_variance}, 类型={type(manga.dimension_variance)}")
+
+        log.info(f"DEBUG 统计: 前10个中有{zip_count}个ZIP文件，其中{analyzed_count}个已分析")
+
+        if not need_analysis:
+            log.info("所有ZIP漫画都已有尺寸分析数据，无需重新分析")
+            return 0
+
+        total_zip_count = len([m for m in self.manga_list if not os.path.isdir(m.file_path)])
+        log.info(f"开始为 {len(need_analysis)} 本ZIP漫画进行尺寸分析（总共 {total_zip_count} 本ZIP漫画）")
+
+        analyzed_count = 0
+        failed_count = 0
+
+        for i, manga in enumerate(need_analysis):
+            try:
+                log.info(f"正在分析 ({i+1}/{len(need_analysis)}): {manga.title}")
+
+                # 调用MangaLoader的尺寸分析方法
+                MangaLoader._analyze_manga_dimensions(manga)
+                analyzed_count += 1
+
+                log.debug(f"完成尺寸分析: {manga.file_path}, "
+                         f"方差分数={manga.dimension_variance:.3f}, "
+                         f"可能是漫画={manga.is_likely_manga}")
+
+            except Exception as e:
+                log.error(f"尺寸分析失败 {manga.file_path}: {e}")
+                failed_count += 1
+                # 设置默认值，避免重复分析
+                manga.dimension_variance = 0.0
+                manga.is_likely_manga = True
+
+        log.info(f"尺寸分析完成: 成功分析 {analyzed_count} 本，失败 {failed_count} 本")
+
+        # 更新缓存（保存分析结果）
+        if analyzed_count > 0:
+            try:
+                from core.config import config
+                cache_key = self.manga_list_cache_manager.generate_key(config.manga_dir.value)
+                self.manga_list_cache_manager.set(cache_key, self.manga_list)
+                log.info("已保存尺寸分析结果到缓存")
+            except Exception as e:
+                log.warning(f"保存尺寸分析结果到缓存失败: {e}")
+
+        return analyzed_count
+
     def optimize_tags(self):
         if not config.simplify_chinese.value:  # 访问 config 值时使用 .value
             return
@@ -458,3 +523,13 @@ class MangaManager(QObject):
             self.set_current_manga(found_manga)
             # 访问 config 值时使用 .value
             self.change_page(config.current_page.value)
+
+    def clear_manga_cache(self):
+        """清空漫画列表缓存"""
+        try:
+            cache_key = self.manga_list_cache_manager.generate_key(config.manga_dir.value)
+            self.manga_list_cache_manager.delete(cache_key)
+            log.info("漫画列表缓存已清空")
+        except Exception as e:
+            log.error(f"清空漫画列表缓存失败: {e}")
+            raise

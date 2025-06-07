@@ -1,5 +1,15 @@
 /* 缓存管理界面样式 */
 
+.compression-description {
+    margin-top: 8px;
+    color: #666;
+}
+
+.naming-description {
+    margin-top: 8px;
+    color: #666;
+}
+
 .cache-management-minimal {
     /* 整个缓存管理页面的容器 (极简布局) */
     max-width: 1400px; /* 限制最大宽度 */
@@ -338,19 +348,70 @@
 
 /* 特定单元格样式 - 调整 */
 .custom-cache-table .key-cell {
-    width: 25%; /* 设置 Key 列宽度 */
+    width: 20%; /* 设置 Key 列宽度 */
     /* 直接在单元格应用溢出处理 */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
 }
 .custom-cache-table .content-cell {
-    /* 内容列自动填充剩余宽度 */
+    width: 30%; /* 内容列宽度 */
     /* 移除直接在 content-cell 上的溢出处理，让内部的 .content-with-tags 处理 */
 }
 .custom-cache-table .action-cell {
     width: 80px; /* 保留 Action 列固定宽度 */
     text-align: center;
+}
+
+/* 漫画列表特有的列样式 */
+.custom-cache-table .variance-cell {
+    width: 8%;
+    text-align: center;
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.custom-cache-table .manga-status-cell {
+    width: 8%;
+    text-align: center;
+}
+
+.custom-cache-table .pages-cell {
+    width: 6%;
+    text-align: center;
+}
+
+.custom-cache-table .size-cell {
+    width: 8%;
+    text-align: center;
+}
+
+.custom-cache-table .tags-cell {
+    width: 6%;
+    text-align: center;
+}
+
+/* 方差值颜色样式 */
+.variance-low {
+    color: #67c23a;
+    font-weight: 600;
+}
+
+.variance-medium {
+    color: #e6a23c;
+    font-weight: 600;
+}
+
+.variance-high {
+    color: #f56c6c;
+    font-weight: 600;
+}
+
+/* 文本样式 */
+.text-muted {
+    color: var(--color-text-muted);
+    font-style: italic;
 }
 
 /* 移除之前的溢出处理规则 (原 260-267 行) */
@@ -611,4 +672,246 @@
     .md-button {
         padding: 10px 16px; /* 可选：减小按钮内边距 */
     }
+}
+
+/* ==================== 智能过滤功能样式 ==================== */
+
+/* 统计卡片样式 */
+.stats-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    border-radius: 12px;
+    background: var(--el-bg-color-page);
+    border: 1px solid var(--el-border-color-light);
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.stat-card.clickable {
+    cursor: pointer;
+}
+
+.stat-card.clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: var(--el-border-color);
+}
+
+.stat-card.keep {
+    border-left: 4px solid var(--el-color-success);
+}
+
+.stat-card.remove {
+    border-left: 4px solid var(--el-color-warning);
+}
+
+.stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-right: 16px;
+}
+
+.stat-card.keep .stat-icon {
+    background: var(--el-color-success-light-9);
+    color: var(--el-color-success);
+}
+
+.stat-card.remove .stat-icon {
+    background: var(--el-color-warning-light-9);
+    color: var(--el-color-warning);
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+}
+
+.click-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--el-text-color-placeholder);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.stat-card.clickable:hover .click-hint {
+    opacity: 1;
+}
+
+.click-hint .material-symbols-rounded {
+    font-size: 16px;
+}
+
+/* 文件列表对话框样式 */
+.material-files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.search-section {
+    margin-bottom: 16px;
+}
+
+.search-input {
+    width: 100%;
+}
+
+.list-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--el-bg-color-page);
+    border-radius: 8px;
+    border: 1px solid var(--el-border-color-light);
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+}
+
+.stat-item .material-symbols-rounded {
+    font-size: 18px;
+    color: var(--el-text-color-secondary);
+}
+
+.files-list-container {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--el-text-color-secondary);
+}
+
+.empty-icon {
+    margin-bottom: 16px;
+}
+
+.empty-icon .material-symbols-rounded {
+    font-size: 48px;
+    color: var(--el-text-color-placeholder);
+}
+
+.files-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.file-card {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--el-bg-color-page);
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.file-card:hover {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+}
+
+.file-card.removed {
+    border-left: 3px solid var(--el-color-warning);
+}
+
+.file-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 12px;
+    background: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
+}
+
+.file-card.removed .file-icon {
+    background: var(--el-color-warning-light-9);
+    color: var(--el-color-warning);
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--el-text-color-primary);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-path {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-reason {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--el-color-warning);
+    margin-top: 4px;
+}
+
+.file-reason .material-symbols-rounded {
+    font-size: 14px;
+}
+
+.file-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pagination-section {
+    margin-top: 16px;
+    display: flex;
+    justify-content: center;
 }

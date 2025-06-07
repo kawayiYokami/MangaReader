@@ -88,7 +88,7 @@
                         <div class="progress-text">{{ Math.round(progressPercentage) }}%</div>
                     </div>
 
-                    <!-- 进度滑动条 -->
+                    <!-- 极简滑动条 -->
                     <div class="progress-slider-section">
                         <div class="progress-slider-wrapper">
                             <el-slider
@@ -173,6 +173,9 @@
     <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
+    <!-- 实时翻译功能 -->
+    <script src="/static/js/realtime_translation.js"></script>
+
     <script>
         const { createApp, ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } = Vue;
         const { ElMessage, ElLoading } = ElementPlus;
@@ -244,6 +247,8 @@
                     return circumference - (progressPercentage.value / 100) * circumference;
                 });
 
+
+
                 // ==================== 初始化 ====================
 
                 // 简化的主题消息监听器
@@ -253,9 +258,13 @@
 
                 // 应用CSS变量
                 onMounted(async () => {
-                    // 初始化主题消息监听器
-
-
+                    // 初始化实时翻译
+                    if (typeof RealtimeTranslation !== 'undefined') {
+                        window.realtimeTranslation = new RealtimeTranslation();
+                        console.log('实时翻译模块已初始化');
+                    } else {
+                        console.warn('实时翻译模块未加载');
+                    }
 
                     if (!mangaPath) {
                         ElMessage.error('缺少漫画路径参数');
@@ -430,18 +439,60 @@ nextTick(() => {
                     try {
                         const mode = actualDisplayMode.value;
                         const step = mode === 'double' ? 2 : 1;
-                        const nextPageStart = currentPage.value + step;
+                        const currentPageNum = currentPage.value;
 
-                        // 预加载下一组页面
-                        if (nextPageStart < mangaInfo.total_pages) {
-                            await loadPageImages(nextPageStart, step);
+                        // 预加载前后50页的范围
+                        const preloadRange = 50;
+                        const startPage = Math.max(0, currentPageNum - preloadRange);
+                        const endPage = Math.min(mangaInfo.total_pages - 1, currentPageNum + preloadRange);
+
+                        console.log(`预加载页面范围: ${startPage + 1} - ${endPage + 1}`);
+
+                        // 分批预加载，避免一次性加载太多
+                        const batchSize = 10;
+                        for (let i = startPage; i <= endPage; i += batchSize) {
+                            const batchEnd = Math.min(i + batchSize - 1, endPage);
+
+                            // 异步预加载这一批页面
+                            setTimeout(async () => {
+                                try {
+                                    for (let pageNum = i; pageNum <= batchEnd; pageNum++) {
+                                        if (pageNum !== currentPageNum) {
+                                            await loadPageImages(pageNum, 1);
+                                        }
+                                    }
+                                    console.log(`预加载完成: 第${i + 1}-${batchEnd + 1}页`);
+                                } catch (error) {
+                                    console.log(`预加载批次失败 (${i + 1}-${batchEnd + 1}):`, error);
+                                }
+                            }, (i - startPage) * 100); // 每批间隔100ms
                         }
 
-                        // 预加载上一组页面
-                        const prevPageStart = currentPage.value - step;
-                        if (prevPageStart >= 0) {
-                            await loadPageImages(prevPageStart, step);
+                        // 如果启用了翻译，也预加载翻译
+                        if (translationEnabled.value && window.realtimeTranslation) {
+                            const pagesToTranslate = [];
+                            for (let i = startPage; i <= endPage; i++) {
+                                pagesToTranslate.push(i);
+                            }
+
+                            // 分批请求翻译
+                            const translationBatchSize = 20;
+                            for (let i = 0; i < pagesToTranslate.length; i += translationBatchSize) {
+                                const batch = pagesToTranslate.slice(i, i + translationBatchSize);
+                                setTimeout(async () => {
+                                    try {
+                                        await window.realtimeTranslation.requestTranslation(
+                                            mangaInfo.file_path,
+                                            batch,
+                                            1  // 低优先级，后台翻译
+                                        );
+                                    } catch (error) {
+                                        console.log('预加载翻译失败:', error);
+                                    }
+                                }, i * 50); // 每批间隔50ms
+                            }
                         }
+
                     } catch (error) {
                         // 预加载失败不影响当前显示
                         console.log('预加载失败:', error);
@@ -453,28 +504,44 @@ nextTick(() => {
                 function previousPage() {
                     const step = actualDisplayMode.value === 'double' ? 2 : 1;
                     if (currentPage.value > 0) {
-                        currentPage.value = Math.max(0, currentPage.value - step);
-                        pageInputText.value = (currentPage.value + 1).toString(); // 同步更新输入框
-                        progressSliderValue.value = currentPage.value + 1; // 同步更新滑动条
-                        loadCurrentPage();
+                        const newPage = Math.max(0, currentPage.value - step);
+                        onPageChange(newPage);
                     }
                 }
 
                 function nextPage() {
                     const step = actualDisplayMode.value === 'double' ? 2 : 1;
                     if (currentPage.value < mangaInfo.total_pages - 1) {
-                        currentPage.value = Math.min(mangaInfo.total_pages - 1, currentPage.value + step);
-                        pageInputText.value = (currentPage.value + 1).toString(); // 同步更新输入框
-                        progressSliderValue.value = currentPage.value + 1; // 同步更新滑动条
-                        loadCurrentPage();
+                        const newPage = Math.min(mangaInfo.total_pages - 1, currentPage.value + step);
+                        onPageChange(newPage);
                     }
                 }
 
-                function onPageChange(newPage) {
+                async function onPageChange(newPage) {
                     currentPage.value = newPage;
                     pageInputText.value = (newPage + 1).toString(); // 同步更新输入框文本
                     progressSliderValue.value = newPage + 1; // 同步更新滑动条
                     loadCurrentPage();
+
+                    // 如果启用了翻译，请求翻译当前页面和周围页面
+                    if (translationEnabled.value && window.realtimeTranslation) {
+                        try {
+                            const pagesToTranslate = [];
+                            for (let i = Math.max(0, newPage - 5);
+                                 i <= Math.min(mangaInfo.total_pages - 1, newPage + 5);
+                                 i++) {
+                                pagesToTranslate.push(i);
+                            }
+
+                            await window.realtimeTranslation.requestTranslation(
+                                mangaInfo.file_path,
+                                pagesToTranslate,
+                                5  // 高优先级
+                            );
+                        } catch (error) {
+                            console.log('请求翻译失败:', error);
+                        }
+                    }
                 }
 
                 // 页码输入相关方法
@@ -514,9 +581,7 @@ nextTick(() => {
                     // 滑动条值改变时跳转到对应页面
                     const targetPage = value - 1; // 转换为0-based
                     if (targetPage !== currentPage.value) {
-                        currentPage.value = targetPage;
-                        pageInputText.value = value.toString();
-                        loadCurrentPage();
+                        onPageChange(targetPage);
                     }
                 }
 
@@ -584,17 +649,57 @@ const computedStyle = window.getComputedStyle(img);
                     }
                 }
 
-                function toggleTranslation() {
+                async function toggleTranslation() {
                     translationEnabled.value = !translationEnabled.value;
 
                     if (translationEnabled.value) {
-                        ElMessage.warning('翻译功能未实装，敬请期待！');
-                        // 暂时关闭，等待后续实现
-                        setTimeout(() => {
+                        try {
+                            // 启动实时翻译服务
+                            console.log('启动实时翻译服务...');
+                            const success = await window.realtimeTranslation.startService('智谱');
+
+                            if (success) {
+                                ElMessage.success('实时翻译已启用');
+
+                                // 设置当前漫画
+                                await window.realtimeTranslation.setCurrentManga(
+                                    currentManga.value.file_path,
+                                    currentPageIndex.value
+                                );
+
+                                // 请求翻译当前页面和周围页面
+                                const pagesToTranslate = [];
+                                for (let i = Math.max(0, currentPageIndex.value - 2);
+                                     i <= Math.min(currentManga.value.total_pages - 1, currentPageIndex.value + 2);
+                                     i++) {
+                                    pagesToTranslate.push(i);
+                                }
+
+                                await window.realtimeTranslation.requestTranslation(
+                                    currentManga.value.file_path,
+                                    pagesToTranslate,
+                                    5  // 高优先级
+                                );
+
+                                console.log('实时翻译服务启动成功');
+                            } else {
+                                throw new Error('启动翻译服务失败');
+                            }
+                        } catch (error) {
+                            console.error('启动翻译服务失败:', error);
+                            ElMessage.error('启动翻译服务失败: ' + error.message);
                             translationEnabled.value = false;
-                        }, 1500);
+                        }
                     } else {
-                        console.log('翻译功能已关闭');
+                        try {
+                            // 停止翻译服务
+                            await window.realtimeTranslation.stopService();
+                            ElMessage.info('实时翻译已关闭');
+                            console.log('翻译功能已关闭');
+                        } catch (error) {
+                            console.error('停止翻译服务失败:', error);
+                            ElMessage.warning('停止翻译服务失败: ' + error.message);
+                        }
                     }
                 }
 
@@ -718,7 +823,10 @@ const computedStyle = window.getComputedStyle(img);
                     onImageClick,
                     onImageLoad,
                     onImageError,
-                    toggleFullscreen
+                    toggleFullscreen,
+                    formatProgressTooltip,
+                    onProgressSliderChange,
+                    onProgressSliderInput
                 };
             }
         }).use(ElementPlus).mount('#app');

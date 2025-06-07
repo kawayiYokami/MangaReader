@@ -62,6 +62,10 @@ class MangaInfoResponse(BaseModel):
     last_modified: str
     file_type: str
     file_size: Optional[int] = None
+    # 缓存信息
+    dimension_variance: Optional[float] = None
+    is_likely_manga: Optional[bool] = None
+    page_dimensions: Optional[List[List[int]]] = None
 
 class DirectoryRequest(BaseModel):
     """目录请求模型"""
@@ -150,8 +154,19 @@ async def get_manga_list(interface: CoreInterface = Depends(get_interface)) -> L
     try:
         web_manga_list = interface.get_manga_list()
 
+        # DEBUG: 检查接口层返回的数据
+        for i, web_manga in enumerate(web_manga_list[:5]):  # 只检查前5个
+            log.debug(f"DEBUG API接口层 {i}: title={web_manga.title}, dimension_variance={getattr(web_manga, 'dimension_variance', 'N/A')}, 类型={type(getattr(web_manga, 'dimension_variance', None))}")
+
         manga_list = []
         for web_manga in web_manga_list:
+            dimension_variance = getattr(web_manga, 'dimension_variance', None)
+            is_likely_manga = getattr(web_manga, 'is_likely_manga', None)
+
+            # DEBUG: 检查转换过程
+            if not web_manga.file_path.endswith('/') and len(manga_list) < 5:  # 只检查前5个ZIP文件
+                log.debug(f"DEBUG API转换: file_path={web_manga.file_path}, dimension_variance={dimension_variance}, 类型={type(dimension_variance)}")
+
             manga_list.append(MangaInfoResponse(
                 file_path=web_manga.file_path,
                 title=web_manga.title,
@@ -160,7 +175,10 @@ async def get_manga_list(interface: CoreInterface = Depends(get_interface)) -> L
                 is_valid=web_manga.is_valid,
                 last_modified=web_manga.last_modified,
                 file_type=web_manga.file_type,
-                file_size=web_manga.file_size
+                file_size=web_manga.file_size,
+                dimension_variance=dimension_variance,
+                is_likely_manga=is_likely_manga,
+                page_dimensions=getattr(web_manga, 'page_dimensions', None)
             ))
 
         return manga_list
@@ -429,11 +447,20 @@ async def get_manga_thumbnail_post(
         if not manga_path:
             raise HTTPException(status_code=400, detail="缺少manga_path参数")
 
-        # log.info(f"获取缩略图: {manga_path}")
-        thumbnail_data = interface.get_manga_thumbnail(manga_path, max_size=size)
+        # 获取缩略图文件路径
+        thumbnail_path = interface.thumbnail_cache.get_thumbnail_path(manga_path, size)
 
-        if thumbnail_data:
-            return {"thumbnail": thumbnail_data}
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            # 直接返回文件，让浏览器缓存
+            from fastapi.responses import FileResponse
+            return FileResponse(
+                thumbnail_path,
+                media_type="image/webp",
+                headers={
+                    "Cache-Control": "public, max-age=86400",  # 缓存1天
+                    "ETag": f'"{os.path.getmtime(thumbnail_path)}"'
+                }
+            )
         else:
             raise HTTPException(status_code=404, detail="无法获取漫画缩略图")
 
@@ -549,6 +576,7 @@ async def get_manga_page(
 class BatchCompressionRequest(BaseModel):
     webp_quality: int = 85
     min_compression_ratio: float = 0.25
+    preserve_original_names: bool = True  # 默认保留原始文件名
 
 @router.post("/batch-compress")
 async def batch_compress_manga(
@@ -559,7 +587,8 @@ async def batch_compress_manga(
     try:
         result = interface.batch_compress_manga(
             webp_quality=request.webp_quality,
-            min_compression_ratio=request.min_compression_ratio
+            min_compression_ratio=request.min_compression_ratio,
+            preserve_original_names=request.preserve_original_names
         )
         return result
     except Exception as e:
@@ -574,6 +603,7 @@ async def batch_compress_manga(
 class AutoFilterRequest(BaseModel):
     filter_method: str = "dimension_analysis"
     threshold: float = 0.15
+    force_reanalyze: bool = False
 
 class ApplyFilterRequest(BaseModel):
     filter_results: Dict[str, Any]
@@ -587,7 +617,8 @@ async def auto_filter_preview(
     try:
         result = interface.auto_filter_manga(
             filter_method=request.filter_method,
-            threshold=request.threshold
+            threshold=request.threshold,
+            force_reanalyze=request.force_reanalyze
         )
         return result
     except Exception as e:
@@ -631,18 +662,41 @@ async def cleanup_cache(
 ):
     """清理缓存"""
     try:
-        max_age_days = 30
-        max_cache_size_mb = 500
+        max_age_days = 7  # 默认7天
 
         if request:
-            max_age_days = request.get("max_age_days", 30)
-            max_cache_size_mb = request.get("max_cache_size_mb", 500)
+            max_age_days = request.get("max_age_days", 7)
 
-        interface.thumbnail_cache.cleanup_old_cache(max_age_days, max_cache_size_mb)
+        interface.thumbnail_cache._cleanup_expired_cache(max_age_days)
 
         # 返回清理后的统计信息
         stats = interface.thumbnail_cache.get_cache_stats()
         return {"success": True, "message": "缓存清理完成", "stats": stats}
     except Exception as e:
         log.error(f"清理缓存失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/cache/clear")
+async def clear_cache(interface: CoreInterface = Depends(get_interface)):
+    """清空所有缓存"""
+    try:
+        interface.thumbnail_cache.clear_cache()
+        return {"success": True, "message": "缓存已清空"}
+    except Exception as e:
+        log.error(f"清空缓存失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/cache/clear-manga-list")
+async def clear_manga_list_cache(interface: CoreInterface = Depends(get_interface)):
+    """清空漫画列表缓存并重新扫描"""
+    try:
+        # 清空漫画列表缓存
+        interface.manga_manager.clear_manga_cache()
+
+        # 强制重新扫描
+        interface.manga_manager.scan_manga_files(force_rescan=True)
+
+        return {"success": True, "message": "漫画列表缓存已清空并重新扫描"}
+    except Exception as e:
+        log.error(f"清空漫画列表缓存失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

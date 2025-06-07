@@ -26,7 +26,7 @@
 
             <div class="method-cards">
                 <div
-                    v-for="method in filterMethods"
+                    v-for="method in getFilterMethods()"
                     :key="method.value"
                     class="method-card"
                     :class="{ active: autoFilterDialog.filterMethod === method.value }"
@@ -75,6 +75,25 @@
                         <span class="label-right">宽松</span>
                     </div>
                 </div>
+
+                <!-- 高级选项 -->
+                <div class="advanced-options">
+                    <el-collapse>
+                        <el-collapse-item title="高级选项" name="advanced">
+                            <div class="advanced-content">
+                                <el-checkbox
+                                    v-model="autoFilterDialog.forceReanalyze"
+                                    class="force-reanalyze-option">
+                                    强制重新分析所有漫画的尺寸数据
+                                </el-checkbox>
+                                <p class="option-description">
+                                    如果您发现缓存中的方差值不准确，可以启用此选项重新分析所有漫画。
+                                    <strong>注意：这会花费较长时间。</strong>
+                                </p>
+                            </div>
+                        </el-collapse-item>
+                    </el-collapse>
+                </div>
             </div>
         </div>
 
@@ -95,7 +114,7 @@
             <div v-else-if="autoFilterDialog.previewResults" class="preview-results">
                 <!-- 统计卡片 -->
                 <div class="stats-cards">
-                    <div class="stat-card keep">
+                    <div class="stat-card keep clickable" @click="showFilteredFilesList('keep')">
                         <div class="stat-icon">
                             <span class="material-symbols-rounded">folder</span>
                         </div>
@@ -103,15 +122,23 @@
                             <div class="stat-number" v-text="autoFilterDialog.previewResults.filtered_count"></div>
                             <div class="stat-label">保留文件</div>
                         </div>
+                        <div class="click-hint">
+                            <span class="material-symbols-rounded">visibility</span>
+                            <span>点击查看</span>
+                        </div>
                     </div>
 
-                    <div class="stat-card remove">
+                    <div class="stat-card remove clickable" @click="showFilteredFilesList('remove')">
                         <div class="stat-icon">
                             <span class="material-symbols-rounded">delete</span>
                         </div>
                         <div class="stat-content">
                             <div class="stat-number" v-text="autoFilterDialog.previewResults.removed_count"></div>
                             <div class="stat-label">移除文件</div>
+                        </div>
+                        <div class="click-hint">
+                            <span class="material-symbols-rounded">visibility</span>
+                            <span>点击查看</span>
                         </div>
                     </div>
                 </div>

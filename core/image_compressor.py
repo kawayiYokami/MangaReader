@@ -30,6 +30,7 @@ class ImageCompressor:
         self,
         file_path: str,
         webp_quality: int = 100,
+        preserve_original_names: bool = False,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
     ) -> Dict[str, Any]:
         """
@@ -109,7 +110,7 @@ class ImageCompressor:
                     }
 
                 # 步骤2: 转换图片
-                converted_files = self._convert_images(image_files, output_dir, webp_quality)
+                converted_files = self._convert_images(image_files, output_dir, webp_quality, preserve_original_names)
                 if self.cancel_flag.is_set():
                     return {"success": False, "message": "操作已取消"}
                 
@@ -163,7 +164,7 @@ class ImageCompressor:
         image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp', '.gif'}
         image_files = []
         
-        for root, dirs, files in os.walk(extract_dir):
+        for root, _, files in os.walk(extract_dir):
             for file in files:
                 if Path(file).suffix.lower() in image_extensions:
                     image_files.append(os.path.join(root, file))
@@ -278,8 +279,8 @@ class ImageCompressor:
             log.error(f"🔧 [压缩预检测] 预检测过程出错: {e}")
             return True  # 出错时默认进行压缩
 
-    def _convert_images(self, image_files: List[str], output_dir: str, webp_quality: int) -> List[str]:
-        """转换图片为WebP格式"""
+    def _convert_images(self, image_files: List[str], output_dir: str, webp_quality: int, preserve_original_names: bool = False) -> List[str]:
+        """转换图片为WebP格式（支持多线程）"""
         self._report_progress({
             "status": "converting",
             "message": "开始转换图片格式...",
@@ -289,24 +290,72 @@ class ImageCompressor:
             "converted_images": 0,
             "total_images": len(image_files)
         })
-        
+
+        # 根据图片数量和CPU核心数决定是否使用多线程
+        import multiprocessing
+        import threading
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        cpu_count = multiprocessing.cpu_count()
+        total_images = len(image_files)
+
+        # 如果图片数量少于10张或CPU核心数少于2，使用单线程
+        if total_images < 10 or cpu_count < 2:
+            return self._convert_images_single_thread(image_files, output_dir, webp_quality, preserve_original_names)
+
+        # 使用多线程处理
+        max_workers = min(cpu_count, 16)  # 最多8个线程
+        log.info(f"使用多线程压缩: {max_workers} 个线程处理 {total_images} 张图片")
+
         converted_files = []
-        
-        for i, img_path in enumerate(image_files):
+        converted_files_lock = threading.Lock()
+        progress_lock = threading.Lock()
+        completed_count = [0]  # 使用列表以便在闭包中修改
+
+        def convert_single_image(args):
+            """转换单张图片的工作函数"""
+            i, img_path = args
+
             if self.cancel_flag.is_set():
-                break
-                
+                return None
+
             try:
-                # 读取图片
-                img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+                # 读取图片，忽略颜色配置文件警告
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=UserWarning, message=".*iCCP.*")
+                    img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+
                 if img is None:
                     log.warning(f"无法读取图片: {img_path}")
-                    continue
-                
-                # 生成输出文件名
-                output_filename = f"page_{i+1:03d}.webp"
-                output_path = os.path.join(output_dir, output_filename)
-                
+                    return None
+
+                # 生成输出文件名，确保唯一性
+                if preserve_original_names:
+                    # 保留原始文件名，只改变扩展名
+                    original_name = Path(img_path).stem
+                    output_filename = f"{original_name}.webp"
+
+                    # 检查文件名冲突，如果存在则添加序号
+                    counter = 1
+                    base_output_path = os.path.join(output_dir, output_filename)
+                    output_path = base_output_path
+
+                    while os.path.exists(output_path):
+                        name_without_ext = Path(output_filename).stem
+                        output_filename = f"{name_without_ext}_{counter}.webp"
+                        output_path = os.path.join(output_dir, output_filename)
+                        counter += 1
+
+                        # 防止无限循环
+                        if counter > 1000:
+                            log.error(f"文件名冲突过多，跳过: {original_name}")
+                            return None
+                else:
+                    # 使用序列命名
+                    output_filename = f"page_{i+1:03d}.webp"
+                    output_path = os.path.join(output_dir, output_filename)
+
                 # 设置WebP压缩参数
                 if webp_quality == 100:
                     # 无损压缩 - 使用WebP无损模式
@@ -314,7 +363,109 @@ class ImageCompressor:
                 else:
                     # 有损压缩
                     encode_params = [cv2.IMWRITE_WEBP_QUALITY, webp_quality]
-                
+
+                # 保存为WebP格式，忽略颜色配置文件警告
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=UserWarning, message=".*iCCP.*")
+                    success = cv2.imwrite(output_path, img, encode_params)
+
+                if success:
+                    log.debug(f"转换完成: {os.path.basename(img_path)} -> {output_filename}")
+                    return output_path
+                else:
+                    log.warning(f"转换失败: {img_path}")
+                    return None
+
+            except Exception as e:
+                log.error(f"处理图片 {img_path} 时出错: {e}")
+                return None
+
+        # 使用线程池执行转换
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            future_to_index = {
+                executor.submit(convert_single_image, (i, img_path)): i
+                for i, img_path in enumerate(image_files)
+            }
+
+            # 收集结果
+            for future in as_completed(future_to_index):
+                if self.cancel_flag.is_set():
+                    break
+
+                result = future.result()
+                if result:
+                    with converted_files_lock:
+                        converted_files.append(result)
+
+                # 更新进度
+                with progress_lock:
+                    completed_count[0] += 1
+                    progress = 30 + completed_count[0] / total_images * 40  # 30-70%
+                    self._report_progress({
+                        "status": "converting",
+                        "message": f"正在转换图片 {completed_count[0]}/{total_images} (多线程)",
+                        "progress": int(progress),
+                        "total_steps": 4,
+                        "current_step": 2,
+                        "converted_images": completed_count[0],
+                        "total_images": total_images
+                    })
+
+        if not converted_files:
+            raise Exception("没有成功转换任何图片")
+
+        # 按原始顺序排序（如果使用序列命名）
+        if not preserve_original_names:
+            converted_files.sort()
+
+        log.info(f"多线程转换完成: {len(converted_files)} 个图片")
+
+        self._report_progress({
+            "status": "converted",
+            "message": f"图片转换完成，共 {len(converted_files)} 个",
+            "progress": 70,
+            "total_steps": 4,
+            "current_step": 2,
+            "converted_images": len(converted_files),
+            "total_images": total_images
+        })
+
+        return converted_files
+
+    def _convert_images_single_thread(self, image_files: List[str], output_dir: str, webp_quality: int, preserve_original_names: bool = False) -> List[str]:
+        """单线程转换图片（原始实现）"""
+        converted_files = []
+
+        for i, img_path in enumerate(image_files):
+            if self.cancel_flag.is_set():
+                break
+
+            try:
+                # 读取图片
+                img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+                if img is None:
+                    log.warning(f"无法读取图片: {img_path}")
+                    continue
+
+                # 生成输出文件名
+                if preserve_original_names:
+                    # 保留原始文件名，只改变扩展名
+                    original_name = Path(img_path).stem
+                    output_filename = f"{original_name}.webp"
+                else:
+                    # 使用序列命名
+                    output_filename = f"page_{i+1:03d}.webp"
+                output_path = os.path.join(output_dir, output_filename)
+
+                # 设置WebP压缩参数
+                if webp_quality == 100:
+                    # 无损压缩 - 使用WebP无损模式
+                    encode_params = [cv2.IMWRITE_WEBP_QUALITY, 101]  # 101表示无损模式
+                else:
+                    # 有损压缩
+                    encode_params = [cv2.IMWRITE_WEBP_QUALITY, webp_quality]
+
                 # 保存为WebP格式
                 success = cv2.imwrite(output_path, img, encode_params)
                 if success:
@@ -322,7 +473,7 @@ class ImageCompressor:
                     log.debug(f"转换完成: {os.path.basename(img_path)} -> {output_filename}")
                 else:
                     log.warning(f"转换失败: {img_path}")
-                
+
                 # 报告进度
                 progress = 30 + (i + 1) / len(image_files) * 40  # 30-70%
                 self._report_progress({
@@ -334,26 +485,11 @@ class ImageCompressor:
                     "converted_images": i + 1,
                     "total_images": len(image_files)
                 })
-                
+
             except Exception as e:
                 log.error(f"处理图片 {img_path} 时出错: {e}")
                 continue
-        
-        if not converted_files:
-            raise Exception("没有成功转换任何图片")
-        
-        log.info(f"成功转换 {len(converted_files)} 个图片")
-        
-        self._report_progress({
-            "status": "converted",
-            "message": f"图片转换完成，共 {len(converted_files)} 个",
-            "progress": 70,
-            "total_steps": 4,
-            "current_step": 2,
-            "converted_images": len(converted_files),
-            "total_images": len(image_files)
-        })
-        
+
         return converted_files
     
     def _create_output(self, original_file_path: str, converted_files: List[str]) -> Dict[str, Any]:

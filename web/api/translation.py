@@ -664,6 +664,7 @@ class DownloadBatchRequest(BaseModel):
 class LosslessCompressionRequest(BaseModel):
     file_path: str
     webp_quality: int = 75  # Google推荐的默认质量
+    preserve_original_names: bool = False  # 是否保留原始文件名
 
 class UploadResponse(BaseModel):
     success: bool
@@ -758,7 +759,8 @@ async def compress_lossless(
         # 执行压缩（Web版本仅支持下载模式）
         result = compressor.compress_manga_file(
             file_path=actual_file_path,
-            webp_quality=request.webp_quality
+            webp_quality=request.webp_quality,
+            preserve_original_names=request.preserve_original_names
         )
 
         if not result["success"]:

@@ -1024,6 +1024,27 @@ html.theme-auto .el-select-dropdown__item.selected {
     color: var(--color-text-muted);
 }
 
+/* 高级选项样式 */
+.advanced-options {
+    margin-top: 24px;
+}
+
+.advanced-content {
+    padding: 16px 0;
+}
+
+.force-reanalyze-option {
+    margin-bottom: 12px;
+}
+
+.option-description {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin: 0;
+    padding-left: 24px; /* 对齐复选框文本 */
+}
+
 .label-center {
     font-weight: 500;
     color: var(--el-color-primary);

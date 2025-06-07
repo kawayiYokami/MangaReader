@@ -118,6 +118,52 @@ window.CacheManagementMethods = {
         return cacheType ? cacheType.name : '';
     },
 
+    getTableColspan() {
+        // 计算表格列数
+        let baseColumns = 3; // 键、内容、操作
+        if (this.selectedCacheType === 'manga_list') {
+            baseColumns += 5; // 方差值、可能是漫画、页数、文件大小、标签数
+        } else if (this.selectedCacheType === 'translation') {
+            baseColumns += 1; // 敏感内容
+        }
+        return baseColumns;
+    },
+
+    getDisplayKey(key) {
+        // 对于文件路径，只显示文件名
+        if (this.selectedCacheType === 'manga_list' && key) {
+            const parts = key.split(/[/\\]/);
+            return parts[parts.length - 1] || key;
+        }
+        return key;
+    },
+
+    getVarianceClass(variance) {
+        // 根据方差值返回CSS类名
+        if (typeof variance !== 'number') return '';
+
+        if (variance < 0.1) {
+            return 'variance-low'; // 绿色，很可能是漫画
+        } else if (variance < 0.3) {
+            return 'variance-medium'; // 黄色，可能是漫画
+        } else {
+            return 'variance-high'; // 红色，不太可能是漫画
+        }
+    },
+
+    formatFileSize(bytes) {
+        // 格式化文件大小
+        if (!bytes || bytes === 0) return '未知';
+
+        if (bytes >= 1024 * 1024) {
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        } else if (bytes >= 1024) {
+            return `${(bytes / 1024).toFixed(1)} KB`;
+        } else {
+            return `${bytes} B`;
+        }
+    },
+
     // --- 编辑/添加条目 (旧对话框逻辑，保留用于非和谐映射类型) ---
     editCacheEntry(entry) {
         if (this.selectedCacheType === 'harmonization_map') {
@@ -445,6 +491,7 @@ window.CacheManagementMethods = {
                 visible: false,
                 webpQuality: 85,
                 minCompressionRatio: 0.25,
+                preserveOriginalNames: true,  // 默认保留原始文件名
                 isProcessing: false,
                 progress: 0,
                 status: '',
@@ -502,6 +549,7 @@ window.CacheManagementMethods = {
         this.autoFilterDialog.visible = true;
         this.autoFilterDialog.currentStep = 0;
         this.autoFilterDialog.filterMethod = '';
+        this.autoFilterDialog.forceReanalyze = false;
         this.autoFilterDialog.previewResults = null;
         this.autoFilterDialog.filterResults = null;
         this.autoFilterDialog.isProcessing = false;
@@ -509,7 +557,7 @@ window.CacheManagementMethods = {
     },
 
     // 过滤方法数据
-    get filterMethods() {
+    getFilterMethods() {
         return [
             {
                 value: 'dimension_analysis',
@@ -566,6 +614,93 @@ window.CacheManagementMethods = {
         return `${value.toFixed(2)}`;
     },
 
+    // ==================== 文件列表对话框功能 ====================
+
+    showFilteredFilesList(type) {
+        if (!this.autoFilterDialog.previewResults) return;
+
+        const results = this.autoFilterDialog.previewResults;
+        let files = [];
+        let title = '';
+
+        if (type === 'keep') {
+            files = results.filtered_manga || [];
+            title = `保留的文件 (${files.length} 个)`;
+        } else if (type === 'remove') {
+            files = results.removed_manga || [];
+            title = `将被移除的文件 (${files.length} 个)`;
+        }
+
+        this.filterFilesListDialog.visible = true;
+        this.filterFilesListDialog.title = title;
+        this.filterFilesListDialog.type = type;
+        this.filterFilesListDialog.files = files;
+        this.filterFilesListDialog.searchQuery = '';
+        this.filterFilesListDialog.currentPage = 1;
+    },
+
+    closeFilterFilesListDialog() {
+        this.filterFilesListDialog.visible = false;
+    },
+
+    getFileName(filePath) {
+        if (!filePath) return '';
+        return filePath.split(/[/\\]/).pop();
+    },
+
+    async copyFilePath(filePath) {
+        try {
+            await navigator.clipboard.writeText(filePath);
+            ElMessage.success('文件路径已复制到剪贴板');
+        } catch (error) {
+            console.error('复制失败:', error);
+            ElMessage.error('复制失败');
+        }
+    },
+
+    exportFilesList() {
+        if (!this.filterFilesListDialog.files.length) {
+            ElMessage.warning('没有文件可导出');
+            return;
+        }
+
+        const files = this.filteredFilesList;
+        const type = this.filterFilesListDialog.type;
+
+        // 创建CSV内容
+        let csvContent = 'Title,File Path';
+        if (type === 'remove') {
+            csvContent += ',Reason';
+        }
+        csvContent += '\n';
+
+        files.forEach(file => {
+            const title = (file.title || '').replace(/"/g, '""');
+            const path = (file.file_path || '').replace(/"/g, '""');
+            let row = `"${title}","${path}"`;
+
+            if (type === 'remove' && file.reason) {
+                const reason = file.reason.replace(/"/g, '""');
+                row += `,"${reason}"`;
+            }
+
+            csvContent += row + '\n';
+        });
+
+        // 下载文件
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${type === 'keep' ? '保留' : '移除'}_文件列表.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        ElMessage.success('文件列表已导出');
+    },
+
     // ==================== 批量压缩异步方法 ====================
 
     async startBatchCompression() {
@@ -586,7 +721,8 @@ window.CacheManagementMethods = {
 
             const response = await axios.post('/api/manga/batch-compress', {
                 webp_quality: this.batchCompressionDialog.webpQuality,
-                min_compression_ratio: this.batchCompressionDialog.minCompressionRatio
+                min_compression_ratio: this.batchCompressionDialog.minCompressionRatio,
+                preserve_original_names: this.batchCompressionDialog.preserveOriginalNames
             });
 
             this.batchCompressionDialog.progress = 100;
@@ -626,7 +762,8 @@ window.CacheManagementMethods = {
         try {
             const response = await axios.post('/api/manga/auto-filter-preview', {
                 filter_method: this.autoFilterDialog.filterMethod,
-                threshold: this.autoFilterDialog.threshold
+                threshold: this.autoFilterDialog.threshold,
+                force_reanalyze: this.autoFilterDialog.forceReanalyze
             });
 
             this.autoFilterDialog.previewResults = response.data;

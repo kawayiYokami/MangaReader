@@ -26,6 +26,10 @@ class MangaLogger:
         from core.config import config
         self.logger = logging.getLogger("MangaViewer")
 
+        # 防止重复添加handler
+        if self.logger.handlers:
+            return
+
         # 创建格式化器
         formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 
@@ -38,13 +42,16 @@ class MangaLogger:
         log_dir = ".log"
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-        
+
         log_file_path = os.path.join(log_dir, "manga_viewer.log")
-        # 设置日志文件大小为 10MB，保留5个备份文件
-        file_handler = RotatingFileHandler(log_file_path, maxBytes=10*1024*1024, backupCount=5, encoding='utf-8')
+        # 设置日志文件大小为 1MB，保留5个备份文件
+        file_handler = RotatingFileHandler(log_file_path, maxBytes=1*1024*1024, backupCount=5, encoding='utf-8')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
-        
+
+        # 防止日志传播到根logger
+        self.logger.propagate = False
+
         # 从配置中设置日志等级
         self.set_level(config.log_level.value)
         

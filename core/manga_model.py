@@ -5,8 +5,7 @@ from zipfile import ZipFile
 import cv2
 import numpy as np
 from utils import manga_logger as log
-import threading
-from collections import OrderedDict
+
 from PIL import Image
 
 
@@ -193,15 +192,6 @@ class MangaInfo:
 
 class MangaLoader:
     def __init__(self):
-        self._cache_lock = threading.Lock()
-        self._image_cache = OrderedDict()  # 保持访问顺序
-        self._cache_size_limit = 1024 * 1024 * 1024  # 1GB限制
-        self._current_cache_size = 0
-        self._caching_thread = None
-        self._stop_caching = True
-        self._last_file_path = None  # 记录最后加载的文件路径
-        self._screen_width = 1920  # 默认屏幕宽度
-        self._screen_height = 1080  # 默认屏幕高度
         cv2.ocl.setUseOpenCL(True)
 
     @staticmethod
@@ -315,21 +305,24 @@ class MangaLoader:
             log.warning(f"不支持的文件类型: {file_path}")
             return None
 
-        
-        # 执行页面尺寸分析
-        #if analyze_dimensions and manga and manga.total_pages > 0:
-        #    MangaLoader._analyze_manga_dimensions(manga)
-
         return manga
 
     @staticmethod
     def _analyze_manga_dimensions(manga):
-        """分析漫画页面尺寸，提取尺寸信息"""
+        """分析漫画页面尺寸，提取尺寸信息（仅对ZIP文件进行分析）"""
         if not manga or not manga.pages:
             return
 
+        # 只对ZIP文件进行尺寸分析，文件夹结构的漫画不需要过滤
+        if os.path.isdir(manga.file_path):
+            log.debug(f"跳过文件夹漫画的尺寸分析: {manga.file_path}")
+            # 文件夹漫画默认认为是有效漫画
+            manga.dimension_variance = None  # 设置为None表示不需要分析
+            manga.is_likely_manga = True
+            return
+
         try:
-            log.info(f"开始分析页面尺寸: {manga.file_path}")
+            log.info(f"开始分析ZIP漫画页面尺寸: {manga.file_path}")
 
             # 采样策略：对于页数较多的漫画，采样分析以提高性能
             total_pages = len(manga.pages)
@@ -431,161 +424,19 @@ class MangaLoader:
             log.debug(f"获取文件夹页面尺寸失败 {image_path}: {e}")
             return None, None
 
-    def _get_image_size(self, image):
-        """估算图像内存占用"""
-        if isinstance(image, np.ndarray):
-            return image.nbytes
-        return image.width * image.height * len(image.mode)
 
-    def _add_to_cache(self, page_index, image):
-        """线程安全地添加图像到缓存"""
-        with self._cache_lock:
-            if page_index in self._image_cache:
-                return False
-
-            img_size = self._get_image_size(image)
-
-            # 释放空间直到足够
-            while (
-                self._current_cache_size + img_size > self._cache_size_limit
-                and self._image_cache
-            ):
-                oldest_key, oldest_img = self._image_cache.popitem(last=False)
-                self._current_cache_size -= self._get_image_size(oldest_img)
-
-            # 添加新图像
-            self._image_cache[page_index] = image
-            self._current_cache_size += img_size
-            return True
-
-    def start_precaching(self, manga):
-        """启动后台预缓存线程"""
-        self._stop_caching = False
-        self._caching_thread = threading.Thread(
-            target=self._cache_entire_manga, args=(manga,), daemon=True
-        )
-        self._caching_thread.start()
-
-    def clear_cache(self):
-        """清空所有缓存"""
-        with self._cache_lock:
-            self._stop_caching = True
-            self._image_cache.clear()
-            self._current_cache_size = 0
-            self._last_file_path = None  # 新增这行，清空最后加载的文件路径记录
 
     def get_page_image(self, manga, page_index):
-        """获取指定页面的漫画图像(优先从缓存读取)"""
-        # 先检查是否需要清空缓存（不加锁）
-        if hasattr(self, "_last_file_path") and self._last_file_path != manga.file_path:
-            log.info(f"切换漫画，清空缓存: {self._last_file_path} -> {manga.file_path}")
-            self.clear_cache()  # 清空缓存
-            self._last_file_path = manga.file_path  # 更新文件路径
-
-        # 加锁检查缓存
-        with self._cache_lock:
-            if page_index in self._image_cache:
-                return self._image_cache[page_index]
-
-        # 获取当前屏幕分辨率
-        try:
-            import screeninfo
-            monitors = screeninfo.get_monitors()
-            if monitors:
-                self._screen_width = monitors[0].width
-                self._screen_height = monitors[0].height
-        except Exception as e:
-            log.warning(f"获取屏幕分辨率失败: {str(e)}")
-
-        # 缓存未命中则从ZIP读取并缓存整本漫画
-        if manga.total_pages > 0 and self._stop_caching:
-            # 启动后台线程缓存整本漫画
-            self.start_precaching(manga)
-
-        # 返回当前请求的页面
+        """获取指定页面的漫画图像"""
         # 根据漫画类型调用不同的图像获取方法
         if os.path.isdir(manga.file_path):
             image = MangaLoader._get_page_image_from_folder(manga, page_index)
         else: # 默认为ZIP文件
             image = MangaLoader._get_page_image_from_zip(manga, page_index)
 
-        if image is not None and (isinstance(image, np.ndarray) and np.any(image)):
-            self._add_to_cache(page_index, image)
         return image
 
-    def _cache_entire_manga(self, manga):
-        """后台线程缓存整本漫画，按2倍屏幕尺寸缩放图像"""
-        if not manga or not manga.file_path:
-            self._is_caching = False
-            return
 
-        log.info(f"开始缓存漫画: {manga.file_path}")
-        cached_pages = 0
-
-        # 获取屏幕分辨率（使用类属性存储的值）
-        screen_width = self._screen_width
-        screen_height = self._screen_height
-
-        # 计算缓存尺寸上限（屏幕尺寸的2倍）
-        target_width_limit = screen_width * 1 if screen_width > 0 else 1
-        target_height_limit = screen_height * 1 if screen_height > 0 else 1
-
-        for i in range(manga.total_pages):
-            # 检查是否应该停止缓存（漫画已切换或收到停止信号）
-            if self._stop_caching or (
-                hasattr(self, "_last_file_path")
-                and self._last_file_path != manga.file_path
-            ):
-                log.info(f"停止缓存: 漫画已切换或收到停止信号")
-                self.clear_cache()  # 清空缓存
-                self._stop_caching = True
-                break
-
-            if i in self._image_cache:
-                continue
-
-            # 获取原始图像数据
-            # 根据漫画类型调用不同的图像获取方法
-            if os.path.isdir(manga.file_path):
-                image = MangaLoader._get_page_image_from_folder(manga, i)
-            else: # 默认为ZIP文件
-                image = MangaLoader._get_page_image_from_zip(manga, i)
-
-            if not isinstance(image, np.ndarray) or not np.any(image):
-                log.warning(f"页面 {i+1}: 获取无效图像")
-                continue
-
-            # 获取图像原始尺寸
-            height, width = image.shape[:2]
-
-            # 判断是否需要缩放
-            if width > target_width_limit or height > target_height_limit:
-                # 计算缩放比例
-                scale_factor = 1.0 / max(
-                    width / target_width_limit,
-                    height / target_height_limit
-                )
-                new_width = int(width * scale_factor)
-                new_height = int(height * scale_factor)
-
-                # 使用三次插值算法缩放图像
-                image = cv2.resize(
-                    image,
-                    (new_width, new_height),
-                    interpolation=cv2.INTER_AREA
-                )
-
-            # 尝试添加到缓存
-            if self._add_to_cache(i, image):
-                cached_pages += 1
-
-        # 更新缓存状态并记录结果
-        with self._cache_lock:
-            log.info(f"缓存完成: {cached_pages}/{manga.total_pages}页")
-            log.info(
-                f"占用内存: {self._current_cache_size / (self._cache_size_limit):.2f}GB"
-            )
-            self._stop_caching = True
 
     @staticmethod
     def _get_page_image_from_zip(manga, page_index):

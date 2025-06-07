@@ -102,6 +102,11 @@ async def manga_viewer():
     with open("web/templates/viewer.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
+@app.get("/cache", response_class=HTMLResponse)
+async def cache_management(request: Request):
+    """缓存管理页面"""
+    return templates.TemplateResponse("index.html", {"request": request})
+
 @app.get("/health")
 async def health_check():
     """健康检查接口"""
@@ -127,14 +132,15 @@ async def show_routes():
 
 # 导入API路由
 try:
-    from web.api import manga, translation, cache, settings
+    from web.api import manga, translation, cache, settings, realtime_translation
 
     # 注册API路由
     app.include_router(manga.router, prefix="/api/manga", tags=["漫画管理"])
     app.include_router(translation.router, prefix="/api/translation", tags=["翻译功能"])
     app.include_router(cache.router, prefix="/api/cache", tags=["缓存管理"])
     app.include_router(settings.router, prefix="/api/settings", tags=["设置管理"])
-    
+    app.include_router(realtime_translation.router, prefix="/api/realtime-translation", tags=["实时翻译"])
+
     log.info("API路由注册完成")
     
 except ImportError as e:

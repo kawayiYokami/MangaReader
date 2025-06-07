@@ -362,7 +362,7 @@ class MangaTranslatorDesktop:
             log.info(f"Window instance after creation: {self.window}")
 
             log.info("🎉 Starting PyWebView event loop...")
-            webview.start(debug=False) # 启用调试模式
+            webview.start(debug=True) # 启用调试模式
 
             log.info("👋 Desktop application closed.")
             return True

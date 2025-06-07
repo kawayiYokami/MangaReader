@@ -91,19 +91,31 @@
                     <tr class="cache-table-header-row">
                         <th class="cache-table-header-cell">键</th>
                         <th class="cache-table-header-cell">内容</th>
+                        <!-- 漫画列表特有的列 -->
+                        <template v-if="selectedCacheType === 'manga_list'">
+                            <th class="cache-table-header-cell">方差值</th>
+                            <th class="cache-table-header-cell">可能是漫画</th>
+                            <th class="cache-table-header-cell">页数</th>
+                            <th class="cache-table-header-cell">文件大小</th>
+                            <th class="cache-table-header-cell">标签数</th>
+                        </template>
+                        <!-- 翻译缓存特有的列 -->
+                        <template v-if="selectedCacheType === 'translation'">
+                            <th class="cache-table-header-cell">敏感内容</th>
+                        </template>
                         <th class="cache-table-header-cell action-cell">操作</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-if="filteredCacheEntries.length === 0 && !isLoadingEntries">
-                        <td colspan="3" class="no-data-cell">
+                        <td :colspan="getTableColspan()" class="no-data-cell">
                             <!-- 可以放入一个空状态组件或文本 -->
                             没有找到匹配的缓存条目。
                         </td>
                     </tr>
                     <tr v-for="entry in filteredCacheEntries" :key="entry.key" class="cache-table-row">
                         <td class="cache-table-cell key-cell">
-                            <span class="cache-key" v-text="entry.key" :title="entry.key"></span>
+                            <span class="cache-key" v-text="getDisplayKey(entry.key)" :title="entry.key"></span>
                         </td>
                         <td class="cache-table-cell content-cell">
                             <div class="content-with-tags">
@@ -117,6 +129,46 @@
                                 </el-tag>
                             </div>
                         </td>
+                        <!-- 漫画列表特有的列 -->
+                        <template v-if="selectedCacheType === 'manga_list'">
+                            <td class="cache-table-cell variance-cell">
+                                <span v-if="entry.dimension_variance === 'N/A'"
+                                      class="text-muted">不适用</span>
+                                <span v-else-if="typeof entry.dimension_variance === 'number'"
+                                      :class="getVarianceClass(entry.dimension_variance)"
+                                      v-text="entry.dimension_variance.toFixed(3)">
+                                </span>
+                                <span v-else-if="entry.dimension_variance === null || entry.dimension_variance === undefined"
+                                      class="text-muted">未分析</span>
+                                <span v-else class="text-muted" v-text="entry.dimension_variance"></span>
+                            </td>
+                            <td class="cache-table-cell manga-status-cell">
+                                <el-tag
+                                    :type="entry.is_likely_manga ? 'success' : 'warning'"
+                                    size="small"
+                                    v-text="entry.is_likely_manga ? '是' : '否'">
+                                </el-tag>
+                            </td>
+                            <td class="cache-table-cell pages-cell">
+                                <span v-text="entry.total_pages || 0"></span>
+                            </td>
+                            <td class="cache-table-cell size-cell">
+                                <span v-text="formatFileSize(entry.file_size || 0)"></span>
+                            </td>
+                            <td class="cache-table-cell tags-cell">
+                                <span v-text="entry.tags_count || 0"></span>
+                            </td>
+                        </template>
+                        <!-- 翻译缓存特有的列 -->
+                        <template v-if="selectedCacheType === 'translation'">
+                            <td class="cache-table-cell">
+                                <el-tag
+                                    :type="entry.is_sensitive ? 'warning' : 'success'"
+                                    size="small"
+                                    v-text="entry.is_sensitive ? '是' : '否'">
+                                </el-tag>
+                            </td>
+                        </template>
                         <td class="cache-table-cell action-cell">
                             <el-button
                                 size="small"

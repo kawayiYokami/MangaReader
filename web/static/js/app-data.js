@@ -88,6 +88,7 @@ window.AppData = {
         visible: false,
         webpQuality: 85,
         minCompressionRatio: 0.25,
+        preserveOriginalNames: true,  // 默认保留原始文件名
         selectedFiles: [],
         selectAll: false,
         isProcessing: false,
@@ -103,6 +104,7 @@ window.AppData = {
         currentStep: 0, // 0: 选择方法, 1: 预览结果, 2: 应用过滤
         filterMethod: '',
         threshold: 0.15,
+        forceReanalyze: false, // 强制重新分析选项
         isPreviewing: false,
         previewResults: null,
         isProcessing: false,
@@ -110,6 +112,16 @@ window.AppData = {
         status: '',
         progressText: '',
         filterResults: null
+    },
+
+    // 过滤文件列表对话框
+    filterFilesListDialog: {
+        visible: false,
+        title: '',
+        type: '', // 'keep' 或 'remove'
+        files: [],
+        searchQuery: '',
+        currentPage: 1
     },
 
     // 压缩警告对话框
@@ -202,6 +214,32 @@ window.AppComputed = {
     // 漫画总数计算属性
     totalMangaCount() {
         return this.mangaList ? this.mangaList.length : 0;
+    },
+
+    // 过滤文件列表（基于搜索）
+    filteredFilesList() {
+        if (!this.filterFilesListDialog.searchQuery) {
+            return this.filterFilesListDialog.files;
+        }
+
+        const query = this.filterFilesListDialog.searchQuery.toLowerCase();
+        return this.filterFilesListDialog.files.filter(file => {
+            const title = (file.title || '').toLowerCase();
+            const path = (file.file_path || '').toLowerCase();
+            return title.includes(query) || path.includes(query);
+        });
+    },
+
+    // 分页文件列表
+    paginatedFilesList() {
+        const start = (this.filterFilesListDialog.currentPage - 1) * this.filesPerPage;
+        const end = start + this.filesPerPage;
+        return this.filteredFilesList.slice(start, end);
+    },
+
+    // 每页文件数
+    filesPerPage() {
+        return 20;
     }
 };
 

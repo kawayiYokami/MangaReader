@@ -27,6 +27,7 @@ import json
 # 导入core模块
 from core.manga_manager import MangaManager
 from core.manga_model import MangaInfo, MangaLoader
+from core.thumbnail_cache import ThumbnailCache
 from core.config import config
 from core.cache_factory import get_cache_factory_instance
 from utils import manga_logger as log
@@ -75,269 +76,11 @@ class CoreInterfaceError(Exception):
         super().__init__(self.message)
 
 
-class ThumbnailCacheManager:
-    """缩略图缓存管理器"""
 
-    def __init__(self, cache_dir: Optional[str] = None):
-        # 设置缓存目录 - 使用更持久的位置
-        if cache_dir:
-            self.cache_dir = Path(cache_dir)
-        else:
-            # 在Windows上使用AppData，在其他系统上使用用户目录
-            if os.name == 'nt':  # Windows
-                app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
-                self.cache_dir = Path(app_data) / "MangaReader" / "thumbnails"
-            else:  # Linux/macOS
-                self.cache_dir = Path.home() / ".manga_reader" / "thumbnails"
 
-        # 创建缓存目录
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # 元数据文件
-        self.metadata_file = self.cache_dir / "metadata.json"
-        self.metadata = self._load_metadata()
 
-        # 缓存统计
-        self.cache_stats = {
-            'hits': 0,
-            'misses': 0,
-            'generated': 0
-        }
 
-        log.info(f"缩略图缓存目录: {self.cache_dir}")
-        log.info(f"缓存元数据: {len(self.metadata)} 个条目")
-
-    def _load_metadata(self) -> Dict[str, Any]:
-        """加载缓存元数据"""
-        try:
-            if self.metadata_file.exists():
-                with open(self.metadata_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except Exception as e:
-            log.warning(f"加载缓存元数据失败: {e}")
-        return {}
-
-    def _save_metadata(self):
-        """保存缓存元数据"""
-        try:
-            with open(self.metadata_file, 'w', encoding='utf-8') as f:
-                json.dump(self.metadata, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            log.error(f"保存缓存元数据失败: {e}")
-
-    def _get_cache_key(self, manga_path: str) -> str:
-        """生成缓存键"""
-        # 使用文件路径的MD5作为缓存键
-        return hashlib.md5(manga_path.encode('utf-8')).hexdigest()
-
-    def _get_cache_path(self, cache_key: str, size: int) -> Path:
-        """获取缓存文件路径"""
-        return self.cache_dir / f"{cache_key}_{size}.webp"
-
-    def get_thumbnail(self, manga_path: str, size: int = 300) -> Optional[str]:
-        """获取缩略图，优先从缓存读取"""
-        try:
-            # 检查文件是否存在
-            if not os.path.exists(manga_path):
-                return None
-
-            cache_key = self._get_cache_key(manga_path)
-            cache_path = self._get_cache_path(cache_key, size)
-
-            # 获取文件修改时间
-            file_mtime = os.path.getmtime(manga_path)
-
-            # 检查缓存是否有效
-            if cache_path.exists() and cache_key in self.metadata:
-                cached_mtime = self.metadata[cache_key].get('mtime', 0)
-                cached_size = self.metadata[cache_key].get('size', 0)
-
-                if cached_mtime == file_mtime and cached_size == size:
-                    # 缓存命中
-                    self.cache_stats['hits'] += 1
-                    # 更新访问时间
-                    self.metadata[cache_key]['last_accessed'] = time.time()
-                    return self._load_thumbnail_from_cache(cache_path)
-
-            # 缓存未命中
-            self.cache_stats['misses'] += 1
-            # 缓存无效或不存在，生成新的缩略图
-            return self._generate_and_cache_thumbnail(manga_path, cache_key, size, file_mtime)
-
-        except Exception as e:
-            log.error(f"获取缩略图失败 {manga_path}: {e}")
-            return None
-
-    def _load_thumbnail_from_cache(self, cache_path: Path) -> str:
-        """从缓存文件加载缩略图"""
-        import base64
-
-        with open(cache_path, 'rb') as f:
-            image_data = f.read()
-
-        image_base64 = base64.b64encode(image_data).decode('utf-8')
-        return f"data:image/webp;base64,{image_base64}"
-
-    def _generate_and_cache_thumbnail(self, manga_path: str, cache_key: str, size: int, file_mtime: float) -> Optional[str]:
-        """生成并缓存缩略图"""
-        try:
-            # 这里需要访问MangaLoader来生成缩略图
-            # 我们将在CoreInterface中调用这个方法
-            return None
-        except Exception as e:
-            log.error(f"生成缩略图失败 {manga_path}: {e}")
-            return None
-
-    def cleanup_old_cache(self, max_age_days: int = 30, max_cache_size_mb: int = 500):
-        """清理过期和过大的缓存"""
-        try:
-            import time
-            current_time = time.time()
-            max_age_seconds = max_age_days * 24 * 60 * 60
-            max_cache_size_bytes = max_cache_size_mb * 1024 * 1024
-
-            # 收集缓存文件信息
-            cache_files = []
-            total_size = 0
-
-            for cache_file in self.cache_dir.glob("*.webp"):
-                try:
-                    stat = cache_file.stat()
-                    cache_files.append({
-                        'path': cache_file,
-                        'size': stat.st_size,
-                        'mtime': stat.st_mtime,
-                        'atime': stat.st_atime
-                    })
-                    total_size += stat.st_size
-                except OSError:
-                    continue
-
-            # 按访问时间排序（最旧的在前）
-            cache_files.sort(key=lambda x: x['atime'])
-
-            removed_count = 0
-            removed_size = 0
-
-            # 删除过期文件
-            for file_info in cache_files[:]:
-                if current_time - file_info['atime'] > max_age_seconds:
-                    try:
-                        file_info['path'].unlink()
-                        cache_files.remove(file_info)
-                        removed_count += 1
-                        removed_size += file_info['size']
-                        total_size -= file_info['size']
-                    except OSError:
-                        continue
-
-            # 如果缓存仍然过大，删除最旧的文件
-            while total_size > max_cache_size_bytes and cache_files:
-                oldest_file = cache_files.pop(0)
-                try:
-                    oldest_file['path'].unlink()
-                    removed_count += 1
-                    removed_size += oldest_file['size']
-                    total_size -= oldest_file['size']
-                except OSError:
-                    continue
-
-            # 清理元数据中的无效条目
-            valid_keys = set()
-            for cache_file in self.cache_dir.glob("*.webp"):
-                # 从文件名提取cache_key
-                filename = cache_file.stem
-                if '_' in filename:
-                    cache_key = filename.split('_')[0]
-                    valid_keys.add(cache_key)
-
-            # 移除无效的元数据条目
-            invalid_keys = set(self.metadata.keys()) - valid_keys
-            for key in invalid_keys:
-                del self.metadata[key]
-
-            # 保存更新后的元数据
-            if invalid_keys or removed_count > 0:
-                self._save_metadata()
-
-            if removed_count > 0:
-                log.info(f"缓存清理完成: 删除 {removed_count} 个文件，释放 {removed_size / 1024 / 1024:.2f} MB")
-            else:
-                log.info("缓存清理完成: 无需删除文件")
-
-        except Exception as e:
-            log.error(f"缓存清理失败: {e}")
-
-    def get_cache_stats(self) -> Dict[str, Any]:
-        """获取缓存统计信息"""
-        try:
-            # 计算缓存大小
-            total_size = 0
-            file_count = 0
-            for cache_file in self.cache_dir.glob("*.webp"):
-                try:
-                    total_size += cache_file.stat().st_size
-                    file_count += 1
-                except OSError:
-                    continue
-
-            return {
-                'cache_dir': str(self.cache_dir),
-                'total_files': file_count,
-                'total_size_mb': total_size / 1024 / 1024,
-                'metadata_entries': len(self.metadata),
-                'cache_hits': self.cache_stats['hits'],
-                'cache_misses': self.cache_stats['misses'],
-                'cache_generated': self.cache_stats['generated'],
-                'hit_rate': self.cache_stats['hits'] / max(1, self.cache_stats['hits'] + self.cache_stats['misses'])
-            }
-        except Exception as e:
-            log.error(f"获取缓存统计失败: {e}")
-            return {}
-
-    def clear_cache(self):
-        """清空所有缓存"""
-        try:
-            import shutil
-            if self.cache_dir.exists():
-                shutil.rmtree(self.cache_dir)
-                self.cache_dir.mkdir(parents=True, exist_ok=True)
-            self.metadata = {}
-            self._save_metadata()
-            log.info("缩略图缓存已清空")
-        except Exception as e:
-            log.error(f"清空缓存失败: {e}")
-
-    def cleanup_old_cache(self, max_age_days: int = 30):
-        """清理过期缓存"""
-        try:
-            import time
-            current_time = time.time()
-            max_age_seconds = max_age_days * 24 * 3600
-
-            removed_count = 0
-            for cache_file in self.cache_dir.glob("*.webp"):
-                if current_time - cache_file.stat().st_mtime > max_age_seconds:
-                    cache_file.unlink()
-                    removed_count += 1
-
-            # 清理元数据中的过期条目
-            valid_keys = set()
-            for cache_file in self.cache_dir.glob("*.webp"):
-                cache_key = cache_file.stem.split('_')[0]
-                valid_keys.add(cache_key)
-
-            old_metadata = self.metadata.copy()
-            self.metadata = {k: v for k, v in old_metadata.items() if k in valid_keys}
-
-            if len(old_metadata) != len(self.metadata):
-                self._save_metadata()
-
-            if removed_count > 0:
-                log.info(f"清理了 {removed_count} 个过期缓存文件")
-
-        except Exception as e:
-            log.error(f"清理缓存失败: {e}")
 
 
 class CoreInterface:
@@ -346,7 +89,7 @@ class CoreInterface:
     def __init__(self):
         self._manga_manager: Optional[MangaManager] = None
         self._manga_loader: Optional[MangaLoader] = None
-        self._thumbnail_cache: Optional[ThumbnailCacheManager] = None
+        self._thumbnail_cache: Optional[ThumbnailCache] = None
         
     @property
     def manga_manager(self) -> MangaManager:
@@ -354,6 +97,53 @@ class CoreInterface:
         if self._manga_manager is None:
             try:
                 self._manga_manager = MangaManager()
+
+                # 如果漫画列表为空，尝试从缓存加载
+                if len(self._manga_manager.manga_list) == 0:
+                    manga_dir = config.manga_dir.value
+                    if manga_dir:
+                        log.info(f"尝试从缓存加载漫画数据: {manga_dir}")
+                        try:
+                            # 尝试加载缓存
+                            cache_key = self._manga_manager.manga_list_cache_manager.generate_key(manga_dir)
+                            cached_manga = self._manga_manager.manga_list_cache_manager.get(cache_key)
+
+                            if cached_manga:
+                                # 将字典转换为MangaInfo对象
+                                manga_objects = []
+                                for manga_data in cached_manga:
+                                    try:
+                                        from core.manga_model import MangaInfo
+                                        file_path = manga_data.get("file_path")
+                                        if file_path and os.path.exists(file_path):
+                                            manga = MangaInfo(file_path)
+                                            manga.title = manga_data.get("title", os.path.basename(file_path))
+                                            manga.tags = set(manga_data.get("tags", []))
+                                            manga.total_pages = manga_data.get("total_pages", 0)
+                                            manga.is_valid = manga_data.get("is_valid", False)
+                                            manga.last_modified = manga_data.get("last_modified", 0)
+                                            manga.pages = manga_data.get("pages", [])
+
+                                            # 恢复页面尺寸分析数据
+                                            manga.page_dimensions = manga_data.get("page_dimensions", [])
+                                            manga.dimension_variance = manga_data.get("dimension_variance", None)
+                                            manga.is_likely_manga = manga_data.get("is_likely_manga", None)
+
+                                            manga_objects.append(manga)
+                                    except Exception as e:
+                                        log.warning(f"转换缓存数据失败: {manga_data.get('file_path', 'unknown')}, 错误: {e}")
+
+                                self._manga_manager.manga_list = manga_objects
+                                # 重新收集标签
+                                self._manga_manager.tags.clear()
+                                for manga in self._manga_manager.manga_list:
+                                    self._manga_manager.tags.update(manga.tags)
+                                log.info(f"从缓存加载了 {len(manga_objects)} 个漫画")
+                            else:
+                                log.info("缓存中没有找到漫画数据")
+                        except Exception as e:
+                            log.warning(f"从缓存加载漫画数据失败: {e}")
+
                 log.info("MangaManager初始化成功")
             except Exception as e:
                 log.error(f"MangaManager初始化失败: {e}")
@@ -373,13 +163,11 @@ class CoreInterface:
         return self._manga_loader
 
     @property
-    def thumbnail_cache(self) -> ThumbnailCacheManager:
+    def thumbnail_cache(self) -> ThumbnailCache:
         """获取缩略图缓存管理器实例（懒加载）"""
         if self._thumbnail_cache is None:
             try:
-                self._thumbnail_cache = ThumbnailCacheManager()
-                # 启动时清理过期缓存
-                self._thumbnail_cache.cleanup_old_cache()
+                self._thumbnail_cache = ThumbnailCache()
                 log.info("缩略图缓存管理器初始化成功")
             except Exception as e:
                 log.error(f"缩略图缓存管理器初始化失败: {e}")
@@ -475,17 +263,26 @@ class CoreInterface:
         """获取漫画列表"""
         try:
             web_manga_list = []
-            
+
+            # DEBUG: 检查manga_manager返回的数据
+            for i, manga_info in enumerate(self.manga_manager.manga_list[:5]):  # 只检查前5个
+                log.debug(f"DEBUG 接口层原始 {i}: title={manga_info.title}, dimension_variance={getattr(manga_info, 'dimension_variance', 'N/A')}, 类型={type(getattr(manga_info, 'dimension_variance', None))}")
+
             for manga_info in self.manga_manager.manga_list:
                 web_manga = self._convert_manga_info(manga_info)
+
+                # DEBUG: 检查转换后的数据
+                if not manga_info.file_path.endswith('/') and len(web_manga_list) < 5:  # 只检查前5个ZIP文件
+                    log.debug(f"DEBUG 接口层转换后: file_path={manga_info.file_path}, dimension_variance={getattr(web_manga, 'dimension_variance', 'N/A')}, 类型={type(getattr(web_manga, 'dimension_variance', None))}")
+
                 web_manga_list.append(web_manga)
-            
+
             # 按最后修改时间排序（最新的在前）
             web_manga_list.sort(key=lambda x: x.last_modified, reverse=True)
-            
+
             log.debug(f"返回漫画列表: {len(web_manga_list)} 个项目")
             return web_manga_list
-            
+
         except Exception as e:
             log.error(f"获取漫画列表失败: {e}")
             raise CoreInterfaceError("获取漫画列表失败", e)
@@ -567,88 +364,24 @@ class CoreInterface:
     def get_manga_thumbnail(self, manga_path: str, max_size: int = 300) -> Optional[str]:
         """获取漫画缩略图的base64编码（使用缓存）"""
         try:
-            # 首先尝试从缓存获取
-            cached_thumbnail = self.thumbnail_cache.get_thumbnail(manga_path, max_size)
-            if cached_thumbnail:
-                return cached_thumbnail
+            # 获取缩略图文件路径
+            thumbnail_path = self.thumbnail_cache.get_thumbnail_path(manga_path, max_size)
+            if not thumbnail_path:
+                return None
 
-            # 缓存未命中，生成新的缩略图
-            return self._generate_thumbnail(manga_path, max_size)
+            # 读取缩略图文件并转换为base64
+            import base64
+            with open(thumbnail_path, 'rb') as f:
+                image_data = f.read()
+
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            return f"data:image/webp;base64,{image_base64}"
 
         except Exception as e:
             log.error(f"获取漫画缩略图失败 {manga_path}: {e}")
             return None
 
-    def _generate_thumbnail(self, manga_path: str, max_size: int) -> Optional[str]:
-        """生成缩略图并保存到缓存"""
-        try:
-            # 加载漫画
-            manga_data = self.manga_loader.load_manga(manga_path)
-            if not manga_data or not manga_data.pages or manga_data.total_pages == 0:
-                return None
 
-            # 获取第一页图片数据
-            first_page_image = self.manga_loader.get_page_image(manga_data, 0)
-            if first_page_image is None:
-                return None
-
-            # 使用PIL创建缩略图
-            from PIL import Image
-            import io
-            import base64
-
-            # 将numpy数组转换为PIL图片
-            if first_page_image.dtype != 'uint8':
-                first_page_image = (first_page_image * 255).astype('uint8')
-
-            # 创建PIL图片（注意：core返回的是RGB格式）
-            pil_image = Image.fromarray(first_page_image)
-
-            # 创建缩略图，保持宽高比
-            pil_image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-
-            # 转换为WebP格式以减小大小
-            output = io.BytesIO()
-
-            # WebP支持透明度，不需要强制转换为RGB
-            # 但如果是调色板模式，还是需要转换
-            if pil_image.mode == 'P':
-                pil_image = pil_image.convert('RGBA')
-
-            # 保存为WebP格式，质量80，启用有损压缩
-            pil_image.save(output, format='WEBP', quality=80, method=6)
-
-            # 保存到缓存
-            cache_key = self.thumbnail_cache._get_cache_key(manga_path)
-            cache_path = self.thumbnail_cache._get_cache_path(cache_key, max_size)
-
-            # 保存缓存文件
-            with open(cache_path, 'wb') as f:
-                f.write(output.getvalue())
-
-            # 更新元数据
-            file_mtime = os.path.getmtime(manga_path)
-            current_time = time.time()
-            self.thumbnail_cache.metadata[cache_key] = {
-                'mtime': file_mtime,
-                'size': max_size,
-                'path': manga_path,
-                'created': current_time,
-                'last_accessed': current_time,
-                'file_size': os.path.getsize(manga_path)
-            }
-            self.thumbnail_cache._save_metadata()
-
-            # 更新统计
-            self.thumbnail_cache.cache_stats['generated'] += 1
-
-            # 返回base64编码
-            image_base64 = base64.b64encode(output.getvalue()).decode('utf-8')
-            return f"data:image/webp;base64,{image_base64}"
-
-        except Exception as e:
-            log.error(f"生成缩略图失败 {manga_path}: {e}")
-            return None
 
     def get_manga_page(self, manga_path: str, page_num: int) -> Optional[str]:
         """获取漫画指定页面的base64编码图片"""
@@ -730,7 +463,7 @@ class CoreInterface:
             # 处理标签，保留原始格式（包含前缀）
             clean_tags = list(manga_info.tags)
 
-            return WebMangaInfo(
+            web_manga = WebMangaInfo(
                 file_path=manga_info.file_path,
                 title=manga_info.title,
                 tags=clean_tags,
@@ -740,6 +473,19 @@ class CoreInterface:
                 file_type=file_type,
                 file_size=file_size
             )
+
+            # 添加缓存相关属性（尺寸分析数据）
+            if hasattr(manga_info, 'dimension_variance'):
+                web_manga.dimension_variance = manga_info.dimension_variance
+            if hasattr(manga_info, 'is_likely_manga'):
+                web_manga.is_likely_manga = manga_info.is_likely_manga
+            if hasattr(manga_info, 'page_dimensions'):
+                web_manga.page_dimensions = manga_info.page_dimensions
+
+            # DEBUG: 检查属性复制
+            log.debug(f"DEBUG 转换完成: {manga_info.file_path}, dimension_variance={getattr(web_manga, 'dimension_variance', 'N/A')}")
+
+            return web_manga
             
         except Exception as e:
             log.error(f"转换漫画信息失败: {e}")
@@ -937,13 +683,15 @@ class CoreInterface:
     # ==================== 批量压缩功能 ====================
 
     def batch_compress_manga(self, webp_quality: int = 85,
-                           min_compression_ratio: float = 0.25) -> Dict[str, Any]:
+                           min_compression_ratio: float = 0.25,
+                           preserve_original_names: bool = True) -> Dict[str, Any]:
         """
         批量压缩漫画库中的所有漫画文件
 
         Args:
             webp_quality: WebP质量 (75-100)
             min_compression_ratio: 最小压缩比例 (0.25 = 25%)
+            preserve_original_names: 是否保留原始文件名
 
         Returns:
             包含压缩结果的字典
@@ -1000,7 +748,8 @@ class CoreInterface:
                     # 执行单个文件压缩
                     result = compressor.compress_manga_file(
                         file_path=file_path,
-                        webp_quality=webp_quality
+                        webp_quality=webp_quality,
+                        preserve_original_names=preserve_original_names
                     )
 
                     if result["success"]:
@@ -1125,8 +874,23 @@ class CoreInterface:
                             original_data = original_zip.read(file_name)
                             original_img = Image.open(io.BytesIO(original_data))
 
+                            # 查找对应的压缩图片（只比较文件名部分，不包括扩展名）
+                            original_stem = os.path.splitext(file_name)[0]
+                            compressed_file_name = None
+
+                            # 在压缩文件中查找对应的文件
+                            for compressed_file in compressed_files:
+                                compressed_stem = os.path.splitext(compressed_file)[0]
+                                if compressed_stem == original_stem:
+                                    compressed_file_name = compressed_file
+                                    break
+
+                            if not compressed_file_name:
+                                log.error(f"在压缩文件中找不到对应的文件: {file_name}")
+                                return False
+
                             # 读取压缩图片
-                            compressed_data = compressed_zip.read(file_name)
+                            compressed_data = compressed_zip.read(compressed_file_name)
                             compressed_img = Image.open(io.BytesIO(compressed_data))
 
                             # 检查尺寸是否一致
@@ -1151,7 +915,7 @@ class CoreInterface:
     # ==================== 自动过滤功能 ====================
 
     def auto_filter_manga(self, filter_method: str = "dimension_analysis",
-                         threshold: float = 0.15) -> Dict[str, Any]:
+                         threshold: float = 0.15, force_reanalyze: bool = False) -> Dict[str, Any]:
         """
         自动过滤漫画文件，识别哪些是真正的漫画
 
@@ -1167,6 +931,33 @@ class CoreInterface:
 
             log.info(f"开始自动过滤漫画，方法: {filter_method}, 阈值: {threshold}")
 
+            # 如果使用尺寸分析，先确保所有漫画都有尺寸分析数据
+            if filter_method in ["dimension_analysis", "hybrid"]:
+                log.info("检查尺寸分析数据...")
+
+                # 检查是否需要进行尺寸分析（仅对ZIP文件）
+                manga_list = self.manga_manager.manga_list
+                zip_manga_list = [m for m in manga_list if not os.path.isdir(m.file_path)]
+
+                if not zip_manga_list:
+                    log.info("没有ZIP格式的漫画需要进行尺寸分析")
+                elif force_reanalyze:
+                    # 强制重新分析所有ZIP漫画
+                    log.info(f"强制重新分析所有 {len(zip_manga_list)} 本ZIP漫画的尺寸数据...")
+                    analyzed_count = self.manga_manager.analyze_manga_dimensions(force_reanalyze=True)
+                    log.info(f"强制尺寸分析完成，重新分析了 {analyzed_count} 本ZIP漫画")
+                else:
+                    # 只分析缺少数据的ZIP漫画
+                    need_analysis = [m for m in zip_manga_list if m.dimension_variance is None]
+
+                    if need_analysis:
+                        log.info(f"发现 {len(need_analysis)} 本ZIP漫画缺少尺寸分析数据，开始分析...")
+                        # 调用MangaManager的分析方法，它会正确调用MangaLoader._analyze_manga_dimensions
+                        analyzed_count = self.manga_manager.analyze_manga_dimensions(force_reanalyze=False)
+                        log.info(f"尺寸分析完成，分析了 {analyzed_count} 本ZIP漫画")
+                    else:
+                        log.info("所有ZIP漫画都已有尺寸分析数据，无需重新分析")
+
             all_manga = self.get_manga_list()
             filtered_manga = []
             removed_manga = []
@@ -1176,15 +967,18 @@ class CoreInterface:
                 reason = ""
 
                 if filter_method == "dimension_analysis":
-                    # 基于页面尺寸分析
-                    if hasattr(manga, 'dimension_variance') and manga.dimension_variance is not None:
+                    # 基于页面尺寸分析（仅对ZIP文件进行过滤）
+                    if os.path.isdir(manga.file_path):
+                        # 文件夹漫画自动保留，不进行过滤
+                        pass
+                    elif hasattr(manga, 'dimension_variance') and manga.dimension_variance is not None:
                         if manga.dimension_variance > threshold:
                             is_manga = False
-                            reason = f"尺寸方差过大: {manga.dimension_variance:.3f} > {threshold}"
+                            reason = f"ZIP文件尺寸方差过大: {manga.dimension_variance:.3f} > {threshold}"
                     elif hasattr(manga, 'is_likely_manga') and manga.is_likely_manga is not None:
                         if not manga.is_likely_manga:
                             is_manga = False
-                            reason = "尺寸分析判定为非漫画"
+                            reason = "ZIP文件尺寸分析判定为非漫画"
 
                 elif filter_method == "tag_based":
                     # 基于标签过滤
@@ -1202,8 +996,11 @@ class CoreInterface:
                     dimension_ok = True
                     tag_ok = True
 
-                    # 检查尺寸
-                    if hasattr(manga, 'dimension_variance') and manga.dimension_variance is not None:
+                    # 检查尺寸（仅对ZIP文件）
+                    if os.path.isdir(manga.file_path):
+                        # 文件夹漫画在尺寸检查中自动通过
+                        dimension_ok = True
+                    elif hasattr(manga, 'dimension_variance') and manga.dimension_variance is not None:
                         if manga.dimension_variance > threshold:
                             dimension_ok = False
                     elif hasattr(manga, 'is_likely_manga') and manga.is_likely_manga is not None:

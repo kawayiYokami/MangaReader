@@ -111,19 +111,34 @@ class MangaListCacheManager(CacheInterface):
             if isinstance(manga_item, dict):
                 serializable_list.append(manga_item)
             elif hasattr(manga_item, "file_path") and hasattr(manga_item, "last_modified"):
+                # 确保所有值都是JSON可序列化的
+                dimension_variance = getattr(manga_item, "dimension_variance", None)
+                is_likely_manga = getattr(manga_item, "is_likely_manga", None)
+
+                # 处理特殊的数值类型
+                if dimension_variance is not None:
+                    try:
+                        dimension_variance = float(dimension_variance)
+                    except (TypeError, ValueError):
+                        dimension_variance = None
+
+                # 确保布尔值是标准Python布尔类型
+                if is_likely_manga is not None:
+                    is_likely_manga = bool(is_likely_manga)
+
                 manga_info = {
                     "file_path": manga_item.file_path,
                     "title": getattr(manga_item, "title", os.path.basename(manga_item.file_path)),
                     "tags": list(getattr(manga_item, "tags", [])),
                     "total_pages": getattr(manga_item, "total_pages", 0),
-                    "is_valid": getattr(manga_item, "is_valid", False),
+                    "is_valid": bool(getattr(manga_item, "is_valid", False)),
                     "last_modified": manga_item.last_modified,
                     "pages": getattr(manga_item, "pages", []),
-                    "is_translated": getattr(manga_item, "is_translated", False),
+                    "is_translated": bool(getattr(manga_item, "is_translated", False)),
                     # 页面尺寸分析相关数据
                     "page_dimensions": getattr(manga_item, "page_dimensions", []),
-                    "dimension_variance": getattr(manga_item, "dimension_variance", None),
-                    "is_likely_manga": getattr(manga_item, "is_likely_manga", None)
+                    "dimension_variance": dimension_variance,
+                    "is_likely_manga": is_likely_manga
                 }
                 serializable_list.append(manga_info)
             else:
