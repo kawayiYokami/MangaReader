@@ -91,19 +91,14 @@
                     <!-- 极简滑动条 -->
                     <div class="progress-slider-section">
                         <div class="progress-slider-wrapper">
-                            <el-slider
-                                v-model="progressSliderValue"
-                                :min="1"
-                                :max="mangaInfo.total_pages || 1"
-                                :step="1"
-                                :show-tooltip="true"
-                                :format-tooltip="formatProgressTooltip"
-                                @change="onProgressSliderChange"
-                                @input="onProgressSliderInput"
-                                class="progress-slider"
-                                vertical
-                                height="200px">
-                            </el-slider>
+                            <div class="page-slider-container" @click="onTrackClick" ref="sliderContainer">
+                                <div class="page-slider-track">
+                                    <div class="page-slider-thumb" 
+                                         :style="thumbStyle"
+                                         @mousedown.stop="onThumbMouseDown">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -192,7 +187,6 @@
                 const currentPage = ref(0);
                 const showPageInput = ref(false); // 是否显示页码输入框
                 const pageInputText = ref('1'); // 页码输入框的文本值
-                const progressSliderValue = ref(1); // 进度滑动条的值
                 const currentImageUrls = ref([]);
                 const nextImageUrls = ref([]); // 预加载的下一组图片
                 const isLoading = ref(false);
@@ -210,6 +204,9 @@
                 const mangaImage = ref(null);
                 const pageInputRef = ref(null);
 
+                // 自定义滑块状态
+                const sliderContainer = ref(null); // 滑块容器的引用
+                const isDragging = ref(false); // 是否正在拖动
                 // 获取URL参数
                 const urlParams = new URLSearchParams(window.location.search);
                 const mangaPath = urlParams.get('path');
@@ -246,7 +243,21 @@
                     const circumference = progressCircumference.value;
                     return circumference - (progressPercentage.value / 100) * circumference;
                 });
-
+                
+                // 自定义滑块样式
+                const thumbStyle = computed(() => {
+                    if (!sliderContainer.value || mangaInfo.total_pages <= 1) {
+                        return { top: '0px' };
+                    }
+                    const containerHeight = sliderContainer.value.offsetHeight;
+                    const thumbHeight = 30; // 与CSS中设置的高度一致
+                    const trackHeight = containerHeight - thumbHeight;
+                    const percentage = currentPage.value / (mangaInfo.total_pages - 1);
+                    const top = percentage * trackHeight;
+                    return {
+                        top: `${top}px`
+                    };
+                });
 
 
                 // ==================== 初始化 ====================
@@ -280,7 +291,6 @@
                     await loadMangaInfo();
                     currentPage.value = Math.max(0, Math.min(initialPage, mangaInfo.total_pages - 1));
                     pageInputText.value = (currentPage.value + 1).toString(); // 初始化输入框
-                    progressSliderValue.value = currentPage.value + 1; // 初始化滑动条
                     await loadCurrentPage();
 
                     // 添加事件监听
@@ -520,7 +530,6 @@ nextTick(() => {
                 async function onPageChange(newPage) {
                     currentPage.value = newPage;
                     pageInputText.value = (newPage + 1).toString(); // 同步更新输入框文本
-                    progressSliderValue.value = newPage + 1; // 同步更新滑动条
                     loadCurrentPage();
 
                     // 如果启用了翻译，请求翻译当前页面和周围页面
@@ -562,7 +571,6 @@ nextTick(() => {
                     const newPage = parseInt(pageInputText.value);
                     if (newPage && newPage >= 1 && newPage <= mangaInfo.total_pages) {
                         currentPage.value = newPage - 1; // 转换为0-based
-                        progressSliderValue.value = newPage; // 同步更新滑动条
                         loadCurrentPage();
                     } else {
                         // 输入无效，恢复原值
@@ -571,25 +579,76 @@ nextTick(() => {
                     showPageInput.value = false;
                 }
 
-                // ==================== 进度滑动条相关方法 ====================
+                // ==================== 自定义滑块方法 ====================
 
-                function formatProgressTooltip(value) {
-                    return `第 ${value} 页`;
+                function onThumbMouseDown(event) {
+                    isDragging.value = true;
+                    const thumb = event.target;
+                    const container = sliderContainer.value;
+                    const initialY = event.clientY;
+                    const initialTop = thumb.offsetTop;
+
+                    const onMouseMove = (moveEvent) => {
+                        if (!isDragging.value) return;
+
+                        const deltaY = moveEvent.clientY - initialY;
+                        let newTop = initialTop + deltaY;
+
+                        const containerHeight = container.offsetHeight;
+                        const thumbHeight = thumb.offsetHeight;
+                        
+                        // 限制在轨道内
+                        newTop = Math.max(0, Math.min(newTop, containerHeight - thumbHeight));
+                        
+                        const percentage = newTop / (containerHeight - thumbHeight);
+                        const newPage = Math.round(percentage * (mangaInfo.total_pages - 1));
+                        
+                        // 仅更新预览页码，不立即跳转
+                        pageInputText.value = (newPage + 1).toString();
+                        
+                        // 直接更新样式以获得即时反馈
+                        thumb.style.top = `${newTop}px`;
+                    };
+
+                    const onMouseUp = () => {
+                        isDragging.value = false;
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+
+                        // 拖动结束后，根据最终位置计算并跳转页面
+                        const finalPercentage = thumb.offsetTop / (container.offsetHeight - thumb.offsetHeight);
+                        const finalPage = Math.round(finalPercentage * (mangaInfo.total_pages - 1));
+                        if (finalPage !== currentPage.value) {
+                            onPageChange(finalPage);
+                        }
+                    };
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
                 }
 
-                function onProgressSliderChange(value) {
-                    // 滑动条值改变时跳转到对应页面
-                    const targetPage = value - 1; // 转换为0-based
-                    if (targetPage !== currentPage.value) {
-                        onPageChange(targetPage);
+                function onTrackClick(event) {
+                    if (isDragging.value) return;
+
+                    const container = sliderContainer.value;
+                    const rect = container.getBoundingClientRect();
+                    const clickY = event.clientY - rect.top;
+                    
+                    const containerHeight = container.offsetHeight;
+                    const thumbHeight = 30; // 硬编码与CSS一致
+                    
+                    let percentage = clickY / containerHeight;
+                    // 调整，使点击中心大致对齐滑块中心
+                    percentage = (clickY - (thumbHeight / 2)) / (containerHeight - thumbHeight);
+                    percentage = Math.max(0, Math.min(1, percentage));
+
+                    const newPage = Math.round(percentage * (mangaInfo.total_pages - 1));
+                    
+                    if (newPage !== currentPage.value) {
+                        onPageChange(newPage);
                     }
                 }
-
-                function onProgressSliderInput(value) {
-                    // 拖拽过程中实时更新页码显示（但不加载页面）
-                    pageInputText.value = value.toString();
-                }
-
+                
                 // 监听页码输入框显示状态，自动聚焦
                 watch(showPageInput, (newValue) => {
                     if (newValue) {
@@ -803,11 +862,14 @@ const computedStyle = window.getComputedStyle(img);
                     progressCircumference,
                     progressOffset,
                     screenInfo,
+                    thumbStyle,
+                    isDragging,
 
                     // DOM引用
                     viewerContent,
                     mangaImage,
                     pageInputRef,
+                    sliderContainer,
 
                     // 方法
                     loadCurrentPage,
@@ -824,9 +886,8 @@ const computedStyle = window.getComputedStyle(img);
                     onImageLoad,
                     onImageError,
                     toggleFullscreen,
-                    formatProgressTooltip,
-                    onProgressSliderChange,
-                    onProgressSliderInput
+                    onThumbMouseDown,
+                    onTrackClick
                 };
             }
         }).use(ElementPlus).mount('#app');
