@@ -1,5 +1,17 @@
 <!-- 设置页面 - 重新设计 -->
 <div class="settings-page">
+<!-- 调试卡片 (仅桌面应用可见) -->
+    <el-card v-if="runningInDesktopApp" style="margin-bottom: var(--spacing-lg);">
+        <template #header>
+            <div class="card-header">
+                <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">bug_report</span> 调试</span>
+            </div>
+        </template>
+        <el-button type="primary" @click="reloadApp">
+            <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">refresh</span> 刷新应用界面
+        </el-button>
+        <p class="setting-description" style="margin-top: 8px;">强制重新加载整个应用程序界面，用于开发调试。</p>
+    </el-card>
     <el-card>
         <template #header>
             <div class="card-header"> <!-- Use a div for potentially more complex headers later -->

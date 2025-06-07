@@ -3,7 +3,9 @@
     v-model="editDialog.visible"
     :title="editDialog.title"
     width="600px"
-    :close-on-click-modal="false">
+    :close-on-click-modal="false"
+    append-to-body
+    custom-class="modern-dialog dialog-theme-base"> <!-- 添加自定义类以应用特定样式 -->
 
     <div v-if="editDialog.type === 'harmonization_map'">
         {% include 'components/dialogs/harmonization-form.html' %}
@@ -18,24 +20,21 @@
     </div>
 
     <template #footer>
-        <div class="dialog-footer-new">
-            <!-- 危险操作区域 -->
-            <div class="danger-zone" v-if="editDialog.isEditing">
-                <el-divider content-position="left">
-                    <span class="danger-label">危险操作</span>
-                </el-divider>
+        <div class="dialog-footer modern-dialog-footer"> <!-- 使用 flex 布局 -->
+            <!-- 左侧：危险操作 -->
+            <div class="footer-left" v-if="editDialog.isEditing">
                 <el-button
                     type="danger"
                     plain
                     @click="deleteCurrentEntry"
                     size="small"
                     class="delete-button">
-                    <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.2em; margin-right: 4px;">delete</span> 删除此条目
+                    <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.2em; margin-right: 4px;">delete</span> 删除
                 </el-button>
             </div>
 
-            <!-- 主要操作区域 -->
-            <div class="main-actions">
+            <!-- 右侧：主要操作 -->
+            <div class="footer-right">
                 <el-button @click="cancelEdit" size="large">取消</el-button>
                 <el-button type="primary" @click="saveEdit" size="large">
                     <span v-if="editDialog.isEditing">保存修改</span>

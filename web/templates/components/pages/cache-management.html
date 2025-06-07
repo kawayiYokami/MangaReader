@@ -38,9 +38,13 @@
 
     <!-- 缓存详情 -->
     <div v-if="selectedCacheType" class="cache-detail">
-        <div class="detail-header">
-            <h3 v-text="getSelectedCacheName()"></h3>
-            <div class="detail-actions">
+        <!-- Material Design Card Style Header -->
+        <div class="md-card-header">
+            <div class="md-card-title-container">
+                <h3 class="md-card-title" v-text="getSelectedCacheName()"></h3>
+                <!-- Optional: Add subtitle or icon here if needed -->
+            </div>
+            <div class="md-card-actions">
                 <el-button
                     size="small"
                     type="primary"
@@ -48,6 +52,24 @@
                     v-if="selectedCacheType === 'harmonization_map'">
                     添加映射
                 </el-button>
+
+                <!-- 漫画列表特有按钮 -->
+                <template v-if="selectedCacheType === 'manga_list'">
+                    <el-button
+                        size="small"
+                        type="success"
+                        @click="showBatchCompressionDialog">
+                        <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">compress</span>
+                        批量压缩
+                    </el-button>
+                    <el-button
+                        size="small"
+                        type="warning"
+                        @click="showAutoFilterDialog">
+                        <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">filter_alt</span>
+                        自动过滤
+                    </el-button>
+                </template>
             </div>
         </div>
 
@@ -62,47 +84,52 @@
             </el-input>
         </div>
 
-        <!-- 条目列表 -->
-        <div class="entries-container">
-            <el-table
-                :data="filteredCacheEntries"
-                v-loading="isLoadingEntries"
-                style="width: 100%">
-
-                <el-table-column prop="key" label="键" min-width="200" show-overflow-tooltip>
-                    <template #default="scope">
-                        <span class="cache-key" v-text="scope.row.key"></span>
-                    </template>
-                </el-table-column>
-
-                <el-table-column prop="value_preview" label="内容" min-width="300" show-overflow-tooltip>
-                    <template #default="scope">
-                        <div class="content-with-tags">
-                            <span class="cache-content" v-text="scope.row.value_preview"></span>
-                            <el-tag
-                                v-if="selectedCacheType === 'translation' && scope.row.is_sensitive"
-                                type="warning"
+        <!-- 条目列表 (使用自定义表格) -->
+        <div class="entries-container" v-loading="isLoadingEntries">
+            <table class="custom-cache-table">
+                <thead>
+                    <tr class="cache-table-header-row">
+                        <th class="cache-table-header-cell">键</th>
+                        <th class="cache-table-header-cell">内容</th>
+                        <th class="cache-table-header-cell action-cell">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-if="filteredCacheEntries.length === 0 && !isLoadingEntries">
+                        <td colspan="3" class="no-data-cell">
+                            <!-- 可以放入一个空状态组件或文本 -->
+                            没有找到匹配的缓存条目。
+                        </td>
+                    </tr>
+                    <tr v-for="entry in filteredCacheEntries" :key="entry.key" class="cache-table-row">
+                        <td class="cache-table-cell key-cell">
+                            <span class="cache-key" v-text="entry.key" :title="entry.key"></span>
+                        </td>
+                        <td class="cache-table-cell content-cell">
+                            <div class="content-with-tags">
+                                <span class="cache-content" v-text="entry.value_preview" :title="entry.value_preview"></span>
+                                <el-tag
+                                    v-if="selectedCacheType === 'translation' && entry.is_sensitive"
+                                    type="warning"
+                                    size="small"
+                                    class="sensitive-tag">
+                                    敏感
+                                </el-tag>
+                            </div>
+                        </td>
+                        <td class="cache-table-cell action-cell">
+                            <el-button
                                 size="small"
-                                class="sensitive-tag">
-                                敏感
-                            </el-tag>
-                        </div>
-                    </template>
-                </el-table-column>
+                                text
+                                @click="editCacheEntry(entry)">
+                                编辑
+                            </el-button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
 
-                <el-table-column label="操作" width="80" align="center">
-                    <template #default="scope">
-                        <el-button
-                            size="small"
-                            text
-                            @click="editCacheEntry(scope.row)">
-                            编辑
-                        </el-button>
-                    </template>
-                </el-table-column>
-            </el-table>
-
-            <!-- 简化分页 -->
+            <!-- 简化分页 (保持不变) -->
             <div class="pagination" v-if="totalEntries > pageSize">
                 <el-pagination
                     :current-page="currentPage"

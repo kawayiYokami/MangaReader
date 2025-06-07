@@ -429,7 +429,7 @@ async def get_manga_thumbnail_post(
         if not manga_path:
             raise HTTPException(status_code=400, detail="缺少manga_path参数")
 
-        log.info(f"获取缩略图: {manga_path}")
+        # log.info(f"获取缩略图: {manga_path}")
         thumbnail_data = interface.get_manga_thumbnail(manga_path, max_size=size)
 
         if thumbnail_data:
@@ -541,4 +541,108 @@ async def get_manga_page(
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
         log.error(f"获取漫画页面失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== 批量压缩功能 ====================
+
+class BatchCompressionRequest(BaseModel):
+    webp_quality: int = 85
+    min_compression_ratio: float = 0.25
+
+@router.post("/batch-compress")
+async def batch_compress_manga(
+    request: BatchCompressionRequest,
+    interface: CoreInterface = Depends(get_interface)
+):
+    """批量压缩漫画库中的所有漫画文件"""
+    try:
+        result = interface.batch_compress_manga(
+            webp_quality=request.webp_quality,
+            min_compression_ratio=request.min_compression_ratio
+        )
+        return result
+    except Exception as e:
+        log.error(f"批量压缩失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+# ==================== 自动过滤功能 ====================
+
+class AutoFilterRequest(BaseModel):
+    filter_method: str = "dimension_analysis"
+    threshold: float = 0.15
+
+class ApplyFilterRequest(BaseModel):
+    filter_results: Dict[str, Any]
+
+@router.post("/auto-filter-preview")
+async def auto_filter_preview(
+    request: AutoFilterRequest,
+    interface: CoreInterface = Depends(get_interface)
+):
+    """预览自动过滤结果"""
+    try:
+        result = interface.auto_filter_manga(
+            filter_method=request.filter_method,
+            threshold=request.threshold
+        )
+        return result
+    except Exception as e:
+        log.error(f"自动过滤预览失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/apply-auto-filter")
+async def apply_auto_filter(
+    request: ApplyFilterRequest,
+    interface: CoreInterface = Depends(get_interface)
+):
+    """应用自动过滤结果"""
+    try:
+        success = interface.apply_filter_results(request.filter_results)
+        return {
+            "success": success,
+            "message": "过滤结果已应用",
+            "removed_count": len(request.filter_results.get("removed_manga", []))
+        }
+    except Exception as e:
+        log.error(f"应用自动过滤失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== 缓存管理功能 ====================
+
+@router.get("/cache/stats")
+async def get_cache_stats(interface: CoreInterface = Depends(get_interface)):
+    """获取缓存统计信息"""
+    try:
+        stats = interface.thumbnail_cache.get_cache_stats()
+        return {"success": True, "stats": stats}
+    except Exception as e:
+        log.error(f"获取缓存统计失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/cache/cleanup")
+async def cleanup_cache(
+    request: dict = None,
+    interface: CoreInterface = Depends(get_interface)
+):
+    """清理缓存"""
+    try:
+        max_age_days = 30
+        max_cache_size_mb = 500
+
+        if request:
+            max_age_days = request.get("max_age_days", 30)
+            max_cache_size_mb = request.get("max_cache_size_mb", 500)
+
+        interface.thumbnail_cache.cleanup_old_cache(max_age_days, max_cache_size_mb)
+
+        # 返回清理后的统计信息
+        stats = interface.thumbnail_cache.get_cache_stats()
+        return {"success": True, "message": "缓存清理完成", "stats": stats}
+    except Exception as e:
+        log.error(f"清理缓存失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

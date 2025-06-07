@@ -486,6 +486,99 @@ html, body {
     }
 }
 
+/* 进度滑动条 */
+.progress-slider-section {
+    width: 100%;
+    padding: 15px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.progress-slider-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+}
+
+.progress-slider {
+    width: 100%;
+}
+
+/* 自定义滑动条样式 */
+.progress-slider .el-slider__runway {
+    background-color: var(--color-border-default) !important;
+    width: 6px !important;
+}
+
+.progress-slider .el-slider__bar {
+    background-color: var(--color-accent-default) !important;
+    width: 6px !important;
+}
+
+.progress-slider .el-slider__button {
+    width: 16px !important;
+    height: 16px !important;
+    border: 2px solid var(--color-accent-default) !important;
+    background-color: var(--color-bg-default) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+.progress-slider .el-slider__button:hover {
+    transform: scale(1.2) !important;
+    transition: transform 0.2s ease !important;
+}
+
+.progress-slider .el-slider__button-wrapper {
+    z-index: 1001 !important;
+}
+
+/* 滑动条工具提示样式 */
+.progress-slider .el-tooltip__popper {
+    background-color: var(--color-bg-elevated) !important;
+    color: var(--color-text-primary) !important;
+    border: 1px solid var(--color-border-default) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.progress-slider .el-tooltip__popper .el-popper__arrow::before {
+    background-color: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-border-default) !important;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .progress-slider-wrapper {
+        height: 150px;
+    }
+
+    .progress-slider .el-slider__button {
+        width: 14px !important;
+        height: 14px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .progress-slider-wrapper {
+        height: 120px;
+    }
+
+    .progress-slider .el-slider__runway {
+        width: 4px !important;
+    }
+
+    .progress-slider .el-slider__bar {
+        width: 4px !important;
+    }
+
+    .progress-slider .el-slider__button {
+        width: 12px !important;
+        height: 12px !important;
+    }
+}
+
 /* 关键帧动画 */
 @keyframes pulse {
     0% {

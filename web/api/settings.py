@@ -144,7 +144,7 @@ async def get_all_settings():
             key="zhipuApiKey",
             name="智谱AI API Key",
             description="智谱AI翻译服务的API Key",
-            value=config.zhipu_api_key.value,
+            value="***" if config.zhipu_api_key.value else "",  # 隐藏API密钥
             type="string"
         ))
         settings.append(SettingItem(
@@ -166,7 +166,7 @@ async def get_all_settings():
             key="googleApiKey",
             name="Google API Key",
             description="Google翻译服务的API Key",
-            value=config.google_api_key.value,
+            value="***" if config.google_api_key.value else "",  # 隐藏API密钥
             type="string"
         ))
         
@@ -225,7 +225,7 @@ def _get_preferred_font_name(font: TTFont) -> str:
     for p_nameID, p_platformID, p_langID in priorities:
         if (p_nameID, p_platformID, p_langID) in found_names:
             best_name = found_names[(p_nameID, p_platformID, p_langID)]
-            log.debug(f"  > 找到了优先名称 (ID={p_nameID}, Plat={p_platformID}, Lang={p_langID}): '{best_name}'")
+            # log.debug(f"  > 找到了优先名称 (ID={p_nameID}, Plat={p_platformID}, Lang={p_langID}): '{best_name}'")
             break # 找到最高优先级的就停止
 
     # 如果上面都没找到，再做一次不区分语言的全名和家族名查找 (作为最后手段)
@@ -247,19 +247,19 @@ async def get_available_fonts():
     """获取可用的字体列表"""
     fonts = []
     absolute_font_dir = os.path.abspath(FONT_DIR)
-    log.debug(f"开始扫描字体目录: {absolute_font_dir}") # Log 1: Absolute path
+    # log.debug(f"开始扫描字体目录: {absolute_font_dir}") # Log 1: Absolute path
 
     if os.path.exists(absolute_font_dir) and os.path.isdir(absolute_font_dir):
         try:
             all_files = os.listdir(absolute_font_dir)
-            log.debug(f"在目录 {absolute_font_dir} 中找到的文件: {all_files}") # Log 2: All files found
+            # log.debug(f"在目录 {absolute_font_dir} 中找到的文件: {all_files}") # Log 2: All files found
 
             font_files = [f for f in all_files if f.lower().endswith(('.ttf', '.otf'))]
-            log.debug(f"过滤后的字体文件 (.ttf, .otf): {font_files}") # Log 3: Filtered font files
+            # log.debug(f"过滤后的字体文件 (.ttf, .otf): {font_files}") # Log 3: Filtered font files
 
             for filename in font_files:
                 font_path = os.path.join(absolute_font_dir, filename)
-                log.debug(f"正在处理字体文件: {font_path}") # Log 4: Processing file
+                # log.debug(f"正在处理字体文件: {font_path}") # Log 4: Processing file
                 try:
                     font = TTFont(font_path)
                     # 使用新的辅助函数提取首选名称
@@ -269,8 +269,8 @@ async def get_available_fonts():
                     if not display_name:
                         display_name = os.path.splitext(filename)[0]
                         log.warning(f"  > 无法从元数据提取字体名称，回退到文件名: '{display_name}' for file '{filename}'")
-                    else:
-                         log.debug(f"  > 最终选择的字体名称: '{display_name}' for file '{filename}'")
+                    # else:
+                    #     log.debug(f"  > 最终选择的字体名称: '{display_name}' for file '{filename}'")
 
                     fonts.append({
                         "file_name": filename,
@@ -284,7 +284,7 @@ async def get_available_fonts():
     else:
         log.warning(f"字体目录不存在或不是一个目录: {absolute_font_dir}")
 
-    log.debug(f"最终返回的字体列表: {fonts}") # Log 6: Final list
+    # log.debug(f"最终返回的字体列表: {fonts}") # Log 6: Final list
     return {"success": True, "fonts": fonts}
 
 @router.get("/{setting_key}")
@@ -426,14 +426,13 @@ async def export_settings():
     try:
         settings_data = {}
         
-        # 导出主要设置
+        # 导出主要设置（排除敏感信息）
         settings_keys = [
             "themeMode", "reading_order", "display_mode",
             "merge_tags", "log_level",
-            "translator_type", "zhipu_api_key", "zhipu_model",
-            "google_api_key", "font_name"
+            "translator_type", "zhipu_model", "font_name"
         ]
-        
+
         for key in settings_keys:
             if hasattr(config, key):
                 value = getattr(config, key).value
@@ -441,6 +440,10 @@ async def export_settings():
                 if hasattr(value, 'value'):
                     value = value.value
                 settings_data[key] = value
+
+        # API密钥不导出，仅显示是否已设置
+        settings_data["zhipu_api_key_set"] = bool(config.zhipu_api_key.value)
+        settings_data["google_api_key_set"] = bool(config.google_api_key.value)
         
         return {
             "settings": settings_data,

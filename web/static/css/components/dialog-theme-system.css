@@ -1,0 +1,291 @@
+/* ==================== 对话框主题系统 ==================== */
+
+/* 基础对话框主题 */
+.dialog-theme-base {
+    --dialog-bg: var(--color-bg-default);
+    --dialog-border: var(--color-border-default);
+    --dialog-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    --dialog-header-bg: var(--color-bg-default);
+    --dialog-header-border: var(--color-border-light);
+    --dialog-body-bg: var(--color-bg-default);
+    --dialog-footer-bg: var(--color-bg-subtle);
+    --dialog-footer-border: var(--color-border-light);
+    --dialog-text-primary: var(--color-text-primary);
+    --dialog-text-secondary: var(--color-text-secondary);
+    --dialog-text-muted: var(--color-text-muted);
+}
+
+/* 深色主题变量 */
+[data-theme="dark"] .dialog-theme-base {
+    --dialog-bg: var(--color-bg-default);
+    --dialog-border: var(--color-border-default);
+    --dialog-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --dialog-header-bg: var(--color-bg-default);
+    --dialog-header-border: var(--color-border-light);
+    --dialog-body-bg: var(--color-bg-default);
+    --dialog-footer-bg: var(--color-bg-subtle);
+    --dialog-footer-border: var(--color-border-light);
+    --dialog-text-primary: var(--color-text-primary);
+    --dialog-text-secondary: var(--color-text-secondary);
+    --dialog-text-muted: var(--color-text-muted);
+}
+
+/* 强制应用主题的对话框样式 */
+.modern-dialog.dialog-theme-base .el-dialog {
+    background-color: var(--dialog-bg) !important;
+    border: 1px solid var(--dialog-border) !important;
+    box-shadow: var(--dialog-shadow) !important;
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-dialog__header {
+    background-color: var(--dialog-header-bg) !important;
+    border-bottom: 1px solid var(--dialog-header-border) !important;
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-dialog__title {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-dialog__headerbtn {
+    color: var(--dialog-text-secondary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-dialog__headerbtn:hover {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-dialog__body {
+    background-color: var(--dialog-body-bg) !important;
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-dialog__footer {
+    background-color: var(--dialog-footer-bg) !important;
+    border-top: 1px solid var(--dialog-footer-border) !important;
+}
+
+/* 对话框内部组件主题 */
+.modern-dialog.dialog-theme-base .el-form-item__label {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-input__inner {
+    background-color: var(--color-bg-default) !important;
+    border-color: var(--color-border-default) !important;
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-input__inner:focus {
+    border-color: var(--el-color-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-textarea__inner {
+    background-color: var(--color-bg-default) !important;
+    border-color: var(--color-border-default) !important;
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-textarea__inner:focus {
+    border-color: var(--el-color-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-select .el-input__inner {
+    background-color: var(--color-bg-default) !important;
+    border-color: var(--color-border-default) !important;
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-radio__label {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-checkbox__label {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-alert {
+    background-color: var(--color-bg-subtle) !important;
+    border-color: var(--color-border-light) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-alert__title {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-alert__description {
+    color: var(--dialog-text-secondary) !important;
+}
+
+/* 滑块组件主题 */
+.modern-dialog.dialog-theme-base .el-slider__runway {
+    background-color: var(--color-border-light) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-slider__bar {
+    background-color: var(--el-color-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-slider__button {
+    border-color: var(--el-color-primary) !important;
+    background-color: var(--color-bg-default) !important;
+}
+
+/* 进度条主题 */
+.modern-dialog.dialog-theme-base .el-progress-bar__outer {
+    background-color: var(--color-border-light) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-progress-bar__inner {
+    background-color: var(--el-color-primary) !important;
+}
+
+/* 步骤条主题 */
+.modern-dialog.dialog-theme-base .el-steps .el-step__title {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-steps .el-step__description {
+    color: var(--dialog-text-secondary) !important;
+}
+
+/* 标签主题 */
+.modern-dialog.dialog-theme-base .el-tag {
+    background-color: var(--color-bg-subtle) !important;
+    border-color: var(--color-border-light) !important;
+    color: var(--dialog-text-primary) !important;
+}
+
+/* 骨架屏主题 */
+.modern-dialog.dialog-theme-base .el-skeleton__item {
+    background: linear-gradient(90deg, 
+        var(--color-bg-subtle) 25%, 
+        var(--color-border-light) 37%, 
+        var(--color-bg-subtle) 63%) !important;
+}
+
+/* 统计数字主题 */
+.modern-dialog.dialog-theme-base .el-statistic__content {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .el-statistic__title {
+    color: var(--dialog-text-secondary) !important;
+}
+
+/* Material Design 特殊样式 */
+.material-dialog.dialog-theme-base {
+    border-radius: 12px !important;
+}
+
+.material-dialog.dialog-theme-base .el-dialog {
+    border-radius: 12px !important;
+}
+
+/* 自定义组件主题 */
+.modern-dialog.dialog-theme-base .method-card {
+    background-color: var(--color-bg-default) !important;
+    border-color: var(--color-border-light) !important;
+}
+
+.modern-dialog.dialog-theme-base .method-card.active {
+    background-color: var(--el-color-primary-light-9) !important;
+    border-color: var(--el-color-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .method-card h4 {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .method-card p {
+    color: var(--dialog-text-secondary) !important;
+}
+
+.modern-dialog.dialog-theme-base .stat-card {
+    background-color: var(--color-bg-subtle) !important;
+}
+
+.modern-dialog.dialog-theme-base .stat-number {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .stat-label {
+    color: var(--dialog-text-secondary) !important;
+}
+
+.modern-dialog.dialog-theme-base .file-name {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base .file-reason {
+    color: var(--dialog-text-secondary) !important;
+}
+
+.modern-dialog.dialog-theme-base .removed-files-container {
+    background-color: var(--color-bg-default) !important;
+    border-color: var(--color-border-light) !important;
+}
+
+.modern-dialog.dialog-theme-base .removed-file-card {
+    border-bottom-color: var(--color-border-light) !important;
+}
+
+/* 确保所有文本都有正确的颜色 */
+.modern-dialog.dialog-theme-base * {
+    color: inherit;
+}
+
+.modern-dialog.dialog-theme-base h1,
+.modern-dialog.dialog-theme-base h2,
+.modern-dialog.dialog-theme-base h3,
+.modern-dialog.dialog-theme-base h4,
+.modern-dialog.dialog-theme-base h5,
+.modern-dialog.dialog-theme-base h6 {
+    color: var(--dialog-text-primary) !important;
+}
+
+.modern-dialog.dialog-theme-base p {
+    color: var(--dialog-text-secondary) !important;
+}
+
+.modern-dialog.dialog-theme-base small {
+    color: var(--dialog-text-muted) !important;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .modern-dialog.dialog-theme-base .el-dialog {
+        margin: 5vh auto !important;
+        width: 95% !important;
+    }
+}
+
+/* 动画和过渡 */
+.modern-dialog.dialog-theme-base .el-dialog {
+    transition: all 0.3s ease !important;
+}
+
+.modern-dialog.dialog-theme-base .method-card {
+    transition: all 0.2s ease !important;
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+    .modern-dialog.dialog-theme-base .el-dialog {
+        border-width: 2px !important;
+    }
+    
+    .modern-dialog.dialog-theme-base .el-input__inner,
+    .modern-dialog.dialog-theme-base .el-textarea__inner {
+        border-width: 2px !important;
+    }
+}
+
+/* 减少动画模式支持 */
+@media (prefers-reduced-motion: reduce) {
+    .modern-dialog.dialog-theme-base * {
+        transition: none !important;
+        animation: none !important;
+    }
+}

@@ -753,7 +753,7 @@ async def compress_lossless(
             log.warning(f"🔧 [调试] 压缩器正忙，拒绝请求")
             raise HTTPException(status_code=409, detail="压缩器正忙，请稍后再试")
 
-        log.info(f"🔧 [调试] 开始执行压缩...")
+        log.info("开始执行漫画压缩")
 
         # 执行压缩（Web版本仅支持下载模式）
         result = compressor.compress_manga_file(
@@ -761,22 +761,15 @@ async def compress_lossless(
             webp_quality=request.webp_quality
         )
 
-        log.info(f"🔧 [调试] 压缩结果: {result}")
-
         if not result["success"]:
-            log.error(f"🔧 [调试] 压缩失败: {result['message']}")
+            log.error(f"压缩失败: {result['message']}")
             raise HTTPException(status_code=500, detail=result["message"])
 
         # Web版本仅支持下载模式
         temp_file = result["temp_file"]
         download_name = result["download_name"]
 
-        log.info(f"🔧 [调试] 下载模式:")
-        log.info(f"  - 临时文件: {temp_file}")
-        log.info(f"  - 下载文件名: {download_name}")
-        log.info(f"  - 临时文件存在: {os.path.exists(temp_file)}")
-        if os.path.exists(temp_file):
-            log.info(f"  - 临时文件大小: {os.path.getsize(temp_file):,} bytes")
+        log.info(f"压缩完成，生成文件: {download_name}")
 
         return FileResponse(
             path=temp_file,

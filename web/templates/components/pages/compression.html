@@ -50,18 +50,19 @@
                 <!-- 操作按钮 (垂直排列) -->
                  <div style="padding: 0;">
                      <div style="margin-bottom: 8px;">
+                         <!-- 重写“开始压缩”按钮，参照其他按钮结构 -->
                          <el-button
                              type="primary"
                              @click="startCompression"
                              :disabled="compressionTasks.length === 0 || isCompressing"
                              :loading="isCompressing"
-                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
-                             <!-- 使用 inline-flex 来垂直居中图标和文字 -->
+                             style="width: 100%; height: 40px; margin: 0 auto;">
+                             <!-- 直接放置图标和文字，使用 play_arrow 图标 -->
                              <span style="display: inline-flex; align-items: center; gap: 6px;">
+                                 <span v-if="!isCompressing" class="material-symbols-rounded">play_arrow</span>
+                                 <span v-if="!isCompressing">开始压缩</span>
                                  <span v-if="isCompressing" class="material-symbols-rounded">autorenew</span>
                                  <span v-if="isCompressing">压缩中...</span>
-                                 <span v-else class="material-symbols-rounded">compress</span>
-                                 <span v-else>开始压缩</span>
                              </span>
                          </el-button>
                      </div>
@@ -71,7 +72,7 @@
                              type="warning"
                              @click="stopCompression"
                              :disabled="!isCompressing"
-                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
+                             style="width: 100%; height: 40px; margin: 0 auto;">
                               <span style="display: inline-flex; align-items: center; gap: 6px;">
                                  <span class="material-symbols-rounded">stop</span>
                                  <span>停止压缩</span>
@@ -83,7 +84,7 @@
                          <el-button
                              @click="clearCompressionTasks"
                              :disabled="compressionTasks.length === 0"
-                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
+                             style="width: 100%; height: 40px; margin: 0 auto;">
                               <span style="display: inline-flex; align-items: center; gap: 6px;">
                                  <span class="material-symbols-rounded">delete</span>
                                  <span>清空任务</span>

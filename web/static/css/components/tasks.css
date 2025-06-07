@@ -1,0 +1,146 @@
+/* 共享的任务列表样式 */
+
+.task-count {
+    /* 任务数量显示样式 */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-sm); /* 计数下方的间距 */
+    display: block; /* 确保独占一行 */
+}
+
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    /* 考虑为长列表添加 max-height 和 overflow */
+    /* max-height: 500px; */
+    /* overflow-y: auto; */
+}
+
+.task-item {
+    padding: var(--spacing-md);
+    border: none; /* 移除默认边框 */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04); /* 细微阴影 */
+    border-radius: var(--border-radius);
+    background: var(--color-bg-default);
+    transition: all 0.2s ease;
+    display: flex; /* 使用 flexbox 布局 */
+    flex-wrap: wrap; /* 允许在小屏幕上换行 */
+    align-items: center; /* 垂直居中对齐项目 */
+    gap: var(--spacing-md); /* flex 项目之间的间距 */
+    border-left: 3px solid transparent; /* 状态边框占位符 */
+}
+
+.task-item:hover {
+    background-color: var(--color-bg-elevated);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* 任务状态指示器 */
+.task-item.task-processing {
+    border-left-color: var(--color-state-warning);
+    background: rgba(var(--color-state-warning-rgb), 0.08);
+}
+.task-item.task-processing:hover {
+    background: rgba(var(--color-state-warning-rgb), 0.12);
+}
+
+.task-item.task-completed {
+    border-left-color: var(--color-state-success);
+    background: rgba(var(--color-state-success-rgb), 0.08);
+}
+.task-item.task-completed:hover {
+     background: rgba(var(--color-state-success-rgb), 0.12);
+}
+
+.task-item.task-error {
+    border-left-color: var(--color-state-error);
+    background: rgba(var(--color-state-error-rgb), 0.08);
+}
+.task-item.task-error:hover {
+     background: rgba(var(--color-state-error-rgb), 0.12);
+}
+
+
+/* 任务项主要内容区域 */
+/* .task-item-main 规则已移除，因为未在模板中使用 */
+
+.task-name {
+    /* 任务名称样式 */
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-weight-medium); /* 名称使用中等字重 */
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
+    margin-bottom: var(--spacing-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-default);
+    flex-grow: 1; /* 允许名称区域扩展以填充空间 */
+    min-width: 150px; /* 保证最小宽度 */
+}
+
+.task-details {
+    /* 任务详情区域布局 (页数, 状态等) */
+    display: flex;
+    gap: var(--spacing-md); /* 详情项之间的间距 */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
+    color: var(--color-text-secondary);
+}
+.task-details span { /* 单个详情项 */
+    white-space: nowrap;
+}
+/* 空规则 .task-pages {} 已移除 */
+.task-status { /* 特定详情项: 状态 */
+    /* 如果需要，添加特定样式 */
+    font-weight: var(--m3-font-weight-medium); /* 让状态稍微加粗 */
+}
+
+/* 任务进度区域 */
+/* .task-progress-section 规则已移除，因为未在模板中使用 */
+
+.progress-detail {
+    /* 进度详情文本样式 (例如 "5 / 10") */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    flex-shrink: 0; /* 防止收缩 */
+    margin-left: var(--spacing-sm); /* 与进度条保持间距 */
+}
+
+/* 任务操作按钮区域 */
+.task-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    white-space: nowrap;
+    flex-shrink: 0; /* 防止操作按钮换行 */
+    margin-left: auto; /* 在空间足够时将操作推到右侧 */
+}
+
+/* 确保换行时操作按钮正确对齐 */
+@media (max-width: 600px) {
+    .task-item {
+        align-items: flex-start; /* 换行时顶部对齐 */
+    }
+    .task-actions {
+        width: 100%; /* 换行时占据全部宽度 */
+        justify-content: flex-end; /* 按钮右对齐 */
+        margin-left: 0; /* 重置外边距 */
+        padding-top: var(--spacing-sm); /* 换行时在操作按钮上方添加空间 */
+    }
+    /* 确保 .task-name 在换行时不会阻止 .task-actions 到达右侧 */
+    .task-name {
+        min-width: 100px; /* 减少最小宽度以适应更窄屏幕 */
+    }
+}

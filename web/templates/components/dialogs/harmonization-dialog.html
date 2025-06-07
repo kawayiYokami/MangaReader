@@ -1,0 +1,55 @@
+<!-- 和谐映射对话框组件 -->
+<el-dialog
+    v-model="harmonizationDialog.visible"
+    :title="harmonizationDialog.title"
+    width="600px"
+    :close-on-click-modal="false"
+    append-to-body
+    custom-class="modern-dialog dialog-theme-base">
+
+    <el-form label-width="100px">
+        <el-form-item label="原文">
+            <el-input
+                v-model="harmonizationDialog.originalText"
+                type="textarea"
+                :rows="3"
+                placeholder="请输入需要和谐化的原文"
+                :disabled="harmonizationDialog.isEditing">
+            </el-input>
+        </el-form-item>
+
+        <el-form-item label="和谐后文本">
+            <el-input
+                v-model="harmonizationDialog.harmonizedText"
+                type="textarea"
+                :rows="3"
+                placeholder="请输入和谐后的文本（留空表示删除原文）">
+            </el-input>
+        </el-form-item>
+    </el-form>
+
+    <template #footer>
+        <div class="dialog-footer modern-dialog-footer">
+            <!-- 左侧：危险操作 -->
+            <div class="footer-left" v-if="harmonizationDialog.isEditing">
+                <el-button
+                    type="danger"
+                    plain
+                    @click="deleteHarmonizationEntry"
+                    size="small"
+                    class="delete-button">
+                    <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.2em; margin-right: 4px;">delete</span> 删除
+                </el-button>
+            </div>
+
+            <!-- 右侧：主要操作 -->
+            <div class="footer-right">
+                <el-button @click="cancelHarmonizationEdit" size="large">取消</el-button>
+                <el-button type="primary" @click="saveHarmonizationEdit" size="large">
+                    <span v-if="harmonizationDialog.isEditing">保存修改</span>
+                    <span v-else>添加映射</span>
+                </el-button>
+            </div>
+        </div>
+    </template>
+</el-dialog>

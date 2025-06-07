@@ -6,6 +6,9 @@ window.MangaBrowserMethods = {
         try {
             // 直接加载缓存中的漫画数据
             await this.loadMangaData();
+
+            // 初始化智能预加载
+            this.initSmartPreload();
         } catch (error) {
             console.error('加载初始数据失败:', error);
         }
@@ -30,9 +33,8 @@ window.MangaBrowserMethods = {
                 ElMessage.success(`加载完成，共 ${this.mangaList.length} 本漫画`);
             }
 
-            // 测试加载第一个漫画的缩略图
+            // 初始化缩略图加载
             if (this.mangaList.length > 0) {
-                console.log('开始测试缩略图加载...');
                 this.loadThumbnail(this.mangaList[0].file_path);
             }
         } catch (error) {
@@ -140,7 +142,7 @@ window.MangaBrowserMethods = {
         const viewerUrl = `/viewer.html?path=${encodedPath}&page=0`;
 
         // 检测是否在桌面应用中
-        if (this.isDesktopApp()) {
+        if (this.checkIsDesktopApp()) {
             // 桌面应用：使用iframe方案
             this.openMangaViewer(viewerUrl);
         } else {
@@ -241,49 +243,21 @@ window.MangaBrowserMethods = {
     clearBrowsingState() {
         sessionStorage.removeItem('mangaBrowsingState');
         localStorage.removeItem('mangaBrowsingState');
-        console.log('🧹 浏览状态已清除');
     },
 
-    isDesktopApp() {
+    checkIsDesktopApp() {
         // 检测是否在桌面应用中运行
-        console.log('检测桌面环境:', {
-            userAgent: window.navigator.userAgent,
-            protocol: window.location.protocol,
-            hostname: window.location.hostname,
-            port: window.location.port,
-            opener: !!window.opener,
-            parent: window.parent !== window,
-            pywebviewDesktop: !!window.PYWEBVIEW_DESKTOP
-        });
-
-        // 优先检查注入的标识
-        if (window.PYWEBVIEW_DESKTOP) {
-            console.log('✅ 通过注入标识检测到桌面环境');
-            return true;
-        }
-
-        // 备用检测方式
-        const checks = [
-            window.navigator.userAgent.toLowerCase().includes('pywebview'),
-            window.location.protocol === 'file:',
-            window.location.hostname === '127.0.0.1' && window.location.port === '8081',
-            !window.opener && window.parent === window,
-            typeof window.pywebview !== 'undefined'
-        ];
-
-        const isDesktop = checks.some(check => check);
-        console.log('桌面应用检测结果:', isDesktop, '检测项:', checks);
-
+        // 简化为只检查 window.pywebview 是否存在
+        const isDesktop = typeof window.pywebview !== 'undefined';
+        // console.log(`[checkIsDesktopApp] Result: ${isDesktop}`); // 减少日志噪音
         return isDesktop;
     },
 
     viewManga(manga) {
-        console.log('查看漫画:', manga);
         ElMessage.info(`查看漫画: ${manga.title}`);
     },
 
     translateManga(manga) {
-        console.log('翻译漫画:', manga);
         ElMessage.info(`开始翻译: ${manga.title}`);
         // 切换到翻译页面
         this.activeMenu = 'translation';
@@ -312,16 +286,43 @@ window.MangaBrowserMethods = {
                 }
             });
         }, {
-            rootMargin: '50px', // 提前50px开始加载
+            rootMargin: '200px', // 提前200px开始加载，增加预加载范围
             threshold: 0.1
+        });
+
+        // 创建预加载Observer，更大的预加载范围
+        this.preloadObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const mangaPath = entry.target.dataset.mangaPath;
+                    if (mangaPath && !this.thumbnailCache.has(mangaPath) && !this.loadingThumbnails.has(mangaPath)) {
+                        // 延迟预加载，避免影响当前视口的加载
+                        setTimeout(() => {
+                            this.loadThumbnail(mangaPath, true);
+                        }, 100);
+                    }
+                }
+            });
+        }, {
+            rootMargin: '500px', // 更大的预加载范围
+            threshold: 0.01
         });
     },
 
-    async loadThumbnail(mangaPath) {
+    async loadThumbnail(mangaPath, isPreload = false) {
         if (this.loadingThumbnails.has(mangaPath)) return;
 
         try {
             this.loadingThumbnails.add(mangaPath);
+
+            // 如果是预加载，添加到预加载队列
+            if (isPreload) {
+                this.preloadQueue.add(mangaPath);
+                // 限制并发预加载数量
+                if (this.preloadQueue.size > 5) {
+                    return;
+                }
+            }
 
             // 使用POST请求发送路径，避免URL编码问题
             const response = await axios.post('/api/manga/thumbnail', {
@@ -333,14 +334,50 @@ window.MangaBrowserMethods = {
                 // 缓存缩略图
                 this.thumbnailCache.set(mangaPath, response.data.thumbnail);
 
-                // 强制更新Vue响应式数据
-                this.$forceUpdate();
-                console.log('缩略图加载成功:', mangaPath);
+                // 如果是当前视口内的图片，立即更新显示
+                if (!isPreload) {
+                    this.$forceUpdate();
+                }
+
+                // 预加载完成后，延迟更新以避免影响性能
+                if (isPreload) {
+                    setTimeout(() => {
+                        this.$forceUpdate();
+                    }, 50);
+                }
             }
         } catch (error) {
-            console.error('获取缩略图失败:', mangaPath, error);
+            if (!isPreload) {
+                console.error('获取缩略图失败:', mangaPath, error);
+            }
         } finally {
             this.loadingThumbnails.delete(mangaPath);
+            if (isPreload) {
+                this.preloadQueue.delete(mangaPath);
+            }
+        }
+    },
+
+    // 批量预加载缩略图
+    async batchPreloadThumbnails(mangaPaths, batchSize = 3) {
+        const batches = [];
+        for (let i = 0; i < mangaPaths.length; i += batchSize) {
+            batches.push(mangaPaths.slice(i, i + batchSize));
+        }
+
+        for (const batch of batches) {
+            // 并行加载一批缩略图
+            const promises = batch.map(mangaPath => {
+                if (!this.thumbnailCache.has(mangaPath) && !this.loadingThumbnails.has(mangaPath)) {
+                    return this.loadThumbnail(mangaPath, true);
+                }
+                return Promise.resolve();
+            });
+
+            await Promise.allSettled(promises);
+
+            // 批次间稍作延迟，避免过度占用资源
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
     },
 
@@ -353,14 +390,25 @@ window.MangaBrowserMethods = {
     },
 
     observeCard(element) {
-        if (this.thumbnailObserver && element) {
-            this.thumbnailObserver.observe(element);
+        if (element) {
+            // 同时使用两个Observer
+            if (this.thumbnailObserver) {
+                this.thumbnailObserver.observe(element);
+            }
+            if (this.preloadObserver) {
+                this.preloadObserver.observe(element);
+            }
         }
     },
 
     unobserveCard(element) {
-        if (this.thumbnailObserver && element) {
-            this.thumbnailObserver.unobserve(element);
+        if (element) {
+            if (this.thumbnailObserver) {
+                this.thumbnailObserver.unobserve(element);
+            }
+            if (this.preloadObserver) {
+                this.preloadObserver.unobserve(element);
+            }
         }
     },
 
@@ -459,8 +507,6 @@ window.MangaBrowserMethods = {
     },
 
     onTitleClick(title) {
-        console.log('点击标题:', title);
-
         // 将标题添加到搜索框
         this.searchQuery = title;
         ElMessage.success(`已搜索标题: ${title}`);
@@ -502,6 +548,114 @@ window.MangaBrowserMethods = {
         return null;
     },
 
+    // ==================== 桌面版功能 ====================
+    async selectDirectory() {
+        // 检查 Pywebview API 是否可用且包含所需方法
+        if (!window.pywebview || !window.pywebview.api || typeof window.pywebview.api.trigger_select_directory !== 'function') {
+            console.error('window.pywebview.api.trigger_select_directory 函数未找到或无效。');
+            ElMessage.error('桌面功能接口不可用，请确认应用是否正确启动。');
+            return;
+        }
+        let loadingInstance = null;
+        try {
+            console.log('通过 window.pywebview.api.trigger_select_directory() 调用后端 API...');
+            loadingInstance = ElLoading.service({ text: '正在打开目录选择器...' });
+
+            // 调用通过 js_api 暴露的 Python 方法
+            window.pywebview.api.trigger_select_directory()
+                .then(result => {
+                    console.log('Python API trigger_select_directory() 调用成功 (同步部分):', result);
+                    if (!result || !result.success) {
+                         loadingInstance?.close();
+                         ElMessage.error(`启动目录选择失败: ${result?.message || '未知错误'}`);
+                    }
+                    // 加载指示器依赖事件 handleDesktopImportComplete 关闭
+                })
+                .catch(error => {
+                    loadingInstance?.close();
+                    console.error('调用 window.pywebview.api.trigger_select_directory 失败:', error);
+                    ElMessage.error('与桌面后端通信失败');
+                });
+
+        } catch (error) { // 处理调用 API 前的同步错误
+            loadingInstance?.close();
+            console.error('调用 selectDirectory 同步出错:', error);
+            ElMessage.error('打开目录选择器时发生意外错误');
+        }
+        // 加载指示器的关闭依赖事件 handleDesktopImportComplete
+    }, // <--- 添加逗号
+
+    async selectFile() {
+        // 检查 Pywebview API 是否可用且包含所需方法 (假设新方法为 trigger_select_file)
+        if (!window.pywebview || !window.pywebview.api || typeof window.pywebview.api.trigger_select_file !== 'function') {
+            console.error('window.pywebview.api.trigger_select_file 函数未找到或无效。');
+            ElMessage.error('桌面文件选择功能接口不可用。');
+            return;
+        }
+        let loadingInstance = null;
+        try {
+            console.log('通过 window.pywebview.api.trigger_select_file() 调用后端 API...');
+            loadingInstance = ElLoading.service({ text: '正在打开文件选择器...' });
+
+            // 调用新的 Python API 方法
+            window.pywebview.api.trigger_select_file()
+                .then(result => {
+                    console.log('Python API trigger_select_file() 调用成功 (同步部分):', result);
+                    if (!result || !result.success) {
+                         loadingInstance?.close();
+                         ElMessage.error(`启动文件选择失败: ${result?.message || '未知错误'}`);
+                    }
+                    // 加载指示器依赖事件 handleDesktopImportComplete 关闭
+                })
+                .catch(error => {
+                    loadingInstance?.close();
+                    console.error('调用 window.pywebview.api.trigger_select_file 失败:', error);
+                    ElMessage.error('与桌面后端通信失败');
+                });
+
+        } catch (error) {
+            loadingInstance?.close();
+            console.error('调用 selectFile 同步出错:', error);
+            ElMessage.error('打开文件选择器时发生意外错误');
+        }
+        // 加载指示器的关闭依赖事件 handleDesktopImportComplete
+    }, // <--- 添加逗号 (如果后面还有方法)
+
+    // 处理从后端（desktop_main.py）发送的导入完成事件
+    handleDesktopImportComplete(event) {
+        console.log('收到 desktopImportComplete 事件:', event.detail);
+        const { success, message, added, failed } = event.detail;
+
+        // 关闭可能存在的加载提示
+        const loadingInstance = ElLoading.service();
+        loadingInstance.close();
+
+        // 使用 $notify 提供更持久的通知
+        // *** 注意：这里的 added/failed 来自事件 payload，对于 set_manga_dir 可能不再准确 ***
+        // *** 需要调整这里的逻辑或后端事件发送的 payload ***
+        if (success) { // 简化成功判断逻辑
+             this.$notify({
+                title: '操作成功',
+                message: message || '操作已成功启动或完成。', // 使用后端消息
+                type: 'success',
+                duration: 5000
+            });
+             // 依赖 MangaManager 信号触发的列表刷新，这里不主动调用 loadMangaData
+             // this.loadMangaData();
+        } else if (!success && message === '用户未选择目录') {
+             console.log('用户取消选择目录或文件。');
+             // ElMessage.info('未选择目录或文件。'); // 可选的轻提示
+        } else { // 其他失败情况
+              this.$notify({
+                title: '操作失败或通知',
+                message: message || '操作未能完成或遇到问题。',
+                type: 'warning', // 或 'error'，取决于后端消息
+                duration: 8000
+            });
+        }
+    },
+
+
     // ==================== Web版本说明 ====================
     // Web版本不支持文件选择功能，所有文件操作功能已移除
     // 添加漫画功能在此Web版本中不可用
@@ -519,5 +673,131 @@ window.MangaBrowserMethods = {
     async onDirectorySelected(event) {
         console.warn('Web版本不支持文件选择功能');
         event.target.value = '';
+    },
+
+    // ==================== 智能预加载系统 ====================
+
+    initSmartPreload() {
+        // 滚动方向检测
+        this.lastScrollTop = 0;
+        this.scrollDirection = 'down';
+
+        // 节流滚动事件
+        let scrollTimeout;
+        window.addEventListener('scroll', () => {
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+
+            scrollTimeout = setTimeout(() => {
+                this.handleSmartScroll();
+            }, 100);
+        });
+
+        // 页面空闲时预加载
+        if ('requestIdleCallback' in window) {
+            this.scheduleIdlePreload();
+        }
+    },
+
+    handleSmartScroll() {
+        const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+        // 检测滚动方向
+        if (currentScrollTop > this.lastScrollTop) {
+            this.scrollDirection = 'down';
+        } else {
+            this.scrollDirection = 'up';
+        }
+
+        this.lastScrollTop = currentScrollTop;
+
+        // 根据滚动方向预加载
+        this.predictivePreload();
+    },
+
+    predictivePreload() {
+        // 获取当前视口中的漫画
+        const visibleManga = this.getVisibleManga();
+        if (visibleManga.length === 0) return;
+
+        // 根据滚动方向预测下一批要显示的漫画
+        const currentIndex = this.filteredMangaList.findIndex(
+            manga => manga.file_path === visibleManga[0].file_path
+        );
+
+        if (currentIndex === -1) return;
+
+        let preloadIndices = [];
+        if (this.scrollDirection === 'down') {
+            // 向下滚动，预加载后面的漫画
+            for (let i = 1; i <= 6; i++) {
+                const index = currentIndex + visibleManga.length + i;
+                if (index < this.filteredMangaList.length) {
+                    preloadIndices.push(index);
+                }
+            }
+        } else {
+            // 向上滚动，预加载前面的漫画
+            for (let i = 1; i <= 6; i++) {
+                const index = currentIndex - i;
+                if (index >= 0) {
+                    preloadIndices.push(index);
+                }
+            }
+        }
+
+        // 批量预加载
+        const preloadPaths = preloadIndices.map(index => this.filteredMangaList[index].file_path);
+        this.batchPreloadThumbnails(preloadPaths, 2);
+    },
+
+    getVisibleManga() {
+        // 获取当前视口中可见的漫画
+        const cards = document.querySelectorAll('.manga-card');
+        const visibleCards = [];
+
+        cards.forEach(card => {
+            const rect = card.getBoundingClientRect();
+            if (rect.top < window.innerHeight && rect.bottom > 0) {
+                const mangaPath = card.dataset.mangaPath;
+                const manga = this.filteredMangaList.find(m => m.file_path === mangaPath);
+                if (manga) {
+                    visibleCards.push(manga);
+                }
+            }
+        });
+
+        return visibleCards;
+    },
+
+    scheduleIdlePreload() {
+        requestIdleCallback((deadline) => {
+            // 在浏览器空闲时预加载缩略图
+            if (deadline.timeRemaining() > 10) {
+                this.idlePreload();
+            }
+
+            // 继续调度下一次空闲预加载
+            this.scheduleIdlePreload();
+        });
+    },
+
+    idlePreload() {
+        // 找到还没有缓存的缩略图
+        const uncachedManga = this.filteredMangaList.filter(manga =>
+            !this.thumbnailCache.has(manga.file_path) &&
+            !this.loadingThumbnails.has(manga.file_path)
+        );
+
+        if (uncachedManga.length > 0) {
+            // 随机选择一些进行预加载，避免按顺序加载造成的偏向性
+            const randomManga = uncachedManga
+                .sort(() => Math.random() - 0.5)
+                .slice(0, 3);
+
+            const paths = randomManga.map(manga => manga.file_path);
+            this.batchPreloadThumbnails(paths, 1);
+        }
     }
 };

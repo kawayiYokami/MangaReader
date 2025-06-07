@@ -315,9 +315,10 @@ class MangaLoader:
             log.warning(f"不支持的文件类型: {file_path}")
             return None
 
+        
         # 执行页面尺寸分析
-        if analyze_dimensions and manga and manga.total_pages > 0:
-            MangaLoader._analyze_manga_dimensions(manga)
+        #if analyze_dimensions and manga and manga.total_pages > 0:
+        #    MangaLoader._analyze_manga_dimensions(manga)
 
         return manga
 

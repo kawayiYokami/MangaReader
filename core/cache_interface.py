@@ -50,3 +50,10 @@ class CacheInterface(ABC):
         关闭缓存资源，例如数据库连接。
         """
         pass
+
+    @abstractmethod
+    def get_cache_size_bytes(self) -> int:
+        """
+        获取缓存的总大小（字节）。
+        """
+        pass

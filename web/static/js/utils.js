@@ -16,13 +16,11 @@ window.UtilsMethods = {
 
             // 处理iframe发送的消息
             if (event.data && event.data.type === 'closeMangaViewer') {
-                console.log('📨 收到iframe关闭请求');
                 if (this.closeCornerViewer) {
                     this.closeCornerViewer();
                 }
             }
         });
-        console.log('👂 iframe消息监听器已初始化');
     },
 
     getPageTitle() {
@@ -45,10 +43,9 @@ window.UtilsMethods = {
             ElMessage.error('API连接失败: ' + error.message);
         }
     },
-    // 检测是否运行在PyWebView桌面环境中
+    // 检测是否运行在桌面环境中
     isDesktop() {
-        // 检查由desktop_main.py注入的全局变量或API对象
-        return !!window.PYWEBVIEW_DESKTOP || (!!window.pywebview && !!window.pywebview.api); // Corrected logical AND
+        return !!window.PYWEBVIEW_DESKTOP || (!!window.pywebview && !!window.pywebview.api);
     },
 
     // ==================== 主题管理 ====================
@@ -232,8 +229,7 @@ window.UtilsMethods = {
             // 修正：确保发送的请求体包含 key 和 value
             const response = await axios.put(`/api/settings/${key}`, { key: key, value: value });
             if (response.data.success) {
-                // ElMessage.success(`${response.data.message}`);
-                console.log(`设置 ${key} 已更新`);
+                // 设置更新成功，无需显示消息
             } else {
                 ElMessage.error(`更新设置 ${key} 失败: ` + (response.data.message || '未知错误'));
             }
@@ -264,9 +260,8 @@ window.UtilsMethods = {
         this.updateSetting('font_name', value);
     },
 
-    // 新增：加载初始设置的方法 (从 app-data.js 移入)
+    // 加载初始设置
     async loadInitialSettings() {
-        console.log('[Utils] 开始加载初始设置...'); // 更新日志来源
         try {
             const response = await axios.get('/api/settings/all');
             if (response.data && response.data.settings) {
@@ -275,11 +270,7 @@ window.UtilsMethods = {
                     return acc;
                 }, {});
 
-                console.log('[Utils] 从API获取的设置:', settingsMap);
-
-                // 更新 AppData 中的设置值
-                // 注意：这里需要处理后端返回的键名 (camelCase) 和 AppData 中的键名 (可能不同)
-                // 使用 window.AppData 来引用全局数据
+                // 更新应用数据中的设置值
                 if (settingsMap.hasOwnProperty('translatorType')) {
                     window.AppData.translationSettings.translator_type = settingsMap.translatorType; // AppData 使用 snake_case
                 }
@@ -315,5 +306,11 @@ window.UtilsMethods = {
             console.error('[Utils] 加载初始设置时出错:', error);
             ElMessage.error('加载初始设置失败: ' + (error.response?.data?.detail || error.message));
         }
-    }
+    }, // <-- 添加逗号
+
+    // 新增：用于重新加载应用程序的方法
+    reloadApp() {
+        console.log('🔄 请求重新加载应用程序...');
+        location.reload();
+    } // <-- 最后一个方法后面不需要逗号
 };

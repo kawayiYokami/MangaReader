@@ -11,592 +11,389 @@ import sys
 import os
 import logging
 from pathlib import Path
+import traceback # 保留用于打印错误
+import json # 用于创建JS事件的JSON payload
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-# 导入现有的Web应用
-def import_web_app():
-    """尝试导入现有的Web应用"""
+# ----- 全局变量 -----
+desktop_app_instance = None # 用于全局函数/API方法访问应用实例
+core_interface = None       # 全局 CoreInterface 实例
+manga_manager = None        # 全局 MangaManager 实例
+# --------------------
 
-    # 方案1: 尝试导入完整的Web应用
+# 导入现有的Web应用 和 Core Interface
+def import_dependencies():
+    """尝试导入必要的依赖"""
+    app = None
+    log_module = None
+    app_type = "unknown"
+    core_interface_instance = None
+    manga_manager_instance = None
+
+    # 方案1: 尝试导入完整的Web应用 和 Core Interface
     try:
-        from web.app import app
+        from web.app import app as fastapi_app
         from utils import manga_logger as log
-        print("✅ 成功导入完整Web应用")
-        return app, log, "full"
+        from web.core_interface import get_core_interface
+        from core.manga_manager import MangaManager # 直接导入 MangaManager
+
+        print("✅ 成功导入完整Web应用、Core Interface及MangaManager")
+        app = fastapi_app
+        log_module = log
+        app_type = "full"
+        core_interface_instance = get_core_interface() # 获取 CoreInterface 实例
+
+        # 获取 MangaManager 实例 - 通常 CoreInterface 会持有它
+        if hasattr(core_interface_instance, 'manga_manager'):
+             manga_manager_instance = core_interface_instance.manga_manager
+             log.info("✅ 成功从 CoreInterface 获取 MangaManager 实例")
+        else:
+             log.error("❌ CoreInterface 未能提供 MangaManager 实例！")
+
+
+        return app, log_module, app_type, core_interface_instance, manga_manager_instance
     except ImportError as e:
-        print(f"⚠️ 无法导入完整Web应用: {e}")
+        print(f"⚠️ 无法导入完整Web应用、Core Interface或MangaManager: {e}")
+        # 尝试获取日志模块以便后续使用
+        try:
+            from utils import manga_logger as log
+            log_module = log
+        except ImportError:
+            class SimpleLogger: # 简单的日志替代品
+                def info(self, msg): print(f"INFO: {msg}")
+                def error(self, msg, exc_info=False): print(f"ERROR: {msg}")
+                def warning(self, msg): print(f"WARNING: {msg}")
+            log_module = SimpleLogger()
 
-    # 方案2: 尝试直接运行web_main.py的逻辑
+    # 方案2: 尝试创建简化版Web应用 (如果完整版失败)
+    # (简化版代码省略)
+    print("⚠️ 简化版Web应用模式（或导入失败）")
+    return None, log_module, "simple", None, None
+
+# 导入依赖
+app, log, app_type, core_interface, manga_manager = import_dependencies() # 使用全局变量
+
+if app is None and app_type != "simple":
+     log.error("❌ 无法加载Web应用！")
+     sys.exit(1)
+
+if app_type == "full":
+    if core_interface is None:
+        log.warning("⚠️ 无法获取 Core Interface 实例，部分后端功能可能受限。")
+    if manga_manager is None:
+         log.warning("⚠️ 无法获取 MangaManager 实例，目录设置/扫描功能将不可用。")
+
+
+# ----- 后端逻辑实现 (供API或全局函数调用) -----
+
+def _dispatch_feedback_event(success, message, added=0, failed=0):
+    """Helper function to dispatch feedback event to JS."""
+    global desktop_app_instance
+    target_window = None
+    if desktop_app_instance and desktop_app_instance.window:
+        target_window = desktop_app_instance.window
+    elif webview.windows:
+         target_window = webview.windows[0]
+
+    if target_window:
+        try:
+            log.debug(f"发送桌面事件反馈: 成功={success}, 消息={message}")
+            detail_payload = {"success": success, "message": message, "added": added, "failed": failed}
+            detail_json = json.dumps(detail_payload, ensure_ascii=False)
+            js_code = f'window.dispatchEvent(new CustomEvent("desktopImportComplete", {{ detail: {detail_json} }}));'
+            target_window.evaluate_js(js_code)
+            log.debug("桌面事件已发送")
+        except Exception as e:
+            log.error(f"发送桌面事件失败: {e}", exc_info=True)
+    else:
+        log.error("无法发送桌面事件，窗口实例不可用")
+
+
+def _trigger_select_directory_logic():
+    """打开目录选择对话框并调用 MangaManager.set_manga_dir"""
+    global desktop_app_instance, manga_manager # 确保 manga_manager 可用
+    log.info("SELECT_DIR_LOGIC: Called.")
+
+    if not desktop_app_instance:
+         log.error("SELECT_DIR_LOGIC: desktop_app instance unavailable.")
+         _dispatch_feedback_event(success=False, message="应用实例不可用")
+         return
+    if not manga_manager:
+         log.error("SELECT_DIR_LOGIC: MangaManager instance unavailable.")
+         _dispatch_feedback_event(success=False, message="漫画管理器不可用")
+         return
+
+    current_window = None
+    if desktop_app_instance.window:
+        current_window = desktop_app_instance.window
+    elif webview.windows:
+         current_window = webview.windows[0]
+
+    if not current_window:
+         log.error("SELECT_DIR_LOGIC: Window instance unavailable.")
+         _dispatch_feedback_event(success=False, message="窗口实例不可用")
+         return
+
     try:
-        # 模拟web_main.py的启动逻辑
-        import sys
-        import os
-        sys.path.append(os.path.join(os.path.dirname(__file__), 'web'))
+        log.info(f"SELECT_DIR_LOGIC: Calling create_file_dialog on window: {current_window}")
+        result = current_window.create_file_dialog(webview.FOLDER_DIALOG)
+        log.info(f"SELECT_DIR_LOGIC: File dialog result: {result}")
 
-        from fastapi import FastAPI
-        from fastapi.staticfiles import StaticFiles
-        from fastapi.responses import HTMLResponse
-        import uvicorn
+        if result and isinstance(result, tuple) and len(result) > 0:
+            selected_path = result[0]
+            log.info(f"SELECT_DIR_LOGIC: Directory selected: {selected_path}. Calling MangaManager.set_manga_dir...")
 
-        app = FastAPI(title="漫画翻译工具")
-
-        # 挂载静态文件
-        if os.path.exists("web/static"):
-            app.mount("/static", StaticFiles(directory="web/static"), name="static")
-
-        @app.get("/")
-        async def root():
-            # 尝试读取主页面
             try:
-                with open("web/templates/index.html", "r", encoding="utf-8") as f:
-                    content = f.read()
-                return HTMLResponse(content)
-            except FileNotFoundError:
-                return HTMLResponse("""
-                <!DOCTYPE html>
-                <html lang="zh-CN">
-                <head>
-                    <meta charset="UTF-8">
-                    <title>漫画翻译工具 - 桌面版</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 40px; }
-                        .container { max-width: 800px; margin: 0 auto; text-align: center; }
-                        .status { background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <h1>🎌 漫画翻译工具 - 桌面版</h1>
-                        <div class="status">
-                            <h3>✅ PyWebView桌面应用运行中</h3>
-                            <p>这是一个简化版本，用于测试PyWebView功能</p>
-                            <p>完整功能正在开发中...</p>
-                        </div>
-                        <div>
-                            <h3>🚀 桌面版特性</h3>
-                            <ul style="text-align: left; display: inline-block;">
-                                <li>✅ 原生桌面窗口</li>
-                                <li>✅ 本地文件系统访问</li>
-                                <li>✅ 系统集成功能</li>
-                                <li>✅ 轻量级架构</li>
-                                <li>⏳ 完整Web UI集成（开发中）</li>
-                            </ul>
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """)
+                manga_manager.set_manga_dir(selected_path, force_rescan=True)
+                log.info(f"SELECT_DIR_LOGIC: MangaManager.set_manga_dir('{selected_path}') called successfully.")
+                _dispatch_feedback_event(success=True, message=f"已设置目录为 '{os.path.basename(selected_path)}'，正在扫描...")
+            except Exception as e_set_dir:
+                 log.error(f"SELECT_DIR_LOGIC ERROR: Error calling MangaManager.set_manga_dir: {e_set_dir}", exc_info=True)
+                 _dispatch_feedback_event(success=False, message=f"设置目录时出错: {e_set_dir}")
 
-        # 简单的日志类
-        class SimpleLogger:
-            def info(self, msg): print(f"INFO: {msg}")
-            def error(self, msg): print(f"ERROR: {msg}")
-            def warning(self, msg): print(f"WARNING: {msg}")
+        else:
+            log.info("SELECT_DIR_LOGIC: No directory selected or dialog cancelled.")
+            _dispatch_feedback_event(success=False, message="用户未选择目录")
 
-        log = SimpleLogger()
-        print("✅ 创建简化版Web应用")
-        return app, log, "simple"
+    except Exception as e_dialog:
+        error_msg = f"打开目录选择器时出错: {e_dialog}"
+        log.error(f"SELECT_DIR_LOGIC ERROR: {error_msg}", exc_info=True)
+        _dispatch_feedback_event(success=False, message=f"打开目录选择器失败: {e_dialog}")
 
-    except Exception as e:
-        print(f"❌ 创建简化版Web应用失败: {e}")
-        sys.exit(1)
 
-# 导入Web应用
-app, log, app_type = import_web_app()
+# ----- 修改：触发文件选择的逻辑 (修正 file_types 格式) -----
+def _trigger_select_file_logic():
+    """打开文件选择对话框并直接处理导入（修正 file_types 格式）"""
+    global desktop_app_instance, core_interface # 需要 core_interface
+    log.info("SELECT_FILE_LOGIC: Called.")
+
+    if not desktop_app_instance:
+         log.error("SELECT_FILE_LOGIC: desktop_app instance unavailable.")
+         _dispatch_feedback_event(success=False, message="应用实例不可用")
+         return
+    if not core_interface: # 检查 CoreInterface
+         log.error("SELECT_FILE_LOGIC: Core Interface unavailable.")
+         _dispatch_feedback_event(success=False, message="核心接口不可用，无法导入文件")
+         return
+
+    current_window = None
+    if desktop_app_instance.window:
+        current_window = desktop_app_instance.window
+    elif webview.windows:
+         current_window = webview.windows[0]
+
+    if not current_window:
+         log.error("SELECT_FILE_LOGIC: Window instance unavailable.")
+         _dispatch_feedback_event(success=False, message="窗口实例不可用")
+         return
+
+    try:
+        log.info(f"SELECT_FILE_LOGIC: Calling create_file_dialog (OPEN_DIALOG) on window: {current_window}")
+        # 修正 Windows 下的 file_types 格式
+        file_types = ('Manga Archives (*.zip;*.cbz;*.cbr;*.rar)', 'All files (*.*)')
+        # 另一种可能的格式，如果上面不行可以尝试:
+        # file_types = ('Manga Archives', '*.zip;*.cbz;*.cbr;*.rar', 'All files', '*.*')
+
+        result = current_window.create_file_dialog(
+            webview.OPEN_DIALOG,
+            allow_multiple=True,
+            file_types=file_types # 使用修正后的格式
+        )
+        log.info(f"SELECT_FILE_LOGIC: File dialog result: {result}")
+
+        if result and isinstance(result, tuple) and len(result) > 0:
+            selected_files = result
+            log.info(f"SELECT_FILE_LOGIC: {len(selected_files)} files selected. Processing directly...")
+
+            added_count = 0
+            failed_count = 0
+            errors = []
+
+            # 直接在此处循环处理，不使用额外线程
+            for file_path in selected_files:
+                try:
+                    log.info(f"SELECT_FILE_LOGIC: Processing file: {file_path}")
+                    core_interface.add_manga_from_path(file_path)
+                    log.info(f"SELECT_FILE_LOGIC: Successfully processed {file_path}")
+                    added_count += 1
+                except Exception as e:
+                    log.error(f"SELECT_FILE_LOGIC: Failed to process {file_path}: {e}", exc_info=True)
+                    failed_count += 1
+                    errors.append(f"{os.path.basename(file_path)}: {e}")
+
+            # 处理完成后发送最终反馈
+            if failed_count == 0:
+                final_message = f"成功导入 {added_count} 个文件。"
+                _dispatch_feedback_event(success=True, message=final_message, added=added_count, failed=failed_count)
+            else:
+                final_message = f"导入完成：成功 {added_count} 个，失败 {failed_count} 个。"
+                _dispatch_feedback_event(success=False, message=final_message, added=added_count, failed=failed_count)
+            log.info("SELECT_FILE_LOGIC: Processing finished.")
+
+        else:
+            log.info("SELECT_FILE_LOGIC: No files selected or dialog cancelled.")
+            _dispatch_feedback_event(success=False, message="用户未选择文件")
+
+    except Exception as e_dialog:
+        # 捕获特定于文件过滤器的错误
+        if "not a valid file filter" in str(e_dialog):
+            error_msg = f"文件过滤器格式错误: {e_dialog}"
+            log.error(f"SELECT_FILE_LOGIC ERROR: Invalid file filter format. Attempted: {file_types}", exc_info=True)
+        else:
+            error_msg = f"打开文件选择器时出错: {e_dialog}"
+            log.error(f"SELECT_FILE_LOGIC ERROR: {error_msg}", exc_info=True)
+        _dispatch_feedback_event(success=False, message=f"打开文件选择器失败: {e_dialog}") # 将原始错误发给前端
+
+
+# ----- 简单的 API 类 (用于 js_api) -----
+class DesktopApi:
+    """一个极其简单的类，其方法用于触发后端逻辑，通过 js_api 传递"""
+    def trigger_select_directory(self):
+        """由前端调用，触发选择目录的流程"""
+        log.info("收到选择目录请求")
+        try:
+             _trigger_select_directory_logic()
+             return {"success": True, "message": "目录选择流程已启动"}
+        except Exception as e:
+             log.error(f"启动目录选择失败: {e}", exc_info=True)
+             return {"success": False, "message": f"启动目录选择时出错: {e}"}
+
+    # ----- 恢复：触发文件选择的 API 方法 -----
+    def trigger_select_file(self):
+        """由 JS 调用，触发选择文件的流程"""
+        log.info("JS_API: trigger_select_file() called.")
+        try:
+            _trigger_select_file_logic() # 直接调用重写后的逻辑函数
+            # 同步返回成功，表示调用已收到。实际结果通过事件反映。
+            return {"success": True, "message": "File selection process initiated."}
+        except Exception as e:
+            log.error(f"JS_API ERROR in trigger_select_file: {e}", exc_info=True)
+            return {"success": False, "message": f"Error initiating file selection: {e}"}
+# -----------------------------------------
 
 class MangaTranslatorDesktop:
     """漫画翻译工具桌面版主类"""
-    
+
     def __init__(self):
+        global core_interface, manga_manager # 确保我们使用的是全局实例
         self.app = app
-        self.port = 8081  # 使用不同的端口避免冲突
+        self.port = 8081
         self.host = '127.0.0.1'
         self.server_thread = None
         self.window = None
-        self.viewer_windows = {}  # 存储查看器窗口 {manga_path: window}
+        self.core_interface = core_interface # 从全局获取
+        self.manga_manager = manga_manager   # 从全局获取
+        self.api = DesktopApi() # 创建简单的 API 实例
 
-        # 设置日志
         self.setup_logging()
+        log.info("🚀 MangaTranslatorDesktop Initializing...")
+        if app_type == "full":
+            if not self.core_interface: log.warning("⚠️ Core Interface not loaded.")
+            if not self.manga_manager: log.warning("⚠️ MangaManager not loaded. Directory features unavailable.")
+        elif app_type != "full":
+             log.warning("⚠️ Running in simple mode or app import failed. Desktop features unavailable.")
 
-        log.info("🚀 漫画翻译工具桌面版启动中...")
-    
     def setup_logging(self):
-        """设置日志配置"""
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-    
+        # (日志配置保持不变)
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        if hasattr(log, 'setup_logging'): log.setup_logging()
+
     def start_web_server(self):
-        """在后台线程中启动Web服务器"""
+        # (Web服务器启动逻辑保持不变)
         try:
-            log.info(f"🌐 启动Web服务器: http://{self.host}:{self.port}")
-
-            # 使用uvicorn启动FastAPI应用
+            log.info(f"🌐 Starting web server: http://{self.host}:{self.port}")
             import uvicorn
-            uvicorn.run(
-                self.app,
-                host=self.host,
-                port=self.port,
-                log_level="warning",  # 减少日志输出
-                access_log=False
-            )
-
+            uvicorn.run(self.app, host=self.host, port=self.port, log_level="warning", access_log=False)
         except Exception as e:
-            log.error(f"❌ Web服务器启动失败: {e}")
-            raise
-    
+            log.error(f"❌ Web server start failed: {e}", exc_info=True); raise
+
     def wait_for_server(self, timeout=10):
-        """等待Web服务器启动"""
+        # (等待服务器逻辑保持不变)
         import requests
-        
-        start_time = time.time()
-        url = f"http://{self.host}:{self.port}"
-        
-        log.info("⏳ 等待Web服务器启动...")
-        
+        start_time = time.time(); url = f"http://{self.host}:{self.port}"
+        log.info("⏳ Waiting for web server...")
         while time.time() - start_time < timeout:
             try:
-                response = requests.get(url, timeout=1)
-                if response.status_code == 200:
-                    log.info("✅ Web服务器启动成功")
-                    return True
-            except requests.exceptions.RequestException:
-                pass
-            
+                if requests.get(url, timeout=1).status_code == 200: log.info("✅ Web server ready."); return True
+            except requests.exceptions.RequestException: pass
             time.sleep(0.5)
-        
-        log.error("❌ Web服务器启动超时")
-        return False
-    
-    def create_desktop_window(self):
-        """创建桌面窗口"""
-        try:
-            log.info("🪟 创建桌面窗口...")
+        log.error("❌ Web server timed out."); return False
 
-            # 窗口配置
+    def create_desktop_window(self):
+        log.info("🪟 Creating desktop window...")
+        try:
             window_config = {
                 'title': '🎌 漫画翻译工具',
                 'url': f"http://{self.host}:{self.port}",
-                'width': 1200,
-                'height': 800,
-                'min_size': (800, 600),
-                'resizable': True,
-                'fullscreen': False,
-                'minimized': False,
-                'on_top': False,
-                'shadow': True,
-                'focus': True
+                'width': 1200, 'height': 800, 'min_size': (800, 600),
+                'resizable': True, 'fullscreen': False, 'minimized': False,
+                'on_top': False, 'shadow': True, 'focus': True,
+                'js_api': self.api # 传递简单实例
             }
-
-            # 创建窗口
+            log.info(f"Creating window with js_api: {self.api}")
             self.window = webview.create_window(**window_config)
 
-            # 设置窗口事件处理
-            self.setup_window_events()
+            if self.window:
+                 log.info(f"✅ Desktop window created successfully with js_api. Window object: {self.window}")
+            else:
+                 log.error("❌ Window object creation failed!")
+                 raise Exception("Failed to create PyWebView window")
 
-            # 注入JavaScript标识
-            self.inject_desktop_identifier()
-
-            log.info("✅ 桌面窗口创建成功")
             return self.window
-
         except Exception as e:
-            log.error(f"❌ 桌面窗口创建失败: {e}")
+            log.error(f"❌ Failed to create desktop window: {e}", exc_info=True)
             raise
 
-    def setup_window_events(self):
-        """设置窗口事件处理"""
-        # PyWebView不支持new_window事件，已改用iframe方案
-        # 窗口事件处理已简化
-        log.info("✅ 窗口事件处理设置完成（使用iframe方案）")
-
-    def inject_desktop_identifier(self):
-        """注入JavaScript标识，明确标识桌面环境"""
-        try:
-            # 等待窗口加载完成后注入JavaScript
-            def on_loaded():
-                try:
-                    # 注入全局变量标识桌面环境
-                    js_code = """
-                    window.PYWEBVIEW_DESKTOP = true;
-                    window.DESKTOP_APP_VERSION = '1.0.0';
-
-                    // JavaScript日志函数，输出到Python控制台
-                    window.jsLog = function(level, message) {
-                        if (window.pywebview && window.pywebview.api && window.pywebview.api.js_log) {
-                            window.pywebview.api.js_log(level, message);
-                        } else {
-                            console.log('[JS-' + level.toUpperCase() + ']', message);
-                        }
-                    };
-
-                    // 重写window.open，对查看器创建新窗口
-                    const originalOpen = window.open;
-                    window.open = function(url, target, features) {
-                        window.jsLog('info', '🚫 拦截window.open调用: ' + url + ', target: ' + target);
-
-                        console.log('🚫 拦截window.open调用:', {
-                            url: url,
-                            target: target,
-                            features: features,
-                            isViewer: url && url.includes('/viewer.html'),
-                            isLocal: url && (url.startsWith('/') || url.includes('127.0.0.1:8081'))
-                        });
-
-                        // 如果是查看器URL，尝试创建新窗口
-                        if (url && url.includes('/viewer.html')) {
-                            window.jsLog('info', '📖 检测到查看器URL，尝试创建新窗口');
-
-                            // 尝试通过API创建窗口
-                            if (window.pywebview && window.pywebview.api && window.pywebview.api.create_viewer_window) {
-                                window.jsLog('info', '� 使用PyWebView API创建窗口');
-                                try {
-                                    const result = window.pywebview.api.create_viewer_window(url);
-                                    window.jsLog('info', '📖 API调用结果: ' + result);
-                                    return null; // 阻止默认行为
-                                } catch (error) {
-                                    window.jsLog('error', '❌ API调用失败: ' + error);
-                                }
-                            }
-
-                            // 如果API不可用，使用原始window.open
-                            window.jsLog('info', '📖 API不可用，使用原始window.open');
-                            const result = originalOpen.call(window, url, '_blank', 'width=1000,height=700,resizable=yes');
-                            window.jsLog('info', '📖 window.open返回结果: ' + result);
-                            return result;
-                        }
-
-                        // 如果是其他本地URL，在当前窗口导航
-                        if (url && (url.startsWith('/') || url.includes('127.0.0.1:8081'))) {
-                            window.jsLog('info', '📍 在当前窗口导航: ' + url);
-                            window.location.href = url;
-                            return null;
-                        }
-
-                        // 外部URL仍然使用原始方法
-                        window.jsLog('info', '🌐 外部URL，使用原始window.open');
-                        return originalOpen.call(window, url, target, features);
-                    };
-
-                    window.jsLog('info', '🖥️ PyWebView桌面环境标识已注入，window.open已重写');
-                    window.jsLog('info', '🖥️ 原始window.open函数类型: ' + typeof originalOpen);
-
-                    // 5秒后检查API可用性
-                    setTimeout(function() {
-                        if (window.pywebview && window.pywebview.api) {
-                            window.jsLog('info', '✅ PyWebView API可用');
-                            window.jsLog('info', '📋 可用API方法: ' + Object.keys(window.pywebview.api).join(', '));
-                        } else {
-                            window.jsLog('warn', '⚠️ PyWebView API不可用');
-                        }
-                    }, 5000);
-                    """
-                    self.window.evaluate_js(js_code)
-                    log.info("✅ 桌面环境标识注入成功")
-                except Exception as e:
-                    log.warning(f"⚠️ JavaScript注入失败: {e}")
-
-            # 设置加载完成回调
-            if hasattr(self.window, 'loaded'):
-                self.window.loaded += on_loaded
-            else:
-                # 如果没有loaded事件，延迟注入
-                import threading
-                def delayed_inject():
-                    import time
-                    time.sleep(2)  # 等待页面加载
-                    on_loaded()
-
-                threading.Thread(target=delayed_inject, daemon=True).start()
-
-        except Exception as e:
-            log.warning(f"⚠️ 桌面标识注入设置失败: {e}")
-            # 不影响主要功能，继续运行
-    
-    def setup_webview_api(self):
-        """设置WebView API，提供桌面特有功能"""
-        
-        class DesktopAPI:
-            """桌面API类，暴露给前端JavaScript"""
-            
-            def __init__(self, desktop_app):
-                self.desktop_app = desktop_app
-            
-            def get_platform_info(self):
-                """获取平台信息"""
-                import platform
-                return {
-                    'platform': platform.system(),
-                    'version': platform.version(),
-                    'architecture': platform.architecture()[0],
-                    'python_version': platform.python_version(),
-                    'is_desktop': True
-                }
-            
-            def select_file(self, file_types=None):
-                """选择文件"""
-                try:
-                    file_types = file_types or [
-                        '漫画文件 (*.zip;*.rar;*.cbz;*.cbr)',
-                        'All files (*.*)'
-                    ]
-                    
-                    result = webview.windows[0].create_file_dialog(
-                        webview.OPEN_DIALOG,
-                        allow_multiple=False,
-                        file_types=file_types
-                    )
-                    
-                    if result and len(result) > 0:
-                        file_path = result[0]
-                        file_info = {
-                            'path': file_path,
-                            'name': os.path.basename(file_path),
-                            'size': os.path.getsize(file_path) if os.path.exists(file_path) else 0
-                        }
-                        log.info(f"📁 用户选择文件: {file_info['name']}")
-                        return file_info
-                    
-                    return None
-                    
-                except Exception as e:
-                    log.error(f"❌ 文件选择失败: {e}")
-                    return None
-            
-            def select_multiple_files(self, file_types=None):
-                """选择多个文件"""
-                try:
-                    file_types = file_types or [
-                        '漫画文件 (*.zip;*.rar;*.cbz;*.cbr)',
-                        'All files (*.*)'
-                    ]
-                    
-                    result = webview.windows[0].create_file_dialog(
-                        webview.OPEN_DIALOG,
-                        allow_multiple=True,
-                        file_types=file_types
-                    )
-                    
-                    if result:
-                        files_info = []
-                        for file_path in result:
-                            file_info = {
-                                'path': file_path,
-                                'name': os.path.basename(file_path),
-                                'size': os.path.getsize(file_path) if os.path.exists(file_path) else 0
-                            }
-                            files_info.append(file_info)
-                        
-                        log.info(f"📁 用户选择了 {len(files_info)} 个文件")
-                        return files_info
-                    
-                    return []
-                    
-                except Exception as e:
-                    log.error(f"❌ 多文件选择失败: {e}")
-                    return []
-            
-            def select_directory(self):
-                """选择文件夹"""
-                try:
-                    result = webview.windows[0].create_file_dialog(
-                        webview.FOLDER_DIALOG
-                    )
-                    
-                    if result and len(result) > 0:
-                        dir_path = result[0]
-                        dir_info = {
-                            'path': dir_path,
-                            'name': os.path.basename(dir_path)
-                        }
-                        log.info(f"📂 用户选择文件夹: {dir_info['name']}")
-                        return dir_info
-                    
-                    return None
-                    
-                except Exception as e:
-                    log.error(f"❌ 文件夹选择失败: {e}")
-                    return None
-            
-            def save_file(self, default_name="translated_manga.zip", file_types=None):
-                """保存文件对话框"""
-                try:
-                    file_types = file_types or [
-                        'ZIP文件 (*.zip)',
-                        'All files (*.*)'
-                    ]
-                    
-                    result = webview.windows[0].create_file_dialog(
-                        webview.SAVE_DIALOG,
-                        save_filename=default_name,
-                        file_types=file_types
-                    )
-                    
-                    if result:
-                        save_path = result
-                        log.info(f"💾 用户选择保存路径: {save_path}")
-                        return save_path
-                    
-                    return None
-                    
-                except Exception as e:
-                    log.error(f"❌ 保存文件对话框失败: {e}")
-                    return None
-            
-            def show_notification(self, title, message):
-                """显示系统通知"""
-                try:
-                    # 在Windows上可以使用win10toast
-                    # 这里先用简单的日志记录
-                    log.info(f"🔔 通知: {title} - {message}")
-                    return True
-                except Exception as e:
-                    log.error(f"❌ 显示通知失败: {e}")
-                    return False
-            
-            def open_file_location(self, file_path):
-                """在文件管理器中显示文件"""
-                try:
-                    import subprocess
-                    import platform
-
-                    system = platform.system()
-                    if system == "Windows":
-                        subprocess.run(['explorer', '/select,', file_path])
-                    elif system == "Darwin":  # macOS
-                        subprocess.run(['open', '-R', file_path])
-                    elif system == "Linux":
-                        subprocess.run(['xdg-open', os.path.dirname(file_path)])
-
-                    log.info(f"📂 在文件管理器中显示: {file_path}")
-                    return True
-
-                except Exception as e:
-                    log.error(f"❌ 打开文件位置失败: {e}")
-                    return False
-
-            def js_log(self, level, message):
-                """JavaScript日志输出到Python控制台"""
-                if level == 'info':
-                    log.info(f"🟦 JS: {message}")
-                elif level == 'warn':
-                    log.warning(f"🟨 JS: {message}")
-                elif level == 'error':
-                    log.error(f"🟥 JS: {message}")
-                else:
-                    log.debug(f"🟪 JS: {message}")
-
-            def create_viewer_window(self, url):
-                """通过JavaScript API创建查看器窗口"""
-                try:
-                    log.info(f"📡 JavaScript请求创建查看器窗口: {url}")
-
-                    # 提取漫画路径参数
-                    from urllib.parse import urlparse, parse_qs, unquote
-                    parsed_url = urlparse(url)
-                    query_params = parse_qs(parsed_url.query)
-                    manga_path = query_params.get('path', [''])[0]
-
-                    if manga_path:
-                        manga_path = unquote(manga_path)
-                        manga_name = os.path.basename(manga_path)
-                        window_title = f'📖 {manga_name}'
-
-                        # 检查是否已经有这个漫画的窗口打开
-                        if manga_path in self.desktop_app.viewer_windows:
-                            existing_window = self.desktop_app.viewer_windows[manga_path]
-                            if existing_window:
-                                log.info(f"🔍 聚焦到已存在的查看器窗口: {manga_name}")
-                                return True
-                    else:
-                        window_title = '📖 漫画查看器'
-                        manga_path = url  # 使用URL作为key
-
-                    # 创建新的查看器窗口
-                    log.info(f"🪟 创建新的查看器窗口: {window_title}")
-                    viewer_window = webview.create_window(
-                        title=window_title,
-                        url=url,
-                        width=1000,
-                        height=700,
-                        min_size=(800, 600),
-                        resizable=True,
-                        fullscreen=False,
-                        minimized=False,
-                        on_top=False,
-                        shadow=True,
-                        focus=True
-                    )
-
-                    # 存储窗口引用
-                    self.desktop_app.viewer_windows[manga_path] = viewer_window
-
-                    log.info(f"✅ 查看器窗口创建成功: {window_title}")
-                    return True
-
-                except Exception as e:
-                    log.error(f"❌ 创建查看器窗口失败: {e}")
-                    import traceback
-                    log.error(f"❌ 详细错误: {traceback.format_exc()}")
-                    return False
-        
-        # 将API暴露给WebView
-        return DesktopAPI(self)
-    
     def run(self):
-        """运行桌面应用"""
-        try:
-            # 1. 启动Web服务器
-            self.server_thread = threading.Thread(
-                target=self.start_web_server,
-                daemon=True
-            )
-            self.server_thread.start()
-            
-            # 2. 等待服务器启动
-            if not self.wait_for_server():
-                log.error("❌ 无法启动Web服务器")
-                return False
-            
-            # 3. 创建桌面窗口（API在create_desktop_window中设置）
-            self.create_desktop_window()
+        global desktop_app_instance # 设置全局实例引用
+        desktop_app_instance = self
 
-            # 4. 启动WebView
-            log.info("🎉 启动桌面应用...")
-            webview.start(debug=False)
-            
-            log.info("👋 桌面应用已关闭")
+        try:
+            log.info("Starting server thread...")
+            self.server_thread = threading.Thread(target=self.start_web_server, daemon=True)
+            self.server_thread.start()
+            if not self.wait_for_server(): return False
+
+            log.info("Creating window...")
+            self.create_desktop_window()
+            log.info(f"Window instance after creation: {self.window}")
+
+            log.info("🎉 Starting PyWebView event loop...")
+            webview.start(debug=False) # 启用调试模式
+
+            log.info("👋 Desktop application closed.")
             return True
-            
         except KeyboardInterrupt:
-            log.info("👋 用户中断，正在关闭...")
-            return True
+            log.info("👋 User interrupted. Closing..."); return True
         except Exception as e:
-            log.error(f"❌ 桌面应用运行失败: {e}")
-            return False
+            log.error(f"❌ Desktop application run failed: {e}", exc_info=True); return False
+        finally:
+             log.info("Cleaning up global instance.")
+             desktop_app_instance = None
 
 def main():
-    """主函数"""
     print("🎌 漫画翻译工具 - PyWebView桌面版")
     print("=" * 50)
-    
     try:
-        # 创建并运行桌面应用
+        # 确保 MangaManager 和 CoreInterface 实例在创建 MangaTranslatorDesktop 之前已准备好
+        if app_type == "full":
+             if core_interface is None:
+                  log.error("无法获取 CoreInterface 实例，桌面文件导入功能将不可用。")
+                  # 考虑是否退出
+             if manga_manager is None:
+                  log.error("无法获取 MangaManager 实例，目录设置功能将不可用。")
+
         desktop_app = MangaTranslatorDesktop()
         success = desktop_app.run()
-        
-        if success:
-            print("✅ 应用正常退出")
-        else:
-            print("❌ 应用异常退出")
-            sys.exit(1)
-            
+        print("✅ Application exited." if success else "❌ Application exited abnormally.")
+        sys.exit(0 if success else 1)
     except Exception as e:
-        print(f"❌ 应用启动失败: {e}")
+        print(f"❌ Application startup failed: {e}")
+        if 'log' in globals() and log: log.error(f"App startup failed: {e}", exc_info=True)
+        else: print(f"ERROR: App startup failed: {e}\n{traceback.format_exc()}")
         sys.exit(1)
 
 if __name__ == "__main__":

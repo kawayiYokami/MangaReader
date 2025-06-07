@@ -264,7 +264,24 @@ class OcrCacheManager(CacheInterface):
             except Exception as e: # Catch any other unexpected errors
                 log.error(f"获取所有OCR缓存条目时发生意外错误: {e}")
             return entries
-    
+
+    def get_cache_size_bytes(self) -> int:
+        """
+        获取OCR缓存的总大小（字节）。
+        返回SQLite数据库文件的大小。
+        """
+        try:
+            if os.path.exists(self.db_path):
+                size_bytes = os.path.getsize(self.db_path)
+                log.debug(f"OCR缓存数据库大小: {size_bytes} 字节")
+                return size_bytes
+            else:
+                log.debug("OCR缓存数据库文件不存在")
+                return 0
+        except OSError as e:
+            log.error(f"获取OCR缓存大小失败: {e}")
+            return 0
+
     def close(self) -> None:
         """
         关闭数据库连接。

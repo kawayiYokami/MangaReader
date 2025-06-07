@@ -173,7 +173,7 @@ class MangaTranslationInterface(QWidget):
         self.cancel_translation_button.clicked.connect(self._on_cancel_translation_clicked)
         self.cancel_translation_button.setEnabled(False)
 
-        self.clear_task_list_button = PushButton("清空任务列表", self)
+        self.clear_task_list_button = PushButton("清空任务", self)
         self.clear_task_list_button.setIcon(FIF.DELETE)
         self.clear_task_list_button.clicked.connect(self._on_clear_task_list_clicked)
 

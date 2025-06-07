@@ -1,0 +1,112 @@
+/* 翻译、压缩及类似处理界面的样式 */
+
+.translation-interface,
+.compression-interface {
+    /* 特定界面页面的容器 */
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* 这些界面中常见的两栏布局 */
+/* 未使用的 .processing-layout 通用类已移除 */
+.translation-layout { /* 特定的翻译/压缩布局 */
+    display: grid;
+    grid-template-columns: 400px 1fr; /* 控制面板 | 任务列表/结果 */
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+}
+
+/* 未使用的 .processing-control 通用类已移除 */
+.translation-control { /* 特定的控制面板 */
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg); /* 控制区域之间的间距 */
+}
+
+/* 未使用的 .processing-results 通用类已移除 */
+.translation-tasks { /* 特定的任务列表区域 */
+     min-height: 600px; /* 确保任务列表区域的最小高度 */
+     /* 任务列表样式主要在 tasks.css 中定义 */
+}
+
+
+/* 文件上传区域 */
+.upload-area-themed {
+    border: 2px dashed var(--color-border-default);
+    border-radius: var(--border-radius); /* 使用主题圆角 */
+    padding: var(--spacing-xl); /* 넉넉한 패딩 */
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    background-color: var(--color-bg-subtle);
+}
+.upload-area-themed:hover,
+.upload-area-themed.dragover {
+   border-color: var(--color-accent-default); /* 使用强调色 */
+   background-color: var(--color-bg-elevated);
+}
+
+.upload-area-themed .el-icon { /* 上传区域内的图标 */
+    color: var(--color-text-muted);
+    font-size: 48px; /* 大图标 */
+    margin-bottom: var(--spacing-sm);
+}
+.upload-area-themed h3 { /* 标题文本 */
+    margin: var(--spacing-md) 0 var(--spacing-xs) 0;
+    color: var(--color-text-default);
+    font-size: var(--m3-font-title-medium-size);
+    font-weight: var(--m3-font-title-medium-weight);
+}
+.upload-area-themed p { /* 提示文本 (与 .selection-hint 合并) */
+    margin: 0;
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-body-medium-weight);
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
+    color: var(--color-text-secondary);
+}
+/* 未使用的 .selection-hint 类已移除 */
+
+
+/* 未使用的已选文件显示区域 (.selected-files-*) 相关规则已移除 */
+
+
+/* 参数表单 */
+/* 未使用的 .processing-params 通用类已移除 */
+/* 空规则 .translation-params {} 已移除 */
+.translation-params .el-form-item {
+    margin-bottom: var(--spacing-md); /* 表单项下方保持一致间距 */
+}
+
+/* 未使用的操作按钮区域 (.processing-actions, .translation-actions, .action-button-*) 相关规则已移除 */
+
+
+/* 未使用的整体进度指示器 (.overall-progress) 相关规则已移除 */
+.progress-text { /* (在 viewer.html 中使用) 进度百分比文本 */
+    margin-top: var(--spacing-sm);
+    font-size: var(--m3-font-body-small-size);
+    line-height: var(--m3-font-body-small-line-height);
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
+    color: var(--color-text-secondary);
+}
+
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    /* 未使用的 .processing-layout 响应式规则已移除 */
+    .translation-layout {
+        grid-template-columns: 1fr; /* 堆叠列 */
+        gap: var(--spacing-md);
+    }
+
+    /* 未使用的 .processing-control 响应式规则已移除 */
+    .translation-control {
+        order: 2; /* 在移动设备上将控制面板显示在结果下方 */
+    }
+
+    /* 未使用的 .processing-results 响应式规则已移除 */
+    .translation-tasks {
+        order: 1;
+        min-height: 400px; /* 减小最小高度 */
+    }
+}

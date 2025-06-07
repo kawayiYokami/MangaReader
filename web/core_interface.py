@@ -79,11 +79,16 @@ class ThumbnailCacheManager:
     """缩略图缓存管理器"""
 
     def __init__(self, cache_dir: Optional[str] = None):
-        # 设置缓存目录
+        # 设置缓存目录 - 使用更持久的位置
         if cache_dir:
             self.cache_dir = Path(cache_dir)
         else:
-            self.cache_dir = Path(tempfile.gettempdir()) / "manga_thumbnails"
+            # 在Windows上使用AppData，在其他系统上使用用户目录
+            if os.name == 'nt':  # Windows
+                app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
+                self.cache_dir = Path(app_data) / "MangaReader" / "thumbnails"
+            else:  # Linux/macOS
+                self.cache_dir = Path.home() / ".manga_reader" / "thumbnails"
 
         # 创建缓存目录
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -92,7 +97,15 @@ class ThumbnailCacheManager:
         self.metadata_file = self.cache_dir / "metadata.json"
         self.metadata = self._load_metadata()
 
+        # 缓存统计
+        self.cache_stats = {
+            'hits': 0,
+            'misses': 0,
+            'generated': 0
+        }
+
         log.info(f"缩略图缓存目录: {self.cache_dir}")
+        log.info(f"缓存元数据: {len(self.metadata)} 个条目")
 
     def _load_metadata(self) -> Dict[str, Any]:
         """加载缓存元数据"""
@@ -140,9 +153,14 @@ class ThumbnailCacheManager:
                 cached_size = self.metadata[cache_key].get('size', 0)
 
                 if cached_mtime == file_mtime and cached_size == size:
-                    # 缓存有效，直接返回
+                    # 缓存命中
+                    self.cache_stats['hits'] += 1
+                    # 更新访问时间
+                    self.metadata[cache_key]['last_accessed'] = time.time()
                     return self._load_thumbnail_from_cache(cache_path)
 
+            # 缓存未命中
+            self.cache_stats['misses'] += 1
             # 缓存无效或不存在，生成新的缩略图
             return self._generate_and_cache_thumbnail(manga_path, cache_key, size, file_mtime)
 
@@ -169,6 +187,113 @@ class ThumbnailCacheManager:
         except Exception as e:
             log.error(f"生成缩略图失败 {manga_path}: {e}")
             return None
+
+    def cleanup_old_cache(self, max_age_days: int = 30, max_cache_size_mb: int = 500):
+        """清理过期和过大的缓存"""
+        try:
+            import time
+            current_time = time.time()
+            max_age_seconds = max_age_days * 24 * 60 * 60
+            max_cache_size_bytes = max_cache_size_mb * 1024 * 1024
+
+            # 收集缓存文件信息
+            cache_files = []
+            total_size = 0
+
+            for cache_file in self.cache_dir.glob("*.webp"):
+                try:
+                    stat = cache_file.stat()
+                    cache_files.append({
+                        'path': cache_file,
+                        'size': stat.st_size,
+                        'mtime': stat.st_mtime,
+                        'atime': stat.st_atime
+                    })
+                    total_size += stat.st_size
+                except OSError:
+                    continue
+
+            # 按访问时间排序（最旧的在前）
+            cache_files.sort(key=lambda x: x['atime'])
+
+            removed_count = 0
+            removed_size = 0
+
+            # 删除过期文件
+            for file_info in cache_files[:]:
+                if current_time - file_info['atime'] > max_age_seconds:
+                    try:
+                        file_info['path'].unlink()
+                        cache_files.remove(file_info)
+                        removed_count += 1
+                        removed_size += file_info['size']
+                        total_size -= file_info['size']
+                    except OSError:
+                        continue
+
+            # 如果缓存仍然过大，删除最旧的文件
+            while total_size > max_cache_size_bytes and cache_files:
+                oldest_file = cache_files.pop(0)
+                try:
+                    oldest_file['path'].unlink()
+                    removed_count += 1
+                    removed_size += oldest_file['size']
+                    total_size -= oldest_file['size']
+                except OSError:
+                    continue
+
+            # 清理元数据中的无效条目
+            valid_keys = set()
+            for cache_file in self.cache_dir.glob("*.webp"):
+                # 从文件名提取cache_key
+                filename = cache_file.stem
+                if '_' in filename:
+                    cache_key = filename.split('_')[0]
+                    valid_keys.add(cache_key)
+
+            # 移除无效的元数据条目
+            invalid_keys = set(self.metadata.keys()) - valid_keys
+            for key in invalid_keys:
+                del self.metadata[key]
+
+            # 保存更新后的元数据
+            if invalid_keys or removed_count > 0:
+                self._save_metadata()
+
+            if removed_count > 0:
+                log.info(f"缓存清理完成: 删除 {removed_count} 个文件，释放 {removed_size / 1024 / 1024:.2f} MB")
+            else:
+                log.info("缓存清理完成: 无需删除文件")
+
+        except Exception as e:
+            log.error(f"缓存清理失败: {e}")
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """获取缓存统计信息"""
+        try:
+            # 计算缓存大小
+            total_size = 0
+            file_count = 0
+            for cache_file in self.cache_dir.glob("*.webp"):
+                try:
+                    total_size += cache_file.stat().st_size
+                    file_count += 1
+                except OSError:
+                    continue
+
+            return {
+                'cache_dir': str(self.cache_dir),
+                'total_files': file_count,
+                'total_size_mb': total_size / 1024 / 1024,
+                'metadata_entries': len(self.metadata),
+                'cache_hits': self.cache_stats['hits'],
+                'cache_misses': self.cache_stats['misses'],
+                'cache_generated': self.cache_stats['generated'],
+                'hit_rate': self.cache_stats['hits'] / max(1, self.cache_stats['hits'] + self.cache_stats['misses'])
+            }
+        except Exception as e:
+            log.error(f"获取缓存统计失败: {e}")
+            return {}
 
     def clear_cache(self):
         """清空所有缓存"""
@@ -503,12 +628,19 @@ class CoreInterface:
 
             # 更新元数据
             file_mtime = os.path.getmtime(manga_path)
+            current_time = time.time()
             self.thumbnail_cache.metadata[cache_key] = {
                 'mtime': file_mtime,
                 'size': max_size,
-                'path': manga_path
+                'path': manga_path,
+                'created': current_time,
+                'last_accessed': current_time,
+                'file_size': os.path.getsize(manga_path)
             }
             self.thumbnail_cache._save_metadata()
+
+            # 更新统计
+            self.thumbnail_cache.cache_stats['generated'] += 1
 
             # 返回base64编码
             image_base64 = base64.b64encode(output.getvalue()).decode('utf-8')
@@ -801,7 +933,361 @@ class CoreInterface:
         except Exception as e:
             log.error(f"清空数据失败: {e}")
             raise CoreInterfaceError("清空数据失败", e)
-    
+
+    # ==================== 批量压缩功能 ====================
+
+    def batch_compress_manga(self, webp_quality: int = 85,
+                           min_compression_ratio: float = 0.25) -> Dict[str, Any]:
+        """
+        批量压缩漫画库中的所有漫画文件
+
+        Args:
+            webp_quality: WebP质量 (75-100)
+            min_compression_ratio: 最小压缩比例 (0.25 = 25%)
+
+        Returns:
+            包含压缩结果的字典
+        """
+        try:
+            from core.image_compressor import ImageCompressor
+            import tempfile
+            import shutil
+            from datetime import datetime
+
+            compressor = ImageCompressor()
+
+            # 获取所有漫画文件
+            all_manga = self.get_manga_list()
+
+            # 过滤出需要压缩的文件（跳过.webp文件）
+            files_to_compress = []
+            skipped_files = []
+
+            for manga in all_manga:
+                file_path = manga.file_path
+                file_ext = os.path.splitext(file_path)[1].lower()
+
+                # 跳过已经是webp格式的文件
+                if file_ext == '.webp':
+                    skipped_files.append({
+                        "file_path": file_path,
+                        "reason": "已是WebP格式，跳过处理"
+                    })
+                    continue
+
+                # 只处理常见的漫画压缩包格式
+                if file_ext in ['.zip', '.rar', '.7z', '.cbz', '.cbr']:
+                    files_to_compress.append(file_path)
+                else:
+                    skipped_files.append({
+                        "file_path": file_path,
+                        "reason": f"不支持的格式: {file_ext}"
+                    })
+
+            log.info(f"开始批量压缩 {len(files_to_compress)} 个文件，跳过 {len(skipped_files)} 个文件")
+
+            successful_compressions = 0
+            failed_files = []
+            total_size_saved = 0
+
+            for i, file_path in enumerate(files_to_compress):
+                try:
+                    log.info(f"压缩文件 {i+1}/{len(files_to_compress)}: {file_path}")
+
+                    # 获取原始文件大小
+                    original_size = os.path.getsize(file_path)
+
+                    # 执行单个文件压缩
+                    result = compressor.compress_manga_file(
+                        file_path=file_path,
+                        webp_quality=webp_quality
+                    )
+
+                    if result["success"]:
+                        compressed_size = os.path.getsize(result["temp_file"])
+                        compression_ratio = (original_size - compressed_size) / original_size
+
+                        if compression_ratio >= min_compression_ratio:
+                            # 验证压缩文件的完整性
+                            if self._verify_compressed_file(file_path, result["temp_file"]):
+                                # 备份原文件
+                                backup_path = file_path + ".backup"
+                                shutil.copy2(file_path, backup_path)
+
+                                try:
+                                    # 替换原文件
+                                    shutil.move(result["temp_file"], file_path)
+
+                                    # 删除备份文件
+                                    os.remove(backup_path)
+
+                                    successful_compressions += 1
+                                    size_saved = original_size - compressed_size
+                                    total_size_saved += size_saved
+
+                                    log.info(f"成功压缩并替换文件: {file_path}, 节省空间: {size_saved} 字节")
+
+                                except Exception as e:
+                                    # 如果替换失败，恢复备份
+                                    if os.path.exists(backup_path):
+                                        shutil.move(backup_path, file_path)
+                                    failed_files.append({
+                                        "file_path": file_path,
+                                        "reason": f"文件替换失败: {str(e)}"
+                                    })
+                            else:
+                                failed_files.append({
+                                    "file_path": file_path,
+                                    "reason": "压缩文件验证失败"
+                                })
+                        else:
+                            # 压缩效果不佳，删除临时文件
+                            if os.path.exists(result["temp_file"]):
+                                os.remove(result["temp_file"])
+                            skipped_files.append({
+                                "file_path": file_path,
+                                "reason": f"压缩效果不佳，仅减少 {compression_ratio:.1%}"
+                            })
+                    else:
+                        failed_files.append({
+                            "file_path": file_path,
+                            "reason": result.get("message", "压缩失败")
+                        })
+
+                except Exception as e:
+                    log.error(f"压缩文件失败 {file_path}: {e}")
+                    failed_files.append({
+                        "file_path": file_path,
+                        "reason": str(e)
+                    })
+
+            return {
+                "success": True,
+                "total_files": len(files_to_compress),
+                "successful_compressions": successful_compressions,
+                "skipped_files": len(skipped_files),
+                "failed_files": failed_files,
+                "total_size_saved": total_size_saved,
+                "skipped_details": skipped_files
+            }
+
+        except Exception as e:
+            log.error(f"批量压缩失败: {e}")
+            raise CoreInterfaceError("批量压缩失败", e)
+
+    def _verify_compressed_file(self, original_path: str, compressed_path: str) -> bool:
+        """
+        验证压缩文件的完整性
+
+        Args:
+            original_path: 原始文件路径
+            compressed_path: 压缩后文件路径
+
+        Returns:
+            验证是否通过
+        """
+        try:
+            import zipfile
+            import random
+            from PIL import Image
+            import io
+
+            # 1. 检查文件数量是否一致
+            original_files = []
+            compressed_files = []
+
+            # 读取原始文件内容
+            with zipfile.ZipFile(original_path, 'r') as original_zip:
+                original_files = [f for f in original_zip.namelist() if not f.endswith('/')]
+
+            # 读取压缩文件内容
+            with zipfile.ZipFile(compressed_path, 'r') as compressed_zip:
+                compressed_files = [f for f in compressed_zip.namelist() if not f.endswith('/')]
+
+            # 检查文件数量
+            if len(original_files) != len(compressed_files):
+                log.error(f"文件数量不一致: 原始 {len(original_files)}, 压缩后 {len(compressed_files)}")
+                return False
+
+            # 2. 随机选择3个图片文件进行质量对比
+            image_files = [f for f in original_files if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif'))]
+
+            if len(image_files) >= 3:
+                # 随机选择3个文件
+                sample_files = random.sample(image_files, min(3, len(image_files)))
+
+                with zipfile.ZipFile(original_path, 'r') as original_zip, \
+                     zipfile.ZipFile(compressed_path, 'r') as compressed_zip:
+
+                    for file_name in sample_files:
+                        try:
+                            # 读取原始图片
+                            original_data = original_zip.read(file_name)
+                            original_img = Image.open(io.BytesIO(original_data))
+
+                            # 读取压缩图片
+                            compressed_data = compressed_zip.read(file_name)
+                            compressed_img = Image.open(io.BytesIO(compressed_data))
+
+                            # 检查尺寸是否一致
+                            if original_img.size != compressed_img.size:
+                                log.error(f"图片尺寸不一致: {file_name}")
+                                return False
+
+                            # 检查图片是否能正常打开（基本完整性检查）
+                            compressed_img.verify()
+
+                        except Exception as e:
+                            log.error(f"验证图片失败 {file_name}: {e}")
+                            return False
+
+            log.info("压缩文件验证通过")
+            return True
+
+        except Exception as e:
+            log.error(f"文件验证失败: {e}")
+            return False
+
+    # ==================== 自动过滤功能 ====================
+
+    def auto_filter_manga(self, filter_method: str = "dimension_analysis",
+                         threshold: float = 0.15) -> Dict[str, Any]:
+        """
+        自动过滤漫画文件，识别哪些是真正的漫画
+
+        Args:
+            filter_method: 过滤方法 ("dimension_analysis", "tag_based", "hybrid")
+            threshold: 过滤阈值
+
+        Returns:
+            过滤结果字典
+        """
+        try:
+            from core.config import config
+
+            log.info(f"开始自动过滤漫画，方法: {filter_method}, 阈值: {threshold}")
+
+            all_manga = self.get_manga_list()
+            filtered_manga = []
+            removed_manga = []
+
+            for manga in all_manga:
+                is_manga = True
+                reason = ""
+
+                if filter_method == "dimension_analysis":
+                    # 基于页面尺寸分析
+                    if hasattr(manga, 'dimension_variance') and manga.dimension_variance is not None:
+                        if manga.dimension_variance > threshold:
+                            is_manga = False
+                            reason = f"尺寸方差过大: {manga.dimension_variance:.3f} > {threshold}"
+                    elif hasattr(manga, 'is_likely_manga') and manga.is_likely_manga is not None:
+                        if not manga.is_likely_manga:
+                            is_manga = False
+                            reason = "尺寸分析判定为非漫画"
+
+                elif filter_method == "tag_based":
+                    # 基于标签过滤
+                    required_tags = ["作者:", "标题:"]
+                    has_required_tags = any(
+                        any(tag.startswith(req) for tag in manga.tags)
+                        for req in required_tags
+                    )
+                    if not has_required_tags:
+                        is_manga = False
+                        reason = "缺少必要标签（作者或标题）"
+
+                elif filter_method == "hybrid":
+                    # 混合方法：同时检查尺寸和标签
+                    dimension_ok = True
+                    tag_ok = True
+
+                    # 检查尺寸
+                    if hasattr(manga, 'dimension_variance') and manga.dimension_variance is not None:
+                        if manga.dimension_variance > threshold:
+                            dimension_ok = False
+                    elif hasattr(manga, 'is_likely_manga') and manga.is_likely_manga is not None:
+                        if not manga.is_likely_manga:
+                            dimension_ok = False
+
+                    # 检查标签
+                    required_tags = ["作者:", "标题:"]
+                    has_required_tags = any(
+                        any(tag.startswith(req) for tag in manga.tags)
+                        for req in required_tags
+                    )
+                    if not has_required_tags:
+                        tag_ok = False
+
+                    if not dimension_ok and not tag_ok:
+                        is_manga = False
+                        reason = "尺寸分析和标签检查均未通过"
+                    elif not dimension_ok:
+                        is_manga = False
+                        reason = "尺寸分析未通过"
+                    elif not tag_ok:
+                        is_manga = False
+                        reason = "标签检查未通过"
+
+                if is_manga:
+                    filtered_manga.append(manga)
+                else:
+                    removed_manga.append({
+                        "file_path": manga.file_path,
+                        "title": manga.title,
+                        "reason": reason
+                    })
+
+            log.info(f"过滤完成: 保留 {len(filtered_manga)} 个，移除 {len(removed_manga)} 个")
+
+            return {
+                "success": True,
+                "filter_method": filter_method,
+                "threshold": threshold,
+                "total_files": len(all_manga),
+                "filtered_count": len(filtered_manga),
+                "removed_count": len(removed_manga),
+                "filtered_manga": [self._convert_manga_info(manga) for manga in filtered_manga],
+                "removed_manga": removed_manga
+            }
+
+        except Exception as e:
+            log.error(f"自动过滤失败: {e}")
+            raise CoreInterfaceError("自动过滤失败", e)
+
+    def apply_filter_results(self, filter_results: Dict[str, Any]) -> bool:
+        """
+        应用过滤结果，实际移除被过滤的文件
+
+        Args:
+            filter_results: auto_filter_manga 返回的结果
+
+        Returns:
+            是否成功应用
+        """
+        try:
+            removed_manga = filter_results.get("removed_manga", [])
+
+            for removed in removed_manga:
+                file_path = removed["file_path"]
+                # 从漫画管理器中移除
+                self.manga_manager.manga_list = [
+                    manga for manga in self.manga_manager.manga_list
+                    if manga.file_path != file_path
+                ]
+
+            # 重新构建标签集合
+            self.manga_manager.tags = set()
+            for manga in self.manga_manager.manga_list:
+                self.manga_manager.tags.update(manga.tags)
+
+            log.info(f"已应用过滤结果，移除了 {len(removed_manga)} 个文件")
+            return True
+
+        except Exception as e:
+            log.error(f"应用过滤结果失败: {e}")
+            raise CoreInterfaceError("应用过滤结果失败", e)
+
     def close(self):
         """关闭接口，清理资源"""
         try:

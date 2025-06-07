@@ -2,17 +2,17 @@
 <el-form label-width="100px">
     <el-form-item label="原文">
         <el-input
-            v-model="editDialog.originalText"
+            v-model="harmonizationDialog.originalText"
             type="textarea"
             :rows="3"
             placeholder="请输入需要和谐化的原文"
-            :disabled="editDialog.isEditing">
+            :disabled="harmonizationDialog.isEditing">
         </el-input>
     </el-form-item>
 
     <el-form-item label="和谐后文本">
         <el-input
-            v-model="editDialog.harmonizedText"
+            v-model="harmonizationDialog.harmonizedText"
             type="textarea"
             :rows="3"
             placeholder="请输入和谐后的文本（留空表示删除原文）">

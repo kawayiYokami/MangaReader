@@ -201,12 +201,9 @@ window.TranslationMethods = {
         while (attempts < maxAttempts) {
             // 检查是否已停止
             if (this.translationStopped) {
-                console.log('🛑 翻译已停止，取消任务:', taskId);
-
                 // 调用取消API
                 try {
                     await axios.post(`/api/translation/cancel-task/${taskId}`);
-                    console.log('✅ 任务已取消');
                 } catch (error) {
                     console.error('取消任务失败:', error);
                 }
@@ -320,7 +317,6 @@ window.TranslationMethods = {
 
         } catch (error) {
             if (error.name === 'AbortError') {
-                console.log('🛑 翻译请求被取消:', task.fileName);
                 task.status = 'error';
                 task.error = '翻译已取消';
                 // 不显示错误消息，因为这是用户主动取消

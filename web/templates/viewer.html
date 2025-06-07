@@ -87,6 +87,25 @@
                         </svg>
                         <div class="progress-text">{{ Math.round(progressPercentage) }}%</div>
                     </div>
+
+                    <!-- 进度滑动条 -->
+                    <div class="progress-slider-section">
+                        <div class="progress-slider-wrapper">
+                            <el-slider
+                                v-model="progressSliderValue"
+                                :min="1"
+                                :max="mangaInfo.total_pages || 1"
+                                :step="1"
+                                :show-tooltip="true"
+                                :format-tooltip="formatProgressTooltip"
+                                @change="onProgressSliderChange"
+                                @input="onProgressSliderInput"
+                                class="progress-slider"
+                                vertical
+                                height="200px">
+                            </el-slider>
+                        </div>
+                    </div>
                 </div>
 
                 <el-button
@@ -170,6 +189,7 @@
                 const currentPage = ref(0);
                 const showPageInput = ref(false); // 是否显示页码输入框
                 const pageInputText = ref('1'); // 页码输入框的文本值
+                const progressSliderValue = ref(1); // 进度滑动条的值
                 const currentImageUrls = ref([]);
                 const nextImageUrls = ref([]); // 预加载的下一组图片
                 const isLoading = ref(false);
@@ -251,6 +271,7 @@
                     await loadMangaInfo();
                     currentPage.value = Math.max(0, Math.min(initialPage, mangaInfo.total_pages - 1));
                     pageInputText.value = (currentPage.value + 1).toString(); // 初始化输入框
+                    progressSliderValue.value = currentPage.value + 1; // 初始化滑动条
                     await loadCurrentPage();
 
                     // 添加事件监听
@@ -434,6 +455,7 @@ nextTick(() => {
                     if (currentPage.value > 0) {
                         currentPage.value = Math.max(0, currentPage.value - step);
                         pageInputText.value = (currentPage.value + 1).toString(); // 同步更新输入框
+                        progressSliderValue.value = currentPage.value + 1; // 同步更新滑动条
                         loadCurrentPage();
                     }
                 }
@@ -443,6 +465,7 @@ nextTick(() => {
                     if (currentPage.value < mangaInfo.total_pages - 1) {
                         currentPage.value = Math.min(mangaInfo.total_pages - 1, currentPage.value + step);
                         pageInputText.value = (currentPage.value + 1).toString(); // 同步更新输入框
+                        progressSliderValue.value = currentPage.value + 1; // 同步更新滑动条
                         loadCurrentPage();
                     }
                 }
@@ -450,6 +473,7 @@ nextTick(() => {
                 function onPageChange(newPage) {
                     currentPage.value = newPage;
                     pageInputText.value = (newPage + 1).toString(); // 同步更新输入框文本
+                    progressSliderValue.value = newPage + 1; // 同步更新滑动条
                     loadCurrentPage();
                 }
 
@@ -471,12 +495,34 @@ nextTick(() => {
                     const newPage = parseInt(pageInputText.value);
                     if (newPage && newPage >= 1 && newPage <= mangaInfo.total_pages) {
                         currentPage.value = newPage - 1; // 转换为0-based
+                        progressSliderValue.value = newPage; // 同步更新滑动条
                         loadCurrentPage();
                     } else {
                         // 输入无效，恢复原值
                         pageInputText.value = (currentPage.value + 1).toString();
                     }
                     showPageInput.value = false;
+                }
+
+                // ==================== 进度滑动条相关方法 ====================
+
+                function formatProgressTooltip(value) {
+                    return `第 ${value} 页`;
+                }
+
+                function onProgressSliderChange(value) {
+                    // 滑动条值改变时跳转到对应页面
+                    const targetPage = value - 1; // 转换为0-based
+                    if (targetPage !== currentPage.value) {
+                        currentPage.value = targetPage;
+                        pageInputText.value = value.toString();
+                        loadCurrentPage();
+                    }
+                }
+
+                function onProgressSliderInput(value) {
+                    // 拖拽过程中实时更新页码显示（但不加载页面）
+                    pageInputText.value = value.toString();
                 }
 
                 // 监听页码输入框显示状态，自动聚焦

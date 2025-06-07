@@ -1,0 +1,115 @@
+<!-- 批量压缩对话框组件 -->
+<el-dialog
+    v-model="batchCompressionDialog.visible"
+    title="批量压缩漫画"
+    width="600px"
+    :close-on-click-modal="false"
+    append-to-body
+    custom-class="modern-dialog dialog-theme-base">
+
+    <div class="batch-compression-form">
+        <el-form label-width="120px">
+            <el-form-item label="压缩质量">
+                <el-slider
+                    v-model="batchCompressionDialog.webpQuality"
+                    :min="75"
+                    :max="100"
+                    :step="5"
+                    show-stops
+                    show-input
+                    :format-tooltip="formatQualityTooltip">
+                </el-slider>
+                <div class="quality-description">
+                    <small>质量越高，文件越大。建议使用 85-95 获得最佳平衡。</small>
+                </div>
+            </el-form-item>
+
+            <el-form-item label="压缩目标">
+                <el-slider
+                    v-model="batchCompressionDialog.minCompressionRatio"
+                    :min="0.1"
+                    :max="0.5"
+                    :step="0.05"
+                    show-stops
+                    show-input
+                    :format-tooltip="formatCompressionTooltip">
+                </el-slider>
+                <div class="compression-description">
+                    <small>只有压缩后减少超过此比例的文件才会被包含在结果中。</small>
+                </div>
+            </el-form-item>
+
+            <el-form-item label="处理范围">
+                <div class="compression-scope">
+                    <el-alert
+                        title="将自动处理漫画库中的所有漫画文件"
+                        type="info"
+                        show-icon
+                        :closable="false">
+                        <template #default>
+                            <div style="margin-top: 8px;">
+                                <p>• 自动跳过已压缩的 .webp 格式文件</p>
+                                <p>• 仅处理 .zip、.rar、.7z 等漫画压缩包</p>
+                                <p>• 压缩后将直接替换原文件</p>
+                            </div>
+                        </template>
+                    </el-alert>
+
+                    <div style="margin-top: 15px;">
+                        <el-statistic title="待处理漫画数量" :value="totalMangaCount" suffix="个文件">
+                            <template #prefix>
+                                <span class="material-symbols-rounded" style="vertical-align: middle;">folder</span>
+                            </template>
+                        </el-statistic>
+                    </div>
+                </div>
+            </el-form-item>
+        </el-form>
+
+        <!-- 进度显示 -->
+        <div v-if="batchCompressionDialog.isProcessing" class="compression-progress">
+            <el-progress 
+                :percentage="batchCompressionDialog.progress" 
+                :status="batchCompressionDialog.status">
+            </el-progress>
+            <div class="progress-text" v-text="batchCompressionDialog.progressText"></div>
+        </div>
+
+        <!-- 结果显示 -->
+        <div v-if="batchCompressionDialog.results" class="compression-results">
+            <el-alert
+                :title="`压缩完成：成功处理 ${batchCompressionDialog.results.successful_compressions} 个文件，跳过 ${batchCompressionDialog.results.skipped_files || 0} 个文件`"
+                :type="batchCompressionDialog.results.successful_compressions > 0 ? 'success' : 'warning'"
+                show-icon
+                :closable="false">
+                <template #default>
+                    <div style="margin-top: 8px;">
+                        <p v-if="batchCompressionDialog.results.total_size_saved">
+                            节省空间：<span v-text="formatFileSize(batchCompressionDialog.results.total_size_saved)"></span>
+                        </p>
+                        <p v-if="batchCompressionDialog.results.failed_files && batchCompressionDialog.results.failed_files.length > 0">
+                            失败文件：<span v-text="batchCompressionDialog.results.failed_files.length"></span> 个
+                        </p>
+                    </div>
+                </template>
+            </el-alert>
+        </div>
+    </div>
+
+    <template #footer>
+        <div class="dialog-footer modern-dialog-footer">
+            <div class="footer-left"></div>
+            <div class="footer-right">
+                <el-button @click="cancelBatchCompression" size="large">取消</el-button>
+                <el-button
+                    type="primary"
+                    @click="startBatchCompression"
+                    size="large"
+                    :disabled="batchCompressionDialog.isProcessing || totalMangaCount === 0"
+                    :loading="batchCompressionDialog.isProcessing">
+                    开始压缩
+                </el-button>
+            </div>
+        </div>
+    </template>
+</el-dialog>

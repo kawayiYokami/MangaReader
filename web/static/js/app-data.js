@@ -2,6 +2,7 @@
 window.AppData = {
     // 系统状态 - 保留本地访问检测，用于翻译和压缩功能
     isLocalAccess: ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname),
+    // 桌面应用标识不再是数据属性
 
     activeMenu: 'home',
     currentTheme: 'auto',
@@ -25,6 +26,8 @@ window.AppData = {
     thumbnailCache: new Map(),
     loadingThumbnails: new Set(),
     thumbnailObserver: null,
+    preloadObserver: null,
+    preloadQueue: new Set(),
     visibleCards: new Set(),
 
     // 漫画查看器iframe相关数据
@@ -70,6 +73,51 @@ window.AppData = {
         currentEntry: null
     },
 
+    // 和谐映射对话框
+    harmonizationDialog: {
+        visible: false,
+        title: '',
+        isEditing: false,
+        originalText: '',
+        harmonizedText: '',
+        currentKey: null
+    },
+
+    // 批量压缩对话框
+    batchCompressionDialog: {
+        visible: false,
+        webpQuality: 85,
+        minCompressionRatio: 0.25,
+        selectedFiles: [],
+        selectAll: false,
+        isProcessing: false,
+        progress: 0,
+        status: '',
+        progressText: '',
+        results: null
+    },
+
+    // 自动过滤对话框
+    autoFilterDialog: {
+        visible: false,
+        currentStep: 0, // 0: 选择方法, 1: 预览结果, 2: 应用过滤
+        filterMethod: '',
+        threshold: 0.15,
+        isPreviewing: false,
+        previewResults: null,
+        isProcessing: false,
+        progress: 0,
+        status: '',
+        progressText: '',
+        filterResults: null
+    },
+
+    // 压缩警告对话框
+    compressionWarningDialog: {
+        visible: false,
+        dontShowAgain: false
+    },
+
     // 翻译功能数据
     translationSettings: {
         sourceLang: 'auto',
@@ -102,6 +150,14 @@ window.AppData = {
 
 // 计算属性
 window.AppComputed = {
+    // 重新添加：计算是否在桌面应用中运行
+    runningInDesktopApp() {
+        // 检查 window.pywebview 是否存在
+        const isDesktop = typeof window.pywebview !== 'undefined';
+        // console.log(`[Computed] runningInDesktopApp: ${isDesktop}`); // 减少日志
+        return isDesktop;
+    }, // 注意这里的逗号
+
     filteredMangaList() {
         let filtered = this.mangaList;
 
@@ -126,6 +182,26 @@ window.AppComputed = {
     // 检查是否有已完成的翻译任务
     hasCompletedTasks() {
         return this.translationTasks.some(task => task.status === 'completed');
+    },
+
+    // 批量压缩相关计算属性
+    selectedFilesCount() {
+        return this.batchCompressionDialog?.selectedFiles?.length || 0;
+    },
+
+    totalFilesCount() {
+        return this.filteredCacheEntries?.length || 0;
+    },
+
+    isIndeterminate() {
+        const selected = this.selectedFilesCount;
+        const total = this.totalFilesCount;
+        return selected > 0 && selected < total;
+    },
+
+    // 漫画总数计算属性
+    totalMangaCount() {
+        return this.mangaList ? this.mangaList.length : 0;
     }
 };
 
@@ -177,13 +253,27 @@ window.AppLifecycle = {
             console.warn('[Mounted] this.fetchAvailableFonts 未找到'); // 添加警告日志
         }
 
-
+        // 重新添加桌面导入完成事件监听器
+        // 确保 handleDesktopImportComplete 方法已混入 Vue 实例
+        if (typeof this.handleDesktopImportComplete === 'function') {
+            // 使用 .bind(this) 确保事件处理器内部的 this 指向 Vue 实例
+            window.addEventListener('desktopImportComplete', this.handleDesktopImportComplete.bind(this));
+            console.log('[Mounted] Added desktopImportComplete event listener.');
+        } else {
+            console.warn('[Mounted] handleDesktopImportComplete method not found on Vue instance, listener not added.');
+        }
     },
 
     beforeUnmount() {
         // 清理观察器
         if (this.thumbnailObserver) {
             this.thumbnailObserver.disconnect();
+        }
+        // 移除事件监听器 (可选但推荐)
+        // 重新添加桌面导入完成事件监听器移除
+        if (typeof this.handleDesktopImportComplete === 'function') {
+            window.removeEventListener('desktopImportComplete', this.handleDesktopImportComplete.bind(this));
+             console.log('[beforeUnmount] Removed desktopImportComplete event listener.');
         }
     }
     // loadInitialSettings 函数已移至 utils.js

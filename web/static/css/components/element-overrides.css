@@ -1,0 +1,1266 @@
+/* Element Plus 组件样式覆盖与主题化 */
+
+/* ElCard 卡片 */
+.el-card {
+    border: none !important; /* 移除默认边框 */
+    /* 基于 Material Design 原则的柔和阴影 */
+    box-shadow: 0 3px 4px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.06) !important;
+    border-radius: var(--border-radius) !important; /* 使用主题边框圆角 */
+    background: var(--color-bg-default) !important; /* 使用主题背景色 */
+    transition: background-color var(--transition), box-shadow var(--transition); /* 平滑过渡 */
+}
+
+/* 卡片头部 */
+.el-card__header {
+    color: var(--color-text-default) !important; /* 使用主题文本颜色 */
+    border-bottom: 1px solid var(--color-border-default) !important; /* 使用主题边框颜色 */
+    padding: 14px 20px; /* 调整内边距 */
+    box-sizing: border-box;
+    /* 应用 Material 3 Title Medium 字体规范 */
+    font-size: var(--m3-font-title-medium-size) !important;
+    font-weight: var(--m3-font-title-medium-weight) !important;
+    line-height: var(--m3-font-title-medium-line-height) !important;
+    letter-spacing: var(--m3-font-title-medium-letter-spacing) !important;
+    background-color: transparent; /* 确保卡片内的头部背景透明 */
+}
+
+/* ElButton 按钮 - 基础 */
+.el-button {
+    border-radius: var(--border-radius) !important;
+    /* 应用 Material 3 Label Large 字体规范 */
+    font-size: var(--m3-font-label-large-size) !important;
+    font-weight: var(--m3-font-label-large-weight) !important;
+    line-height: var(--m3-font-label-large-line-height) !important;
+    letter-spacing: var(--m3-font-label-large-letter-spacing) !important;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast) !important;
+    box-shadow: none !important; /* 初始移除默认阴影 */
+    height: auto !important; /* 允许高度自适应 */
+    min-height: 36px; /* 触摸目标的最小高度 */
+    padding: 8px 16px !important; /* 统一内边距 */
+}
+
+/* ElButton 按钮 - Primary 主按钮 */
+.el-button--primary {
+    background: var(--el-color-primary) !important;
+    color: #ffffff !important; /* 主按钮上的白色文本 */
+    border: 1px solid var(--el-color-primary) !important; /* 边框与背景匹配 */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+}
+
+.el-button--primary:hover {
+    background: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-hover) !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+.el-button--primary:focus,
+.el-button--primary:active {
+    background: var(--color-accent-active) !important;
+    border-color: var(--color-accent-active) !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important; /* 激活状态保持柔和阴影 */
+}
+
+/* ElButton 按钮 - Default 默认按钮 (线框样式) */
+/* 当未显式设置类型 (primary, success 等) 时应用的样式 */
+.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not([class*="el-button--text"]):not([class*="el-button--link"]) {
+    background: transparent !important;
+    border: 1px solid var(--el-color-primary) !important; /* 边框使用主色 */
+    color: var(--el-color-primary) !important; /* 文本使用主色 */
+}
+
+.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not([class*="el-button--text"]):not([class*="el-button--link"]):hover,
+.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not([class*="el-button--text"]):not([class*="el-button--link"]):focus {
+    background-color: rgba(var(--color-accent-default-rgb), 0.08) !important; /* 柔和的主色背景 */
+    border-color: var(--el-color-primary) !important;
+    color: var(--el-color-primary) !important;
+}
+
+.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not([class*="el-button--text"]):not([class*="el-button--link"]):active {
+    background-color: rgba(var(--color-accent-default-rgb), 0.12) !important; /* 稍深的背景 */
+}
+
+/* ElButton 按钮 - 其他线框变体 (Success, Warning, Danger, Info) */
+.el-button--success:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]) { color: var(--el-color-success) !important; border-color: var(--el-color-success) !important; background: transparent !important; }
+.el-button--warning:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]) { color: var(--el-color-warning) !important; border-color: var(--el-color-warning) !important; background: transparent !important; }
+.el-button--danger:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]) { color: var(--el-color-danger) !important; border-color: var(--el-color-danger) !important; background: transparent !important; }
+.el-button--info:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]) { color: var(--el-color-info) !important; border-color: var(--color-border-default) !important; background: transparent !important; }
+
+.el-button--success:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):hover,
+.el-button--success:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):focus { background-color: rgba(var(--color-state-success-rgb), 0.08) !important; }
+
+.el-button--warning:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):hover,
+.el-button--warning:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):focus { background-color: rgba(var(--color-state-warning-rgb), 0.08) !important; }
+
+.el-button--danger:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):hover,
+.el-button--danger:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):focus { background-color: rgba(var(--color-state-error-rgb), 0.08) !important; }
+
+/* Info 按钮使用次要文本颜色，如果定义了其 RGB 值则使用，否则回退 */
+.el-button--info:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):hover,
+.el-button--info:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):focus { background-color: rgba(101, 109, 118, 0.08) !important; } /* info/次要的回退 RGBA */
+
+.el-button--success:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):active { background-color: rgba(var(--color-state-success-rgb), 0.12) !important; }
+.el-button--warning:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):active { background-color: rgba(var(--color-state-warning-rgb), 0.12) !important; }
+.el-button--danger:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):active { background-color: rgba(var(--color-state-error-rgb), 0.12) !important; }
+.el-button--info:not(.is-plain):not([class*="el-button--text"]):not([class*="el-button--link"]):active { background-color: rgba(101, 109, 118, 0.12) !important; } /* info/次要的回退 RGBA */
+
+/* ElButton 按钮 - Text 文本按钮变体 */
+.el-button--text {
+    background: transparent !important;
+    border: none !important;
+    color: var(--el-color-primary) !important;
+    box-shadow: none !important;
+    border-radius: var(--border-radius) !important;
+    transition: background-color var(--transition-fast) !important;
+    padding: 8px 12px !important; /* 文本按钮的特定内边距 */
+}
+
+.el-button--text:not(.is-disabled):hover,
+.el-button--text:not(.is-disabled):focus {
+    background-color: rgba(var(--color-accent-default-rgb), 0.08) !important;
+    color: var(--el-color-primary) !important;
+}
+.el-button--text:not(.is-disabled):active {
+    background-color: rgba(var(--color-accent-default-rgb), 0.12) !important;
+}
+
+/* 文本按钮变体 (Success, Warning, Danger, Info) */
+.el-button--text.el-button--success { color: var(--el-color-success) !important; }
+.el-button--text.el-button--warning { color: var(--el-color-warning) !important; }
+.el-button--text.el-button--danger { color: var(--el-color-danger) !important; }
+.el-button--text.el-button--info { color: var(--el-color-info) !important; }
+
+.el-button--text.el-button--success:not(.is-disabled):hover,
+.el-button--text.el-button--success:not(.is-disabled):focus { background-color: rgba(var(--color-state-success-rgb), 0.08) !important; }
+.el-button--text.el-button--warning:not(.is-disabled):hover,
+.el-button--text.el-button--warning:not(.is-disabled):focus { background-color: rgba(var(--color-state-warning-rgb), 0.08) !important; }
+.el-button--text.el-button--danger:not(.is-disabled):hover,
+.el-button--text.el-button--danger:not(.is-disabled):focus { background-color: rgba(var(--color-state-error-rgb), 0.08) !important; }
+.el-button--text.el-button--info:not(.is-disabled):hover,
+.el-button--text.el-button--info:not(.is-disabled):focus { background-color: rgba(101, 109, 118, 0.08) !important; } /* info/次要的回退 RGBA */
+
+.el-button--text.el-button--success:not(.is-disabled):active { background-color: rgba(var(--color-state-success-rgb), 0.12) !important; }
+.el-button--text.el-button--warning:not(.is-disabled):active { background-color: rgba(var(--color-state-warning-rgb), 0.12) !important; }
+.el-button--text.el-button--danger:not(.is-disabled):active { background-color: rgba(var(--color-state-error-rgb), 0.12) !important; }
+.el-button--text.el-button--info:not(.is-disabled):active { background-color: rgba(101, 109, 118, 0.12) !important; } /* info/次要的回退 RGBA */
+
+
+/* ElTag 标签 */
+.el-tag {
+    /* 应用 Material 3 Label Small 字体规范 */
+    font-size: var(--m3-font-body-large-size) !important; /* 设置Tag字体为16px */
+    font-weight: var(--m3-font-label-small-weight) !important;
+    line-height: var(--m3-font-label-small-line-height) !important; /* 调整标签行高 */
+    letter-spacing: var(--m3-font-label-small-letter-spacing) !important;
+    border-radius: 4px !important; /* 标签使用更小的圆角 */
+    height: auto !important;
+    padding: 4px 8px !important; /* 调整标签尺寸的内边距 */
+    border-width: 1px !important;
+    border-style: solid !important;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+/* 默认/Plain 标签 */
+.el-tag:not([class*='el-tag--']), /* 处理没有特定类型的标签 */
+.el-tag--plain,
+.el-tag--info.el-tag--plain {
+    background-color: var(--color-bg-subtle) !important;
+    border-color: var(--color-border-default) !important;
+    color: var(--color-text-secondary) !important;
+}
+
+/* 暗色主题下的默认/Plain 标签 */
+html.theme-dark .el-tag:not([class*='el-tag--']),
+html.theme-dark .el-tag--plain,
+html.theme-dark .el-tag--info.el-tag--plain {
+    background-color: var(--color-bg-elevated) !important;
+    color: var(--color-text-default) !important;
+    border-color: var(--color-border-default) !important;
+}
+
+/* Plain 标签变体 */
+.el-tag--primary.el-tag--plain {
+    background-color: rgba(var(--color-accent-default-rgb), 0.1) !important;
+    border-color: var(--el-color-primary) !important;
+    color: var(--el-color-primary) !important;
+}
+.el-tag--success.el-tag--plain {
+    background-color: rgba(var(--color-state-success-rgb), 0.1) !important;
+    border-color: var(--el-color-success) !important;
+    color: var(--el-color-success) !important;
+}
+.el-tag--warning.el-tag--plain {
+    background-color: rgba(var(--color-state-warning-rgb), 0.1) !important;
+    border-color: var(--el-color-warning) !important;
+    color: var(--el-color-warning) !important;
+}
+.el-tag--danger.el-tag--plain {
+    background-color: rgba(var(--color-state-error-rgb), 0.1) !important;
+    border-color: var(--el-color-danger) !important;
+    color: var(--el-color-danger) !important;
+}
+
+/* 实心 (旧版 Dark / Effect) 标签变体 */
+/* .el-tag--dark,  已被移除，因为未在模板中使用 */
+.el-tag--primary:not(.el-tag--plain) {
+    background-color: var(--el-color-primary) !important;
+    border-color: var(--el-color-primary) !important;
+    color: white !important;
+}
+.el-tag--success:not(.el-tag--plain) {
+    background-color: var(--el-color-success) !important;
+    border-color: var(--el-color-success) !important;
+    color: white !important; /* 假设成功背景上使用白色文本 */
+}
+.el-tag--warning:not(.el-tag--plain) {
+    background-color: var(--el-color-warning) !important;
+    border-color: var(--el-color-warning) !important;
+    color: #ffffff !important; /* 深黄色/橙色背景通常需要白色文本 */
+}
+
+/* 如果需要，调整亮色主题下警告标签的文本颜色 */
+html.theme-light .el-tag--warning:not(.el-tag--plain) {
+     color: #593d00 !important; /* 亮色主题警告使用深色文本 */
+}
+
+.el-tag--danger:not(.el-tag--plain) {
+    background-color: var(--el-color-danger) !important;
+    border-color: var(--el-color-danger) !important;
+    color: white !important;
+}
+.el-tag--info:not(.el-tag--plain) {
+    background-color: var(--el-color-info) !important;
+    border-color: var(--el-color-info) !important;
+    color: white !important; /* 假设信息背景上使用白色文本 */
+}
+
+
+/* ElTabs 标签页 - Card 卡片类型 */
+.el-tabs--card > .el-tabs__header {
+    border-bottom: 1px solid var(--color-border-default) !important;
+    margin-bottom: 0 !important; /* 重置 margin 以获得更好的对齐 */
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__nav {
+    border: 1px solid var(--color-border-default) !important;
+    border-bottom: none !important;
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    background-color: var(--color-bg-subtle) !important;
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item {
+    border-left: 1px solid var(--color-border-default) !important;
+    transition: all var(--transition) !important;
+    color: var(--color-text-secondary) !important;
+    background-color: var(--color-bg-subtle) !important;
+    /* 应用 Material 3 Label Large 字体规范 */
+    font-size: var(--m3-font-label-large-size) !important;
+    font-weight: var(--m3-font-label-large-weight) !important;
+    line-height: var(--m3-font-label-large-line-height) !important;
+    letter-spacing: var(--m3-font-label-large-letter-spacing) !important;
+    height: 40px !important; /* 固定高度 */
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item:first-child {
+    border-left: none !important;
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
+    border-bottom-color: var(--color-bg-default) !important; /* 隐藏底部边框段 */
+    background-color: var(--color-bg-default) !important;
+    color: var(--color-text-default) !important;
+    font-weight: var(--m3-font-weight-medium) !important; /* 激活的标签页稍粗 */
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item:hover {
+    background-color: var(--color-bg-elevated) !important;
+    color: var(--color-text-default) !important;
+}
+
+.el-tabs__content {
+     background-color: var(--color-bg-default) !important; /* 确保内容区域背景与激活标签页匹配 */
+     padding: var(--spacing-md); /* 为内容添加内边距 */
+}
+
+
+/* ElInput 输入框 / ElInputNumber 数字输入框 */
+.el-input__wrapper,
+.el-textarea__inner {
+    background-color: var(--color-bg-default) !important;
+    border: 1px solid var(--color-border-default) !important;
+    box-shadow: none !important;
+    border-radius: var(--border-radius) !important;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast) !important;
+    padding: 0 12px !important; /* 水平内边距 */
+    height: 40px; /* 固定高度 */
+}
+.el-textarea__inner {
+    height: auto; /* 文本域高度自适应 */
+    padding: 8px 12px !important; /* 文本域的垂直内边距 */
+    line-height: 1.5;
+}
+
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+    border: 2px solid var(--color-accent-default) !important;
+    box-shadow: none !important;
+    padding: 0 11px !important; /* 调整内边距以适应更粗的边框 */
+}
+.el-textarea__inner:focus {
+    padding: 7px 11px !important;
+}
+
+
+.el-input__inner {
+    color: var(--color-text-default) !important;
+    /* 应用 Material 3 Body Large 字体规范 */
+    font-size: var(--m3-font-body-large-size) !important;
+    font-weight: var(--m3-font-body-large-weight) !important;
+    line-height: var(--m3-font-body-large-line-height) !important; /* 确保文本垂直居中 */
+    letter-spacing: var(--m3-font-body-large-letter-spacing) !important;
+    height: 100% !important; /* 填充包装器高度 */
+}
+
+.el-input__inner::placeholder {
+    color: var(--color-text-muted) !important;
+    font-size: var(--m3-font-body-large-size) !important;
+    font-weight: var(--m3-font-body-large-weight) !important;
+    line-height: var(--m3-font-body-large-line-height) !important;
+    letter-spacing: var(--m3-font-body-large-letter-spacing) !important;
+    opacity: 1;
+}
+
+/* Input Number 数字输入框特定样式 */
+.el-input-number {
+    border-radius: var(--border-radius) !important;
+    overflow: hidden; /* 裁剪内部元素的角 */
+    border: 1px solid var(--color-border-default) !important; /* 为容器添加边框 */
+    line-height: normal; /* 重置行高 */
+    height: 40px;
+    width: 140px; /* 示例宽度，根据需要调整 */
+    background-color: var(--color-bg-default) !important;
+}
+.el-input-number .el-input__wrapper {
+    border-radius: 0 !important;
+    border: none !important; /* 移除内部输入包装器的边框 */
+    padding: 0 5px !important;
+    box-shadow: none !important;
+    flex-grow: 1;
+    height: 100%;
+}
+
+.el-input-number__decrease,
+.el-input-number__increase {
+    background-color: var(--color-bg-elevated) !important;
+    border: none !important; /* 移除按钮边框 */
+    color: var(--color-text-secondary) !important;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    width: 38px !important; /* 按钮固定宽度 */
+    height: 100%;
+    border-radius: 0 !important;
+    position: relative;
+}
+.el-input-number__decrease {
+    border-right: 1px solid var(--color-border-default) !important; /* 分隔线 */
+}
+.el-input-number__increase {
+     border-left: 1px solid var(--color-border-default) !important; /* 分隔线 */
+}
+
+.el-input-number__decrease .el-icon,
+.el-input-number__increase .el-icon {
+    color: var(--color-text-secondary) !important;
+    transition: color var(--transition-fast);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.el-input-number__decrease:hover,
+.el-input-number__increase:hover {
+    background-color: var(--bg-tertiary) !important; /* 使用第三背景色 */
+    color: var(--color-text-default) !important;
+}
+.el-input-number__decrease:hover .el-icon,
+.el-input-number__increase:hover .el-icon {
+    color: var(--color-text-default) !important;
+}
+
+.el-input-number__decrease.is-disabled,
+.el-input-number__increase.is-disabled {
+    background-color: var(--color-bg-subtle) !important;
+    border-color: var(--color-border-subtle) !important; /* 如果需要，为分隔线使用柔和边框 */
+    color: var(--color-text-muted) !important;
+    cursor: not-allowed;
+}
+.el-input-number__decrease.is-disabled .el-icon,
+.el-input-number__increase.is-disabled .el-icon {
+    color: var(--color-text-muted) !important;
+}
+
+
+/* ElTable 表格 */
+.el-table {
+    background-color: var(--color-bg-default) !important;
+    color: var(--color-text-default) !important;
+    /* border: 1px solid var(--color-border-default) !important; */ /* 移除外边框以获得更现代的外观 */
+    border-radius: var(--border-radius) !important; /* 表格圆角 */
+    overflow: hidden; /* 裁剪头部/底部角落 */
+}
+/* 如果使用容器边框，则移除单元格独立边框 */
+.el-table td.el-table__cell,
+.el-table th.el-table__cell.is-leaf {
+    border-bottom: 1px solid var(--color-border-subtle) !important;
+    border-right: none !important; /* 移除垂直网格线 */
+}
+.el-table th.el-table__cell { /* 表头样式 */
+    background-color: var(--color-bg-subtle) !important;
+    color: var(--color-text-secondary) !important;
+    border-bottom: 1px solid var(--color-border-default) !important; /* 表头下方更强的边框 */
+    font-weight: var(--m3-font-weight-medium); /* 表头使用中等字重 */
+    /* 应用 Material 3 Label Large 字体规范到表头 */
+    font-size: var(--m3-font-label-large-size) !important;
+    line-height: var(--m3-font-label-large-line-height) !important;
+    letter-spacing: var(--m3-font-label-large-letter-spacing) !important;
+}
+.el-table td.el-table__cell { /* 表格单元格样式 */
+    background-color: transparent !important; /* 让行悬停处理背景 */
+    color: var(--color-text-default) !important;
+    /* 应用 Material 3 Body Medium 字体规范到单元格 */
+    font-size: var(--m3-font-body-medium-size) !important;
+    font-weight: var(--m3-font-body-medium-weight) !important;
+    line-height: var(--m3-font-body-medium-line-height) !important;
+    letter-spacing: var(--m3-font-body-medium-letter-spacing) !important;
+    padding: 12px 12px !important; /* 调整内边距 */
+    transition: background-color var(--transition-fast);
+}
+.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
+    background-color: var(--color-bg-elevated) !important; /* 柔和的悬停背景 */
+}
+.el-table::before { /* 移除顶部边框线伪影 */
+    display: none;
+}
+.el-table .el-table__border-left-patch, /* 隐藏边框补丁 */
+.el-table .el-table__border-right-patch {
+    display: none;
+}
+
+
+/* ElPagination 分页 */
+.el-pagination {
+    padding: var(--spacing-md) 0 !important; /* 分页器周围添加内边距 */
+    /* 通常需要居中对齐 */
+    /* display: flex;
+    justify-content: center; */
+}
+.el-pagination button,
+.el-pagination .el-pager li {
+    background-color: var(--color-bg-elevated) !important;
+    color: var(--color-text-default) !important;
+    border: 1px solid var(--color-border-default) !important;
+    border-radius: var(--border-radius) !important;
+    min-width: 32px !important; /* 确保最小触摸目标尺寸 */
+    height: 32px !important;
+    margin: 0 var(--spacing-xs) !important;
+    transition: all var(--transition-fast) !important;
+    box-shadow: none !important;
+}
+.el-pagination button:hover,
+.el-pagination .el-pager li:not(.is-disabled):hover {
+    color: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-hover) !important;
+    background-color: var(--color-bg-elevated) !important; /* 悬停时保持背景色 */
+}
+.el-pagination .el-pager li.is-active {
+    background-color: var(--color-accent-default) !important;
+    color: white !important;
+    border-color: var(--color-accent-default) !important;
+    font-weight: var(--m3-font-weight-medium) !important;
+}
+.el-pagination button:disabled,
+.el-pagination .el-pager li.is-disabled {
+    color: var(--color-text-muted) !important;
+    border-color: var(--color-border-subtle) !important;
+    background-color: var(--color-bg-subtle) !important;
+    cursor: not-allowed !important;
+}
+.el-pagination span:not([class]) { /* '...' 元素的样式 */
+    color: var(--color-text-secondary) !important;
+}
+.el-pagination__total { /* '共 X 条' 文本样式 */
+     color: var(--color-text-secondary) !important;
+     font-size: var(--m3-font-body-medium-size) !important;
+}
+.el-pagination .el-select .el-input__wrapper { /* 分页下拉框样式 */
+    height: 32px !important;
+    border-radius: var(--border-radius) !important;
+}
+
+
+/* ElRadio 单选框 */
+.el-radio {
+    color: var(--color-text-default) !important;
+    margin-right: var(--spacing-lg) !important; /* 增大间距 */
+}
+.el-radio__input.is-checked .el-radio__inner {
+    background-color: var(--color-accent-default) !important;
+    border-color: var(--color-accent-default) !important;
+}
+.el-radio__input.is-checked + .el-radio__label {
+    color: var(--color-accent-default) !important; /* 选中时为标签着色 */
+}
+.el-radio__inner {
+    border-color: var(--color-border-default) !important;
+    background-color: var(--color-bg-default) !important;
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+.el-radio__label {
+    font-size: var(--m3-font-body-large-size) !important;
+    padding-left: var(--spacing-sm) !important;
+    transition: color var(--transition-fast);
+}
+.el-radio:hover .el-radio__inner {
+    border-color: var(--color-accent-default) !important; /* 悬停时强调边框 */
+}
+
+
+/* ElSlider 滑块 */
+.el-slider__runway {
+    background-color: var(--color-border-subtle) !important;
+    height: 4px !important; /* 更粗的滑道 */
+    border-radius: 2px;
+}
+.el-slider__bar {
+    background-color: var(--color-accent-default) !important;
+    height: 4px !important;
+    border-radius: 2px;
+}
+.el-slider__button {
+    border: 2px solid var(--color-accent-default) !important; /* 更粗的边框 */
+    background-color: var(--color-bg-default) !important; /* 使用默认背景 */
+    width: 16px !important; /* 更大的按钮 */
+    height: 16px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); /* 添加柔和阴影 */
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.el-slider__button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+.el-slider__stop {
+    background-color: var(--color-border-default) !important; /* 断点使用默认边框色 */
+    width: 4px !important;
+    height: 4px !important;
+    border-radius: 50%;
+}
+.el-slider__marks-text {
+    color: var(--color-text-secondary) !important;
+    font-size: var(--m3-font-label-small-size) !important; /* 更小的标记文本 */
+    margin-top: var(--spacing-sm) !important;
+}
+
+
+/* ElSelect 选择器 */
+.el-select .el-input__wrapper {
+    /* 使用前面定义的 .el-input__wrapper 样式 */
+    cursor: pointer;
+}
+.el-select .el-input__wrapper:hover {
+    border-color: var(--color-accent-default) !important; /* 悬停时使用强调色 */
+}
+.el-select .el-select__caret { /* 下拉箭头样式 */
+    color: var(--color-text-secondary);
+    transition: transform var(--transition-fast), color var(--transition-fast);
+}
+.el-select .el-input.is-focus .el-select__caret {
+    color: var(--color-accent-default); /* 匹配焦点边框颜色 */
+}
+
+/* ElSelect 下拉菜单 Popper */
+.el-select__popper.el-popper[role="tooltip"] { /* 定位正确的 select popper */
+    background-color: var(--color-bg-default) !important;
+    border: 1px solid var(--color-border-subtle) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08) !important;
+    border-radius: var(--border-radius) !important;
+    padding: var(--spacing-xs) 0 !important; /* 垂直内边距 */
+    overflow: hidden;
+    margin-top: 4px; /* 输入框和下拉菜单之间的小间隙 */
+}
+
+/* 调整暗色主题下的 popper 样式 */
+html.theme-dark .el-select__popper.el-popper[role="tooltip"],
+html.theme-auto .el-select__popper.el-popper[role="tooltip"] {
+    background-color: var(--color-bg-elevated) !important;
+    border-color: var(--color-border-default) !important;
+}
+
+.el-select-dropdown__list {
+    padding: 0 !important;
+}
+
+.el-select-dropdown__item {
+    color: var(--color-text-default) !important;
+    padding: 0 var(--spacing-md) !important; /* 水平内边距 */
+    height: 48px !important; /* 固定项高度 (Material 规范) */
+    line-height: 48px !important;
+    border-radius: 0 !important;
+    /* 应用 Material 3 Body Large 字体规范 */
+    font-size: var(--m3-font-body-large-size) !important;
+    font-weight: var(--m3-font-body-large-weight) !important;
+    letter-spacing: var(--m3-font-body-large-letter-spacing) !important;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover {
+    /* 使用柔和的文本颜色变化或非常浅的背景 */
+    background-color: rgba(var(--color-text-default-rgb), 0.06) !important;
+    color: var(--color-text-default) !important;
+}
+
+.el-select-dropdown__item.selected {
+    /* 使用柔和的强调色背景和强调色文本 */
+    background-color: rgba(var(--color-accent-default-rgb), 0.1) !important;
+    color: var(--color-accent-default) !important;
+    font-weight: var(--m3-font-weight-medium) !important; /* 选中项使用中等字重 */
+}
+
+/* 调整暗色主题下的选中项样式 */
+html.theme-dark .el-select-dropdown__item.selected,
+html.theme-auto .el-select-dropdown__item.selected {
+    background-color: rgba(var(--color-accent-default-rgb), 0.15) !important;
+    color: var(--color-accent-default) !important;
+}
+
+.el-select-dropdown__empty { /* '无数据' 消息样式 */
+    color: var(--color-text-muted) !important;
+    padding: var(--spacing-md) !important;
+    font-size: var(--m3-font-body-medium-size) !important;
+}
+/* -------------------- Edit Dialog Footer Styles (Google Style) -------------------- */
+.modern-dialog-footer {
+  display: flex;
+  justify-content: space-between; /* 两端对齐 */
+  align-items: center; /* 垂直居中 */
+  width: 100%;
+  padding: 10px 20px; /* 调整内边距 */
+  box-sizing: border-box;
+  border-top: 1px solid var(--border-color-light); /* 添加顶部边框 */
+  margin-top: 15px; /* 与内容区域的间距 */
+}
+
+.modern-dialog-footer .footer-left {
+  margin-right: auto; /* 将左侧内容推到最左边 */
+}
+
+.modern-dialog-footer .footer-right {
+  margin-left: auto; /* 将右侧内容推到最右边 */
+  display: flex;
+  gap: 10px; /* 右侧按钮之间的间距 */
+}
+
+/* 确保对话框内容区域有合适的底部内边距，避免内容与按钮重叠 */
+.modern-dialog .el-dialog__body {
+    /* 移除原有的padding-bottom，让footer的margin-top控制间距 */
+    /* padding-bottom: 20px; */
+}
+
+/* 修复对话框背景主题问题 */
+.modern-dialog .el-dialog {
+    background-color: var(--color-bg-default) !important;
+    border: 1px solid var(--color-border-default) !important;
+}
+
+.modern-dialog .el-dialog__header {
+    background-color: var(--color-bg-default) !important;
+    border-bottom: 1px solid var(--color-border-light) !important;
+    color: var(--color-text-primary) !important;
+}
+
+.modern-dialog .el-dialog__title {
+    color: var(--color-text-primary) !important;
+}
+
+.modern-dialog .el-dialog__body {
+    background-color: var(--color-bg-default) !important;
+    color: var(--color-text-primary) !important;
+}
+
+/* 可选：调整删除按钮样式 */
+.modern-dialog-footer .delete-button {
+    /* 如果需要，可以在这里添加自定义样式 */
+}
+/* -------------------- End Edit Dialog Footer Styles -------------------- */
+/* -------------------- Edit Dialog Footer Button Theme Styles -------------------- */
+
+/* 主按钮 (保存/添加) */
+.modern-dialog-footer .footer-right .el-button--primary {
+    background-color: var(--el-color-primary);
+    border-color: var(--el-color-primary);
+    color: var(--color-bg-default); /* 通常主按钮文字是白色或背景色 */
+}
+/* 主按钮悬停/聚焦 */
+.modern-dialog-footer .footer-right .el-button--primary:hover,
+.modern-dialog-footer .footer-right .el-button--primary:focus {
+    background-color: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+    color: var(--color-bg-default);
+}
+/* 主按钮激活 */
+.modern-dialog-footer .footer-right .el-button--primary:active {
+    background-color: var(--color-accent-active);
+    border-color: var(--color-accent-active);
+    color: var(--color-bg-default);
+}
+
+/* 默认按钮 (取消) - 通常不需要太多覆盖，但可以微调 */
+.modern-dialog-footer .footer-right .el-button:not(.el-button--primary):not(.el-button--danger) {
+    /* 如果需要，可以设置颜色和边框 */
+     color: var(--el-color-primary); /* 取消按钮文字使用主色 */
+     border-color: var(--color-border-default); /* 默认边框色 */
+     background-color: var(--color-bg-default); /* 确保背景透明或为默认背景 */
+}
+.modern-dialog-footer .footer-right .el-button:not(.el-button--primary):not(.el-button--danger):hover,
+.modern-dialog-footer .footer-right .el-button:not(.el-button--primary):not(.el-button--danger):focus {
+     color: var(--color-accent-hover);
+     border-color: var(--color-accent-hover); /* 悬停时边框变为主色 */
+     background-color: rgba(var(--color-accent-default-rgb), 0.05); /* 添加细微背景 */
+}
+.modern-dialog-footer .footer-right .el-button:not(.el-button--primary):not(.el-button--danger):active {
+    color: var(--color-accent-active);
+    border-color: var(--color-accent-active);
+    background-color: rgba(var(--color-accent-default-rgb), 0.1);
+}
+
+
+/* 危险按钮 (删除 - plain 样式) */
+.modern-dialog-footer .footer-left .el-button--danger.is-plain {
+    color: var(--el-color-danger);
+    border-color: var(--el-color-danger);
+    background-color: transparent; /* 明确背景透明 */
+}
+/* 危险按钮 (plain) 悬停/聚焦 */
+.modern-dialog-footer .footer-left .el-button--danger.is-plain:hover,
+.modern-dialog-footer .footer-left .el-button--danger.is-plain:focus {
+    color: var(--color-bg-default); /* 悬停时文字变白/背景色 */
+    background-color: var(--el-color-danger); /* 背景变为危险色 */
+    border-color: var(--el-color-danger);
+}
+/* 危险按钮 (plain) 激活 */
+.modern-dialog-footer .footer-left .el-button--danger.is-plain:active {
+    color: var(--color-bg-default);
+    border-color: var(--color-state-error); /* 使用原始状态色以防别名有变 */
+    background-color: var(--color-state-error); /* 使用原始状态色 */
+    opacity: 0.8; /* 轻微透明表示按下 */
+}
+
+/* -------------------- End Edit Dialog Footer Button Theme Styles -------------------- */
+
+/* -------------------- 批量压缩和自动过滤对话框样式 -------------------- */
+.batch-compression-form .quality-description,
+.batch-compression-form .compression-description,
+.auto-filter-form .threshold-description {
+    margin-top: 5px;
+    color: var(--color-text-muted);
+}
+
+.batch-compression-form .file-selection {
+    border: 1px solid var(--color-border-light);
+    border-radius: 6px;
+    padding: 12px;
+    background-color: var(--color-bg-subtle);
+}
+
+.batch-compression-form .file-item {
+    margin-bottom: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.batch-compression-form .file-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.batch-compression-form .file-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.batch-compression-form .file-name {
+    flex: 1;
+    margin-right: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.batch-compression-form .file-size {
+    color: var(--color-text-muted);
+    font-size: 0.9em;
+}
+
+.compression-progress,
+.filter-progress {
+    margin: 15px 0;
+    padding: 15px;
+    background-color: var(--color-bg-subtle);
+    border-radius: 6px;
+    border: 1px solid var(--color-border-light);
+}
+
+.progress-text {
+    margin-top: 8px;
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: 0.9em;
+}
+
+.compression-results,
+.filter-results {
+    margin: 15px 0;
+}
+
+.auto-filter-form .method-option {
+    margin-left: 8px;
+}
+
+.auto-filter-form .method-title {
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.auto-filter-form .method-description {
+    font-size: 0.85em;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+
+.filter-preview {
+    margin: 15px 0;
+    padding: 15px;
+    background-color: var(--color-bg-subtle);
+    border-radius: 6px;
+    border: 1px solid var(--color-border-light);
+}
+
+.removed-files-list {
+    margin-top: 10px;
+}
+
+.removed-file-item {
+    padding: 8px;
+    margin-bottom: 6px;
+    background-color: var(--color-bg-default);
+    border: 1px solid var(--color-border-light);
+    border-radius: 4px;
+}
+
+.removed-file-item .file-name {
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.removed-file-item .removal-reason {
+    font-size: 0.85em;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+
+/* -------------------- End 批量压缩和自动过滤对话框样式 -------------------- */
+
+/* -------------------- Material Design 自动过滤对话框样式 -------------------- */
+.material-dialog {
+    border-radius: 12px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+.material-auto-filter {
+    padding: 0;
+}
+
+.filter-steps {
+    margin-bottom: 32px;
+    padding: 0 24px;
+}
+
+.filter-step {
+    min-height: 400px;
+}
+
+.step-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.step-header h3 {
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin: 0 0 8px 0;
+}
+
+.step-description {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+/* 方法选择卡片 */
+.method-cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.method-card {
+    display: flex;
+    padding: 20px;
+    border: 2px solid var(--color-border-light);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--color-bg-default);
+}
+
+.method-card:hover {
+    border-color: var(--el-color-primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.method-card.active {
+    border-color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+}
+
+.card-icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--el-color-primary-light-8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 16px;
+}
+
+.card-icon .material-symbols-rounded {
+    font-size: 24px;
+    color: var(--el-color-primary);
+}
+
+.card-content h4 {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin: 0 0 8px 0;
+}
+
+.card-content p {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin: 0 0 12px 0;
+    line-height: 1.4;
+}
+
+.card-features {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
+.feature-item .material-symbols-rounded {
+    font-size: 16px;
+    color: var(--el-color-success);
+    margin-right: 6px;
+}
+
+/* 阈值设置 */
+.threshold-section {
+    background: var(--color-bg-subtle);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.section-header h4 {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin: 0 0 4px 0;
+}
+
+.section-header p {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin: 0 0 16px 0;
+}
+
+.threshold-control {
+    margin-top: 16px;
+}
+
+.material-slider {
+    margin-bottom: 12px;
+}
+
+.threshold-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+.label-center {
+    font-weight: 500;
+    color: var(--el-color-primary);
+}
+
+/* 预览结果 */
+.preview-loading {
+    text-align: center;
+    padding: 40px 0;
+}
+
+.loading-text {
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+}
+
+.stats-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    border-radius: 12px;
+    background: var(--color-bg-subtle);
+}
+
+.stat-card.keep {
+    border-left: 4px solid var(--el-color-success);
+}
+
+.stat-card.remove {
+    border-left: 4px solid var(--el-color-warning);
+}
+
+.stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+}
+
+.stat-card.keep .stat-icon {
+    background: var(--el-color-success-light-8);
+}
+
+.stat-card.remove .stat-icon {
+    background: var(--el-color-warning-light-8);
+}
+
+.stat-icon .material-symbols-rounded {
+    font-size: 20px;
+}
+
+.stat-card.keep .stat-icon .material-symbols-rounded {
+    color: var(--el-color-success);
+}
+
+.stat-card.remove .stat-icon .material-symbols-rounded {
+    color: var(--el-color-warning);
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+}
+
+/* 移除文件列表 */
+.removed-files-section .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.removed-files-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    background: var(--color-bg-default);
+}
+
+.removed-file-card {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.removed-file-card:last-child {
+    border-bottom: none;
+}
+
+.file-info {
+    display: flex;
+    align-items: flex-start;
+}
+
+.file-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: var(--el-color-warning-light-8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.file-icon .material-symbols-rounded {
+    font-size: 16px;
+    color: var(--el-color-warning);
+}
+
+.file-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-reason {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
+/* 无移除文件状态 */
+.no-removal {
+    text-align: center;
+    padding: 40px 0;
+}
+
+.no-removal-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--el-color-success-light-8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+}
+
+.no-removal-icon .material-symbols-rounded {
+    font-size: 32px;
+    color: var(--el-color-success);
+}
+
+.no-removal h4 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin: 0 0 8px 0;
+}
+
+.no-removal p {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+/* 应用进度 */
+.apply-progress {
+    text-align: center;
+    padding: 40px 0;
+}
+
+.progress-text {
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+}
+
+/* 完成结果 */
+.apply-results {
+    text-align: center;
+    padding: 40px 0;
+}
+
+.success-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--el-color-success-light-8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+}
+
+.success-icon .material-symbols-rounded {
+    font-size: 32px;
+    color: var(--el-color-success);
+}
+
+.apply-results h4 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin: 0 0 8px 0;
+}
+
+.apply-results p {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+/* Material Dialog Footer */
+.material-dialog-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--color-border-light);
+    background: var(--color-bg-subtle);
+}
+
+/* -------------------- End Material Design 自动过滤对话框样式 -------------------- */
