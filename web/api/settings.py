@@ -13,8 +13,7 @@ import os
 from fontTools.ttLib import TTFont
 
 # 导入核心业务逻辑
-from core.config import config, ReadingOrder, DisplayMode
-from qfluentwidgets import Theme
+from core.config import config, ReadingOrder, DisplayMode, Theme
 from utils import manga_logger as log
 
 router = APIRouter()
@@ -85,9 +84,9 @@ async def get_all_settings():
             value=config.display_mode.value.value if hasattr(config.display_mode.value, 'value') else str(config.display_mode.value),
             type="enum",
             options=[
-                {"value": "单页", "label": "单页显示"},
-                {"value": "双页", "label": "双页显示"},
-                {"value": "连续", "label": "连续滚动"}
+                {"value": "单页显示", "label": "单页显示"},
+                {"value": "双页显示", "label": "双页显示"},
+                {"value": "自适应", "label": "自适应"}
             ]
         ))
         
@@ -141,14 +140,14 @@ async def get_all_settings():
 
         # 智谱AI翻译设置
         settings.append(SettingItem(
-            key="zhipuApiKey",
+            key="zhipu_api_key",
             name="智谱AI API Key",
             description="智谱AI翻译服务的API Key",
             value="***" if config.zhipu_api_key.value else "",  # 隐藏API密钥
             type="string"
         ))
         settings.append(SettingItem(
-            key="zhipuModel",
+            key="zhipu_model",
             name="智谱AI模型",
             description="智谱AI翻译使用的模型",
             value=config.zhipu_model.value,
@@ -163,7 +162,7 @@ async def get_all_settings():
 
         # Google翻译设置
         settings.append(SettingItem(
-            key="googleApiKey",
+            key="google_api_key",
             name="Google API Key",
             description="Google翻译服务的API Key",
             value="***" if config.google_api_key.value else "",  # 隐藏API密钥
@@ -344,12 +343,12 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
                 raise HTTPException(status_code=400, detail="无效的阅读方向")
                 
         elif setting_key == "displayMode":
-            if new_value == "单页":
-                new_value = DisplayMode.SINGLE_PAGE
-            elif new_value == "双页":
-                new_value = DisplayMode.DOUBLE_PAGE
-            elif new_value == "连续":
-                new_value = DisplayMode.CONTINUOUS
+            if new_value == "单页显示":
+                new_value = DisplayMode.SINGLE.value
+            elif new_value == "双页显示":
+                new_value = DisplayMode.DOUBLE.value
+            elif new_value == "自适应":
+                new_value = DisplayMode.ADAPTIVE.value
             else:
                 raise HTTPException(status_code=400, detail="无效的显示模式")
         
@@ -359,19 +358,31 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
             else:
                 log.error(f"更新设置 translatorType 失败: 无效的翻译引擎类型 '{new_value}'")
                 raise HTTPException(status_code=400, detail="无效的翻译引擎类型")
-        elif setting_key == "zhipuApiKey":
+        elif setting_key == "zhipu_api_key":
             config_item.value = new_value
-        elif setting_key == "zhipuModel":
+        elif setting_key == "zhipu_model":
             if new_value in ["glm-4-flash", "glm-4", "glm-3-turbo", "glm-4-flash-250414"]:
                 config_item.value = new_value
             else:
                 raise HTTPException(status_code=400, detail="无效的智谱AI模型")
-        elif setting_key == "googleApiKey":
+        elif setting_key == "google_api_key":
             config_item.value = new_value
         elif setting_key == "fontName":
             # 验证字体名称是否存在于可用字体列表中（可选，但推荐）
             # 简化处理：直接设置，前端会负责校验和显示
             config_item.value = new_value
+        elif setting_key == "log_level":
+            # 验证日志等级
+            valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+            if new_value in valid_levels:
+                config_item.value = new_value
+                # 动态更新日志等级
+                from utils.manga_logger import MangaLogger
+                manga_logger = MangaLogger.get_instance()
+                manga_logger.set_level(new_value)
+                log.info(f"日志等级已更新为: {new_value}")
+            else:
+                raise HTTPException(status_code=400, detail="无效的日志等级")
         else:
             # 对于其他通用设置，直接更新
             config_item.value = new_value
@@ -398,8 +409,8 @@ async def reset_settings():
     try:
         # 重置配置为默认值
         config.themeMode.value = Theme.AUTO
-        config.reading_order.value = ReadingOrder.RIGHT_TO_LEFT
-        config.display_mode.value = DisplayMode.SINGLE_PAGE
+        config.reading_order.value = ReadingOrder.LEFT_TO_RIGHT.value
+        config.display_mode.value = DisplayMode.DOUBLE.value
         config.merge_tags.value = True
         config.log_level.value = "ERROR"
         config.translator_type.value = "智谱"

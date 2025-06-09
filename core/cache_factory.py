@@ -1,5 +1,6 @@
 # core/cache_factory.py
-from typing import Literal, Union
+from typing import Literal, Union, Dict, Any
+import asyncio
 from core.cache_interface import CacheInterface
 from core.manga_cache import MangaListCacheManager
 from core.ocr_cache_manager import OcrCacheManager
@@ -8,6 +9,43 @@ from core.translation_cache_manager import TranslationCacheManager
 
 # Define a type for cache types for better type hinting
 CacheType = Literal["manga_list", "ocr", "translation"] # "dangerous_word" removed
+
+# 事件广播函数
+async def broadcast_cache_event(event_type: str, cache_type: str, data: Dict[str, Any] = None):
+    """广播缓存事件到前端"""
+    try:
+        # 动态导入以避免循环导入
+        from web.websocket.handlers import manager
+
+        event_data = {
+            "type": "cache_event",
+            "event_type": event_type,  # "updated", "cleared", "added", "removed"
+            "cache_type": cache_type,
+            "data": data or {},
+            "timestamp": asyncio.get_event_loop().time()
+        }
+
+        await manager.broadcast(event_data, subscription="cache_events")
+
+    except ImportError:
+        # 如果WebSocket模块不可用，静默忽略
+        pass
+    except Exception as e:
+        # 记录错误但不影响主要功能
+        print(f"广播缓存事件失败: {e}")
+
+def sync_broadcast_cache_event(event_type: str, cache_type: str, data: Dict[str, Any] = None):
+    """同步版本的事件广播，用于在非异步上下文中调用"""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # 如果事件循环正在运行，创建任务
+            asyncio.create_task(broadcast_cache_event(event_type, cache_type, data))
+        else:
+            # 如果没有运行的事件循环，直接运行
+            loop.run_until_complete(broadcast_cache_event(event_type, cache_type, data))
+    except Exception as e:
+        print(f"同步广播缓存事件失败: {e}")
 
 class CacheManagerFactory:
     """

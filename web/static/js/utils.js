@@ -6,6 +6,77 @@ window.UtilsMethods = {
         this.activeMenu = key;
     },
 
+    // ==================== WebSocket 连接管理 ====================
+
+    initWebSocket() {
+        if (this.websocket) {
+            return; // 已经连接
+        }
+
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+            this.websocket = new WebSocket(wsUrl);
+
+            this.websocket.onopen = () => {
+                console.log('WebSocket连接已建立');
+                // 订阅缓存事件
+                this.websocket.send(JSON.stringify({
+                    type: 'subscribe',
+                    subscription: 'cache_events'
+                }));
+            };
+
+            this.websocket.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    this.handleWebSocketMessage(message);
+                } catch (error) {
+                    console.error('解析WebSocket消息失败:', error);
+                }
+            };
+
+            this.websocket.onclose = () => {
+                console.log('WebSocket连接已关闭');
+                this.websocket = null;
+                // 5秒后尝试重连
+                setTimeout(() => {
+                    this.initWebSocket();
+                }, 5000);
+            };
+
+            this.websocket.onerror = (error) => {
+                console.error('WebSocket连接错误:', error);
+            };
+
+        } catch (error) {
+            console.error('初始化WebSocket失败:', error);
+        }
+    },
+
+    handleWebSocketMessage(message) {
+        console.log('收到WebSocket消息:', message);
+
+        if (message.type === 'cache_event') {
+            this.handleCacheEvent(message);
+        }
+    },
+
+    handleCacheEvent(event) {
+        console.log('处理缓存事件:', event);
+
+        // 如果是漫画列表缓存更新事件
+        if (event.cache_type === 'manga_list' && event.event_type === 'cleared') {
+            console.log('漫画列表缓存已清空，刷新漫画浏览页面');
+
+            // 如果当前在漫画浏览页面，刷新数据
+            if (this.activeMenu === 'manga-browser' && this.loadInitialData) {
+                this.loadInitialData();
+            }
+        }
+    },
+
     // 初始化iframe消息监听器
     initIframeMessageListener() {
         window.addEventListener('message', (event) => {
@@ -244,20 +315,42 @@ window.UtilsMethods = {
     },
 
     onZhipuApiKeyChange(value) {
-        this.updateSetting('zhipuApiKey', value);
+        // 使用后端的 snake_case 命名
+        this.updateSetting('zhipu_api_key', value);
     },
 
     onZhipuModelChange(value) {
-        this.updateSetting('zhipuModel', value);
+        // 使用后端的 snake_case 命名
+        this.updateSetting('zhipu_model', value);
     },
 
     onGoogleApiKeyChange(value) {
-        this.updateSetting('googleApiKey', value);
+        // 使用后端的 snake_case 命名
+        this.updateSetting('google_api_key', value);
     },
 
     onFontChange(value) {
         // 使用 snake_case
         this.updateSetting('font_name', value);
+    },
+
+    // ==================== 系统设置相关方法 ====================
+
+    onLogLevelChange(value) {
+        console.log('🔧 日志等级变更为:', value);
+        this.updateSetting('log_level', value);
+        ElMessage.success(`日志等级已设置为: ${this.getLogLevelDisplayName(value)}`);
+    },
+
+    getLogLevelDisplayName(level) {
+        const levelNames = {
+            'DEBUG': '调试',
+            'INFO': '信息',
+            'WARNING': '警告',
+            'ERROR': '错误',
+            'CRITICAL': '严重'
+        };
+        return levelNames[level] || level;
     },
 
     // 加载初始设置
@@ -274,17 +367,22 @@ window.UtilsMethods = {
                 if (settingsMap.hasOwnProperty('translatorType')) {
                     window.AppData.translationSettings.translator_type = settingsMap.translatorType; // AppData 使用 snake_case
                 }
-                if (settingsMap.hasOwnProperty('zhipuApiKey')) {
-                    window.AppData.translationSettings.zhipuApiKey = settingsMap.zhipuApiKey;
+                if (settingsMap.hasOwnProperty('zhipu_api_key')) {
+                    window.AppData.translationSettings.zhipuApiKey = settingsMap.zhipu_api_key;
                 }
-                if (settingsMap.hasOwnProperty('zhipuModel')) {
-                    window.AppData.translationSettings.zhipuModel = settingsMap.zhipuModel;
+                if (settingsMap.hasOwnProperty('zhipu_model')) {
+                    window.AppData.translationSettings.zhipuModel = settingsMap.zhipu_model;
                 }
-                if (settingsMap.hasOwnProperty('googleApiKey')) {
-                    window.AppData.translationSettings.googleApiKey = settingsMap.googleApiKey;
+                if (settingsMap.hasOwnProperty('google_api_key')) {
+                    window.AppData.translationSettings.googleApiKey = settingsMap.google_api_key;
                 }
                  if (settingsMap.hasOwnProperty('fontName')) {
                     window.AppData.translationSettings.font_name = settingsMap.fontName; // AppData 使用 snake_case
+                }
+
+                // 更新系统设置
+                if (settingsMap.hasOwnProperty('logLevel')) {
+                    window.AppData.systemSettings.logLevel = settingsMap.logLevel;
                 }
 
                 // 更新其他可能的顶层设置 (也需要使用 window.AppData)
@@ -295,9 +393,6 @@ window.UtilsMethods = {
                          this.updateThemeState.call(window.AppData); // 确保 this 指向 AppData
                     }
                 }
-                // 可以根据需要添加其他设置的更新逻辑...
-
-                console.log('[Utils] 更新后的 AppData.translationSettings:', window.AppData.translationSettings);
             } else {
                 console.error('[Utils] 获取设置失败: 无效的响应格式', response.data);
                 ElMessage.error('加载初始设置失败: 无效的响应格式');

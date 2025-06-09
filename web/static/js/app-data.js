@@ -34,6 +34,12 @@ window.AppData = {
     showMangaViewer: false,
     currentViewerUrl: '',
 
+    // WebSocket连接相关数据
+    websocket: null,
+
+    // 请求去重机制
+    pendingRequests: new Map(),
+
     // 缓存管理相关数据 - 全新设计
     cacheTypes: [
         { key: 'manga_list', name: '漫画列表', icon: 'menu_book', description: '漫画文件扫描结果缓存' }, // Replaced Emoji
@@ -140,6 +146,11 @@ window.AppData = {
         googleApiKey: '',
         font_name: '', // 重命名以匹配后端
         availableFonts: [], // 用于存储字体列表
+    },
+
+    // 系统设置数据
+    systemSettings: {
+        logLevel: 'INFO', // 默认日志等级
     },
     translationTasks: [],
     generalDragOver: false,  // 通用拖拽状态（保留兼容性）
@@ -300,6 +311,12 @@ window.AppLifecycle = {
         } else {
             console.warn('[Mounted] handleDesktopImportComplete method not found on Vue instance, listener not added.');
         }
+
+        // 初始化WebSocket连接
+        if (this.initWebSocket) {
+            this.initWebSocket();
+            console.log('[Mounted] WebSocket连接已初始化');
+        }
     },
 
     beforeUnmount() {
@@ -307,6 +324,14 @@ window.AppLifecycle = {
         if (this.thumbnailObserver) {
             this.thumbnailObserver.disconnect();
         }
+
+        // 清理WebSocket连接
+        if (this.websocket) {
+            this.websocket.close();
+            this.websocket = null;
+            console.log('[beforeUnmount] WebSocket连接已关闭');
+        }
+
         // 移除事件监听器 (可选但推荐)
         // 重新添加桌面导入完成事件监听器移除
         if (typeof this.handleDesktopImportComplete === 'function') {

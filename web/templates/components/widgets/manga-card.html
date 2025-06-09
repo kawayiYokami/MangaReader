@@ -1,60 +1,55 @@
-<!-- 漫画卡片组件 -->
-<div v-for="manga in filteredMangaList"
-     :key="manga.file_path"
-     :data-manga-path="manga.file_path"
-     class="manga-card"
-     @click="selectManga(manga)"
-     :ref="el => { if (el) observeCard(el) }">
+<!-- 漫画卡片组件 - 优化版本 -->
+<article v-for="manga in filteredMangaList"
+         :key="manga.file_path"
+         :data-manga-path="manga.file_path"
+         class="manga-card"
+         @click="selectManga(manga)"
+         :ref="el => { if (el) observeCard(el) }">
 
-    <!-- 封面图片 -->
-    <div class="manga-cover">
-        <!-- 缩略图（从缓存加载） -->
-        <img v-if="getThumbnailUrl(manga.file_path)"
-             :src="getThumbnailUrl(manga.file_path)"
-             :alt="getTitleTag(manga.tags) || '漫画封面'"
-             class="cover-image">
+    <!-- 封面图片 - 简化结构 -->
+    <img v-if="getThumbnailUrl(manga.file_path)"
+         :src="getThumbnailUrl(manga.file_path)"
+         :alt="getTitleTag(manga.tags) || '漫画封面'"
+         class="cover-image"
+         decoding="async"
+         loading="lazy">
 
-        <!-- 加载中状态 -->
-        <div v-else-if="isThumbnailLoading(manga.file_path)" class="cover-loading">
-            <div class="loading-spinner"><span class="material-symbols-rounded">progress_activity</span></div>
-            <div class="loading-text">加载中...</div>
-        </div>
-
-        <!-- 无图片占位符 -->
-        <div v-else class="cover-placeholder">
-            <div class="placeholder-icon">
-                <span v-if="manga.file_type === 'folder'"><span class="material-symbols-rounded">folder</span></span>
-                <span v-else-if="manga.file_type === 'zip'"><span class="material-symbols-rounded">archive</span></span>
-                <span v-else><span class="material-symbols-rounded">draft</span></span>
-            </div>
-        </div>
-
-        <!-- 页数角标 -->
-        <div class="page-count" v-text="manga.total_pages"></div>
+    <!-- 加载中状态 -->
+    <div v-else-if="isThumbnailLoading(manga.file_path)" class="cover-loading">
+        <span class="material-symbols-rounded">progress_activity</span>
+        <span class="loading-text">加载中...</span>
     </div>
 
-    <!-- 标题标签（默认显示） -->
-    <div class="manga-title clickable-title"
-         v-if="getTitleTag(manga.tags)"
-         @click.stop="onTitleClick(getTitleTag(manga.tags))"
-         :title="`点击搜索: ${getTitleTag(manga.tags)}`">
-        <span v-text="getTitleTag(manga.tags)"></span>
+    <!-- 无图片占位符 -->
+    <div v-else class="cover-placeholder">
+        <span v-if="manga.file_type === 'folder'" class="material-symbols-rounded">folder</span>
+        <span v-else-if="manga.file_type === 'zip'" class="material-symbols-rounded">archive</span>
+        <span v-else class="material-symbols-rounded">draft</span>
     </div>
 
-    <!-- 其他标签（悬停显示） -->
+    <!-- 页数角标 -->
+    <span class="page-count" v-text="manga.total_pages"></span>
+
+    <!-- 标题标签 - 直接使用文本绑定 -->
+    <h3 v-if="getTitleTag(manga.tags)"
+        class="manga-title clickable-title"
+        @click.stop="onTitleClick(getTitleTag(manga.tags))"
+        :title="`点击搜索: ${getTitleTag(manga.tags)}`"
+        v-text="getTitleTag(manga.tags)"></h3>
+
+    <!-- 其他标签 - 简化结构 -->
     <div class="manga-tags" v-if="getOtherTags(manga.tags).length > 0">
-        <div class="tag clickable-tag"
-             v-for="tag in getOtherTags(manga.tags).slice(0, 3)"
-             :key="tag"
-             @click.stop="onTagClick(tag)"
-             :title="`点击搜索: ${tag}`">
-            <span v-text="tag"></span>
-        </div>
-        <div class="tag more-tag clickable-tag"
-             v-if="getOtherTags(manga.tags).length > 3"
-             @click.stop="showAllTags(manga)"
-             title="点击查看所有标签">
+        <span class="tag clickable-tag"
+              v-for="tag in getOtherTags(manga.tags).slice(0, 3)"
+              :key="tag"
+              @click.stop="onTagClick(tag)"
+              :title="`点击搜索: ${tag}`"
+              v-text="tag"></span>
+        <span class="tag more-tag clickable-tag"
+              v-if="getOtherTags(manga.tags).length > 3"
+              @click.stop="showAllTags(manga)"
+              title="点击查看所有标签">
             +<span v-text="getOtherTags(manga.tags).length - 3"></span>
-        </div>
+        </span>
     </div>
-</div>
+</article>

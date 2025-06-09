@@ -3,6 +3,29 @@ window.MangaBrowserMethods = {
     // ==================== 漫画浏览功能 ====================
 
     async loadInitialData() {
+        // 检查是否有相同的请求正在进行
+        const requestKey = 'loadInitialData';
+        if (this.pendingRequests && this.pendingRequests.has(requestKey)) {
+            console.log('⏳ 相同的初始数据加载请求正在进行中，跳过重复请求');
+            return this.pendingRequests.get(requestKey);
+        }
+
+        const requestPromise = this._loadInitialDataInternal();
+        if (this.pendingRequests) {
+            this.pendingRequests.set(requestKey, requestPromise);
+        }
+
+        try {
+            const result = await requestPromise;
+            return result;
+        } finally {
+            if (this.pendingRequests) {
+                this.pendingRequests.delete(requestKey);
+            }
+        }
+    },
+
+    async _loadInitialDataInternal() {
         try {
             // 直接加载缓存中的漫画数据
             await this.loadMangaData();
@@ -11,10 +34,34 @@ window.MangaBrowserMethods = {
             this.initSmartPreload();
         } catch (error) {
             console.error('加载初始数据失败:', error);
+            throw error;
         }
     },
 
     async loadMangaData() {
+        // 检查是否有相同的请求正在进行
+        const requestKey = 'loadMangaData';
+        if (this.pendingRequests && this.pendingRequests.has(requestKey)) {
+            console.log('⏳ 相同的漫画数据加载请求正在进行中，跳过重复请求');
+            return this.pendingRequests.get(requestKey);
+        }
+
+        const requestPromise = this._loadMangaDataInternal();
+        if (this.pendingRequests) {
+            this.pendingRequests.set(requestKey, requestPromise);
+        }
+
+        try {
+            const result = await requestPromise;
+            return result;
+        } finally {
+            if (this.pendingRequests) {
+                this.pendingRequests.delete(requestKey);
+            }
+        }
+    },
+
+    async _loadMangaDataInternal() {
         this.isLoading = true;
         try {
             // 并行加载漫画列表和标签
@@ -34,9 +81,11 @@ window.MangaBrowserMethods = {
             }
 
             // 不再自动加载缩略图，等待用户滚动或Intersection Observer触发
+            return this.mangaList;
         } catch (error) {
             console.error('加载漫画数据失败:', error);
             ElMessage.error('加载漫画数据失败: ' + (error.response?.data?.detail || error.message));
+            throw error;
         } finally {
             this.isLoading = false;
         }

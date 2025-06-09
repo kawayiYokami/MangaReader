@@ -143,5 +143,33 @@
             </el-form-item>
         </el-form>
     </el-card>
+
+    <!-- 系统设置卡片 -->
+    <el-card v-if="isLocalAccess" style="margin-top: var(--spacing-lg);">
+        <template #header>
+            <div class="card-header">
+                <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">settings</span> 系统设置</span>
+            </div>
+        </template>
+
+        <el-form label-position="top">
+            <!-- 日志等级设置 -->
+            <el-form-item>
+                <template #label>
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                        <span>日志等级</span>
+                        <p class="setting-description">设置应用程序的日志记录详细程度。DEBUG显示所有信息，ERROR只显示错误信息。</p>
+                    </div>
+                </template>
+                <el-select v-model="systemSettings.logLevel" placeholder="选择日志等级" @change="onLogLevelChange" :disabled="!isLocalAccess">
+                    <el-option label="调试 (DEBUG) - 显示所有详细信息" value="DEBUG"></el-option>
+                    <el-option label="信息 (INFO) - 显示一般操作信息" value="INFO"></el-option>
+                    <el-option label="警告 (WARNING) - 只显示警告和错误" value="WARNING"></el-option>
+                    <el-option label="错误 (ERROR) - 只显示错误信息" value="ERROR"></el-option>
+                    <el-option label="严重 (CRITICAL) - 只显示严重错误" value="CRITICAL"></el-option>
+                </el-select>
+            </el-form-item>
+        </el-form>
+    </el-card>
 </div>
 

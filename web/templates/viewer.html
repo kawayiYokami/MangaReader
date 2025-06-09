@@ -151,13 +151,6 @@
                         @error="onImageError">
                 </div>
             </div>
-
-            <!-- 错误状态 -->
-            <div v-else class="error-container">
-                <el-empty description="无法加载图片">
-                    <el-button @click="loadCurrentPage" type="primary">重试</el-button>
-                </el-empty>
-            </div>
         </div>
 
 
@@ -364,6 +357,8 @@ console.log('窗口尺寸:', screenInfo.width, 'x', screenInfo.height);
 
                 // 图片预加载缓存
                 const imageCache = new Map();
+                // 请求去重机制
+                const pendingPageRequests = new Map();
 
                 async function loadPageImages(startPage, count) {
                     const imageUrls = [];
@@ -382,14 +377,27 @@ console.log('窗口尺寸:', screenInfo.width, 'x', screenInfo.height);
                             continue;
                         }
 
-                        try {
-                            const response = await axios.post('/api/manga/viewer/page', {
-                                manga_path: mangaPath,
-                                page_num: pageNum
-                            });
+                        // 检查是否有相同的请求正在进行
+                        const requestKey = `page_${mangaPath}_${pageNum}`;
+                        if (pendingPageRequests.has(requestKey)) {
+                            console.log(`⏳ 页面 ${pageNum + 1} 请求正在进行中，等待结果`);
+                            try {
+                                const imageUrl = await pendingPageRequests.get(requestKey);
+                                imageUrls.push(imageUrl);
+                                continue;
+                            } catch (error) {
+                                console.error(`等待页面 ${pageNum + 1} 请求失败:`, error);
+                                break;
+                            }
+                        }
 
-                            if (response.data && response.data.image) {
-                                const imageUrl = response.data.image;
+                        // 创建新的请求
+                        const requestPromise = loadSinglePage(mangaPath, pageNum);
+                        pendingPageRequests.set(requestKey, requestPromise);
+
+                        try {
+                            const imageUrl = await requestPromise;
+                            if (imageUrl) {
                                 imageUrls.push(imageUrl);
                                 imageCache.set(cacheKey, imageUrl);
                                 console.log(`页面 ${pageNum + 1} 加载成功`);
@@ -400,10 +408,26 @@ console.log('窗口尺寸:', screenInfo.width, 'x', screenInfo.height);
                         } catch (error) {
                             console.error(`加载页面 ${pageNum + 1} 失败:`, error);
                             break;
+                        } finally {
+                            pendingPageRequests.delete(requestKey);
                         }
                     }
 
                     return imageUrls;
+                }
+
+                // 加载单个页面的函数
+                async function loadSinglePage(mangaPath, pageNum) {
+                    const response = await axios.post('/api/manga/viewer/page', {
+                        manga_path: mangaPath,
+                        page_num: pageNum
+                    });
+
+                    if (response.data && response.data.image) {
+                        return response.data.image;
+                    } else {
+                        throw new Error(`页面 ${pageNum + 1} 数据无效`);
+                    }
                 }
 
                 async function loadCurrentPage() {

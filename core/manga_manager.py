@@ -432,7 +432,7 @@ class MangaManager(QObject):
             manga.tags = merged_tags
 
     def save_config(self):
-        log.info(f"保存配置到文件: {config.file}")
+        log.info(f"保存配置到文件: {config.config_file}")
         try:
             # 调用 config.save 方法保存所有 ConfigItem
             config.save()

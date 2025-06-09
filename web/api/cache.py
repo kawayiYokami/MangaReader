@@ -820,6 +820,12 @@ async def clear_cache(cache_type: str):
     try:
         handler = CacheHandlerFactory.get_handler(cache_type)
         result = await handler.clear()
+
+        # 如果清空成功，广播事件
+        if result.get("success", False):
+            from core.cache_factory import broadcast_cache_event
+            await broadcast_cache_event("cleared", cache_type, {"message": result.get("message", "")})
+
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

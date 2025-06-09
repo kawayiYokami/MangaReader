@@ -373,11 +373,11 @@ class ImageCompressor:
                     log.debug(f"转换完成: {os.path.basename(img_path)} -> {output_filename}")
                     return output_path
                 else:
-                    log.warning(f"转换失败: {img_path}")
+                    log.warning(f"图片转换失败: {img_path}")
                     return None
 
             except Exception as e:
-                log.error(f"处理图片 {img_path} 时出错: {e}")
+                log.error(f"处理图片时发生错误 {img_path}: {e}")
                 return None
 
         # 使用线程池执行转换
@@ -472,7 +472,7 @@ class ImageCompressor:
                     converted_files.append(output_path)
                     log.debug(f"转换完成: {os.path.basename(img_path)} -> {output_filename}")
                 else:
-                    log.warning(f"转换失败: {img_path}")
+                    log.warning(f"图片转换失败: {img_path}")
 
                 # 报告进度
                 progress = 30 + (i + 1) / len(image_files) * 40  # 30-70%
@@ -487,7 +487,7 @@ class ImageCompressor:
                 })
 
             except Exception as e:
-                log.error(f"处理图片 {img_path} 时出错: {e}")
+                log.error(f"处理图片时发生错误 {img_path}: {e}")
                 continue
 
         return converted_files
