@@ -21,11 +21,14 @@ class RealtimeTranslationManager {
     /**
      * 启动翻译服务
      */
-    async startService(translatorType = '智谱', apiKey = null, model = null) {
+    async startService(translatorType = null, apiKey = null, model = null) {
         try {
-            const requestData = {
-                translator_type: translatorType
-            };
+            const requestData = {};
+
+            // 如果没有指定翻译器类型，则不传递，让后端使用配置文件中的设置
+            if (translatorType) {
+                requestData.translator_type = translatorType;
+            }
             
             if (apiKey) {
                 requestData.api_key = apiKey;
@@ -60,7 +63,10 @@ class RealtimeTranslationManager {
             
         } catch (error) {
             console.error('启动实时翻译服务失败:', error);
-            ElMessage.error(`启动翻译服务失败: ${error.message}`);
+            // 检查是否有ElMessage可用
+            if (typeof ElMessage !== 'undefined') {
+                ElMessage.error(`启动翻译服务失败: ${error.message}`);
+            }
             return false;
         }
     }
@@ -93,7 +99,10 @@ class RealtimeTranslationManager {
             
         } catch (error) {
             console.error('停止实时翻译服务失败:', error);
-            ElMessage.error(`停止翻译服务失败: ${error.message}`);
+            // 检查是否有ElMessage可用
+            if (typeof ElMessage !== 'undefined') {
+                ElMessage.error(`停止翻译服务失败: ${error.message}`);
+            }
             return false;
         }
     }
@@ -203,13 +212,18 @@ class RealtimeTranslationManager {
             const result = await response.json();
             
             if (result.is_translated && result.image_data) {
+                // 检查是否是新的翻译结果
+                const isNewTranslation = !this.translatedPages.has(cacheKey);
+
                 // 缓存翻译结果
                 this.translatedPages.set(cacheKey, result.image_data);
-                
-                if (this.onTranslationCompleted) {
+
+                // 只有新的翻译结果才触发回调
+                if (isNewTranslation && this.onTranslationCompleted) {
+                    console.log(`触发翻译完成回调: 页面 ${pageIndex + 1}`);
                     this.onTranslationCompleted(mangaPath, pageIndex, result.image_data);
                 }
-                
+
                 return result.image_data;
             }
             
@@ -321,9 +335,43 @@ class RealtimeTranslationManager {
             if (status && this.onStatusChanged) {
                 this.onStatusChanged('status_update', status);
             }
+
+            // 检查当前页面是否有新的翻译结果
+            if (this.currentManga && status && status.is_running) {
+                await this._checkCurrentPageTranslation();
+            }
         }, 2000); // 每2秒检查一次状态
     }
     
+    /**
+     * 检查当前页面翻译状态
+     */
+    async _checkCurrentPageTranslation() {
+        if (!this.currentManga) return;
+
+        try {
+            // 检查当前页面和相邻页面的翻译状态
+            const pagesToCheck = [];
+            for (let i = Math.max(0, this.currentPage - 2);
+                 i <= Math.min(this.currentPage + 2, 999); // 假设最大页数
+                 i++) {
+                pagesToCheck.push(i);
+            }
+
+            for (const pageIndex of pagesToCheck) {
+                const cacheKey = `${this.currentManga}:${pageIndex}`;
+
+                // 如果本地缓存中没有，检查服务器
+                if (!this.translatedPages.has(cacheKey)) {
+                    await this.getTranslatedPage(this.currentManga, pageIndex);
+                }
+            }
+        } catch (error) {
+            // 静默处理错误，避免干扰正常使用
+            console.log('检查翻译状态失败:', error);
+        }
+    }
+
     /**
      * 停止状态监控
      */
@@ -343,6 +391,10 @@ class RealtimeTranslationManager {
         this.isServiceRunning = false;
     }
 }
+
+// 为了向后兼容，同时导出两个名称
+window.RealtimeTranslation = RealtimeTranslationManager;
+window.RealtimeTranslationManager = RealtimeTranslationManager;
 
 // 全局实例
 window.realtimeTranslationManager = new RealtimeTranslationManager();

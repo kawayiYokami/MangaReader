@@ -263,11 +263,43 @@
                 // 应用CSS变量
                 onMounted(async () => {
                     // 初始化实时翻译
-                    if (typeof RealtimeTranslation !== 'undefined') {
-                        window.realtimeTranslation = new RealtimeTranslation();
-                        console.log('实时翻译模块已初始化');
-                    } else {
-                        console.warn('实时翻译模块未加载');
+                    try {
+                        if (typeof RealtimeTranslation !== 'undefined') {
+                            window.realtimeTranslation = new RealtimeTranslation();
+                            console.log('实时翻译模块已初始化');
+                        } else if (typeof RealtimeTranslationManager !== 'undefined') {
+                            window.realtimeTranslation = new RealtimeTranslationManager();
+                            console.log('实时翻译管理器已初始化');
+                        } else {
+                            console.warn('实时翻译模块未加载');
+                        }
+
+                        // 设置翻译完成回调（如果实时翻译模块可用）
+                        if (window.realtimeTranslation) {
+                            window.realtimeTranslation.onTranslationCompleted = (mangaPath, pageIndex, imageData) => {
+                                console.log(`翻译完成回调: 页面 ${pageIndex + 1}`);
+
+                                // 如果是当前显示的页面，刷新显示
+                                if (mangaPath === mangaInfo.file_path) {
+                                    const mode = actualDisplayMode.value;
+                                    const currentPageNum = currentPage.value;
+
+                                    // 清除相关页面的缓存
+                                    clearPageCache(pageIndex);
+
+                                    // 检查是否是当前显示的页面
+                                    if (mode === 'single' && pageIndex === currentPageNum) {
+                                        console.log(`刷新当前页面显示: ${pageIndex + 1}`);
+                                        loadCurrentPage();
+                                    } else if (mode === 'double' && (pageIndex === currentPageNum || pageIndex === currentPageNum + 1)) {
+                                        console.log(`刷新双页显示: ${pageIndex + 1}`);
+                                        loadCurrentPage();
+                                    }
+                                }
+                            };
+                        }
+                    } catch (error) {
+                        console.error('初始化实时翻译模块失败:', error);
                     }
 
                     if (!mangaPath) {
@@ -360,6 +392,15 @@ console.log('窗口尺寸:', screenInfo.width, 'x', screenInfo.height);
                 // 请求去重机制
                 const pendingPageRequests = new Map();
 
+                // 清除指定页面的缓存
+                function clearPageCache(pageNum) {
+                    const cacheKey = `${mangaPath}_${pageNum}`;
+                    if (imageCache.has(cacheKey)) {
+                        imageCache.delete(cacheKey);
+                        console.log(`清除页面 ${pageNum + 1} 缓存`);
+                    }
+                }
+
                 async function loadPageImages(startPage, count) {
                     const imageUrls = [];
 
@@ -418,6 +459,21 @@ console.log('窗口尺寸:', screenInfo.width, 'x', screenInfo.height);
 
                 // 加载单个页面的函数
                 async function loadSinglePage(mangaPath, pageNum) {
+                    // 如果启用了翻译，优先检查翻译结果
+                    if (translationEnabled.value && window.realtimeTranslation) {
+                        try {
+                            const translatedImage = await window.realtimeTranslation.getTranslatedPage(mangaPath, pageNum);
+                            if (translatedImage) {
+                                console.log(`页面 ${pageNum + 1} 使用翻译结果`);
+                                // 翻译结果是JPEG格式的base64数据，添加正确的data URL前缀
+                                return `data:image/jpeg;base64,${translatedImage}`;
+                            }
+                        } catch (error) {
+                            console.log(`获取页面 ${pageNum + 1} 翻译结果失败:`, error);
+                        }
+                    }
+
+                    // 获取原始图像
                     const response = await axios.post('/api/manga/viewer/page', {
                         manga_path: mangaPath,
                         page_num: pageNum
@@ -737,29 +793,58 @@ const computedStyle = window.getComputedStyle(img);
 
                     if (translationEnabled.value) {
                         try {
+                            // 检查翻译模块是否可用
+                            if (!window.realtimeTranslation) {
+                                throw new Error('实时翻译模块未初始化');
+                            }
+
                             // 启动实时翻译服务
                             console.log('启动实时翻译服务...');
-                            const success = await window.realtimeTranslation.startService('智谱');
+                            // 不传递翻译器类型，让后端使用配置文件中的设置
+                            const success = await window.realtimeTranslation.startService();
 
                             if (success) {
                                 ElMessage.success('实时翻译已启用');
 
+                                // 设置翻译完成回调
+                                window.realtimeTranslation.onTranslationCompleted = (mangaPath, pageIndex, imageData) => {
+                                    console.log(`翻译完成回调: 页面 ${pageIndex + 1}`);
+
+                                    // 如果是当前显示的页面，刷新显示
+                                    if (mangaPath === mangaInfo.file_path) {
+                                        const mode = actualDisplayMode.value;
+                                        const currentPageNum = currentPage.value;
+
+                                        // 清除相关页面的缓存
+                                        clearPageCache(pageIndex);
+
+                                        // 检查是否是当前显示的页面
+                                        if (mode === 'single' && pageIndex === currentPageNum) {
+                                            console.log(`刷新当前页面显示: ${pageIndex + 1}`);
+                                            loadCurrentPage();
+                                        } else if (mode === 'double' && (pageIndex === currentPageNum || pageIndex === currentPageNum + 1)) {
+                                            console.log(`刷新双页显示: ${pageIndex + 1}`);
+                                            loadCurrentPage();
+                                        }
+                                    }
+                                };
+
                                 // 设置当前漫画
                                 await window.realtimeTranslation.setCurrentManga(
-                                    currentManga.value.file_path,
-                                    currentPageIndex.value
+                                    mangaInfo.file_path,
+                                    currentPage.value
                                 );
 
                                 // 请求翻译当前页面和周围页面
                                 const pagesToTranslate = [];
-                                for (let i = Math.max(0, currentPageIndex.value - 2);
-                                     i <= Math.min(currentManga.value.total_pages - 1, currentPageIndex.value + 2);
+                                for (let i = Math.max(0, currentPage.value - 2);
+                                     i <= Math.min(mangaInfo.total_pages - 1, currentPage.value + 2);
                                      i++) {
                                     pagesToTranslate.push(i);
                                 }
 
                                 await window.realtimeTranslation.requestTranslation(
-                                    currentManga.value.file_path,
+                                    mangaInfo.file_path,
                                     pagesToTranslate,
                                     5  // 高优先级
                                 );

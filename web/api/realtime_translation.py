@@ -22,7 +22,7 @@ router = APIRouter()
 # 数据模型
 class StartTranslationServiceRequest(BaseModel):
     """启动翻译服务请求模型"""
-    translator_type: str = "智谱"
+    translator_type: Optional[str] = None  # 如果为None，则使用配置文件中的设置
     api_key: Optional[str] = None
     model: Optional[str] = None
 
@@ -63,30 +63,59 @@ async def realtime_translation_health():
 async def start_translation_service(request: StartTranslationServiceRequest):
     """启动实时翻译服务"""
     try:
+        # 确定要使用的翻译器类型
+        translator_type = request.translator_type or config.translator_type.value
+        log.info(f"收到启动翻译服务请求: {translator_type} (请求: {request.translator_type}, 配置: {config.translator_type.value})")
+
         translator = get_realtime_translator()
-        
-        # 配置翻译器
+
+        # 配置翻译器参数
         translator_kwargs = {}
-        if request.api_key:
-            translator_kwargs["api_key"] = request.api_key
-        if request.model:
-            translator_kwargs["model"] = request.model
-        
+
+        # 根据翻译器类型设置默认参数
+        if translator_type == "智谱":
+            if request.api_key:
+                translator_kwargs["api_key"] = request.api_key
+            else:
+                translator_kwargs["api_key"] = config.zhipu_api_key.value
+
+            if request.model:
+                translator_kwargs["model"] = request.model
+            else:
+                translator_kwargs["model"] = config.zhipu_model.value
+        elif translator_type == "Google":
+            if request.api_key:
+                translator_kwargs["api_key"] = request.api_key
+            else:
+                translator_kwargs["api_key"] = config.google_api_key.value
+
+        log.info(f"设置翻译器配置: {translator_type}, 参数: {translator_kwargs}")
         translator.set_translator_config(
-            translator_type=request.translator_type,
+            translator_type=translator_type,
             **translator_kwargs
         )
-        
+
+        # 检查翻译器是否配置成功
+        if not translator.image_translator:
+            raise Exception("翻译器配置失败，无法创建图片翻译器实例")
+
+        if not translator.image_translator.is_ready():
+            log.warning("翻译器未完全准备就绪，但将尝试启动服务")
+
         # 启动服务
+        log.info("启动翻译服务...")
         translator.start_translation_service()
-        
+
+        log.info(f"实时翻译服务启动成功: {translator_type}")
         return {
             "success": True,
-            "message": f"实时翻译服务已启动，使用翻译器: {request.translator_type}"
+            "message": f"实时翻译服务已启动，使用翻译器: {translator_type}"
         }
-        
+
     except Exception as e:
         log.error(f"启动实时翻译服务失败: {e}")
+        import traceback
+        log.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/stop-service")
@@ -310,7 +339,7 @@ async def _auto_request_nearby_pages(manga_path: str, current_page: int, range_s
         log.error(f"自动请求翻译附近页面失败: {e}")
 
 def _encode_image_to_base64(image: np.ndarray) -> str:
-    """将图像编码为base64字符串"""
+    """将图像编码为base64字符串（仅返回base64数据，不包含data URL前缀）"""
     try:
         # 确保图像是RGB格式
         if len(image.shape) == 3 and image.shape[2] == 3:
@@ -318,15 +347,15 @@ def _encode_image_to_base64(image: np.ndarray) -> str:
             image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         else:
             image_bgr = image
-        
+
         # 编码为JPEG格式
         _, buffer = cv2.imencode('.jpg', image_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
-        
-        # 转换为base64
+
+        # 转换为base64（仅返回base64数据，不包含data URL前缀）
         image_base64 = base64.b64encode(buffer).decode('utf-8')
-        
-        return f"data:image/jpeg;base64,{image_base64}"
-        
+
+        return image_base64
+
     except Exception as e:
         log.error(f"图像编码失败: {e}")
         raise

@@ -35,10 +35,67 @@ class TranslationTask:
     result_image: Optional[Any] = None
     error_message: Optional[str] = None
     created_time: float = 0.0
-    
+
     def __post_init__(self):
         if self.created_time == 0.0:
             self.created_time = time.time()
+
+    def __lt__(self, other):
+        """实现小于比较，用于优先级队列排序"""
+        if not isinstance(other, TranslationTask):
+            return NotImplemented
+
+        # 首先按优先级比较（数字越小优先级越高）
+        if self.priority != other.priority:
+            return self.priority < other.priority
+
+        # 优先级相同时，按创建时间比较（越早创建优先级越高）
+        if self.created_time != other.created_time:
+            return self.created_time < other.created_time
+
+        # 时间也相同时，按页面索引比较（确保稳定排序）
+        return self.page_index < other.page_index
+
+    def __le__(self, other):
+        """实现小于等于比较"""
+        if not isinstance(other, TranslationTask):
+            return NotImplemented
+        return self < other or self == other
+
+    def __gt__(self, other):
+        """实现大于比较"""
+        if not isinstance(other, TranslationTask):
+            return NotImplemented
+        return not self <= other
+
+    def __ge__(self, other):
+        """实现大于等于比较"""
+        if not isinstance(other, TranslationTask):
+            return NotImplemented
+        return not self < other
+
+    def __eq__(self, other):
+        """实现相等比较"""
+        if not isinstance(other, TranslationTask):
+            return NotImplemented
+
+        return (self.manga_path == other.manga_path and
+                self.page_index == other.page_index)
+
+    def __ne__(self, other):
+        """实现不等比较"""
+        if not isinstance(other, TranslationTask):
+            return NotImplemented
+        return not self == other
+
+    def __hash__(self):
+        """实现哈希方法，使对象可以用作字典键"""
+        return hash((self.manga_path, self.page_index))
+
+    @property
+    def task_id(self) -> str:
+        """生成任务ID"""
+        return f"{self.manga_path}:{self.page_index}"
 
 
 class RealtimeTranslator:
@@ -74,10 +131,19 @@ class RealtimeTranslator:
     def set_translator_config(self, translator_type: str = "智谱", **kwargs):
         """设置翻译器配置"""
         try:
+            log.info(f"开始配置翻译器: {translator_type}, 参数: {kwargs}")
             self.image_translator = ImageTranslator(translator_type, **kwargs)
-            log.info(f"翻译器配置完成: {translator_type}")
+
+            # 检查翻译器是否准备就绪
+            if self.image_translator.is_ready():
+                log.info(f"翻译器配置完成并准备就绪: {translator_type}")
+            else:
+                log.warning(f"翻译器配置完成但未完全准备就绪: {translator_type}")
+
         except Exception as e:
             log.error(f"翻译器配置失败: {e}")
+            import traceback
+            log.error(traceback.format_exc())
             self.image_translator = None
     
     def set_callbacks(self, 
@@ -168,8 +234,8 @@ class RealtimeTranslator:
             priority=priority
         )
         
-        # 添加到队列
-        self.task_queue.put((priority, time.time(), task))
+        # 添加到队列（直接使用task对象，因为已实现比较方法）
+        self.task_queue.put(task)
         log.debug(f"添加翻译任务: {cache_key}, 优先级: {priority}")
     
     def get_translated_page(self, manga_path: str, page_index: int) -> Optional[Any]:
@@ -207,7 +273,7 @@ class RealtimeTranslator:
         tasks = []
         while not self.task_queue.empty():
             try:
-                _, _, task = self.task_queue.get_nowait()
+                task = self.task_queue.get_nowait()
                 if task.manga_path == self.current_manga_path:
                     tasks.append(task)
             except queue.Empty:
@@ -220,7 +286,7 @@ class RealtimeTranslator:
         
         # 重新添加到队列
         for task in tasks:
-            self.task_queue.put((task.priority, task.created_time, task))
+            self.task_queue.put(task)
         
         log.debug(f"重新排列翻译队列，当前页面: {self.current_page_index}, 队列大小: {len(tasks)}")
     
@@ -245,7 +311,7 @@ class RealtimeTranslator:
             try:
                 # 获取翻译任务（超时1秒）
                 try:
-                    priority, created_time, task = self.task_queue.get(timeout=1.0)
+                    task = self.task_queue.get(timeout=1.0)
                 except queue.Empty:
                     continue
                 
@@ -297,16 +363,55 @@ class RealtimeTranslator:
             if image is None:
                 raise Exception(f"无法获取页面图像: {task.page_index}")
             
+            # 检查翻译器是否准备就绪
+            if not self.image_translator:
+                raise Exception("图片翻译器未初始化，无法执行翻译")
+
+            if not self.image_translator.is_ready():
+                log.warning("图片翻译器未准备就绪，尝试重新初始化...")
+                # 尝试重新初始化翻译器
+                try:
+                    # 使用当前配置重新创建翻译器
+                    from core.config import config
+                    translator_type = config.translator_type.value
+
+                    # 根据翻译器类型设置参数
+                    if translator_type == "智谱":
+                        self.image_translator = ImageTranslator(
+                            translator_type=translator_type,
+                            api_key=config.zhipu_api_key.value,
+                            model=config.zhipu_model.value
+                        )
+                    elif translator_type == "Google":
+                        self.image_translator = ImageTranslator(
+                            translator_type=translator_type,
+                            api_key=config.google_api_key.value
+                        )
+                    else:
+                        # 默认使用Google翻译器
+                        self.image_translator = ImageTranslator(
+                            translator_type="Google"
+                        )
+
+                    if not self.image_translator.is_ready():
+                        raise Exception("重新初始化后翻译器仍未准备就绪")
+
+                    log.info("图片翻译器重新初始化成功")
+                except Exception as e:
+                    raise Exception(f"图片翻译器重新初始化失败: {e}")
+
             # 执行翻译
             if self.translation_progress_callback:
                 self.translation_progress_callback(cache_key, "translating")
-            
+
+            log.debug(f"开始翻译图像: {cache_key}")
             translated_image = self.image_translator.translate_image(
                 image_input=image,
                 target_language="zh",
                 file_path_for_cache=task.manga_path,
                 page_num_for_cache=task.page_index
             )
+            log.debug(f"翻译图像完成: {cache_key}")
             
             if translated_image is not None:
                 # 保存翻译结果
@@ -329,8 +434,10 @@ class RealtimeTranslator:
         except Exception as e:
             task.status = TranslationStatus.FAILED
             task.error_message = str(e)
-            log.error(f"翻译失败: {cache_key}, 错误: {e}")
-            
+            log.error(f"翻译任务 {task.task_id} 执行失败: {e}")
+            import traceback
+            log.error(traceback.format_exc())
+
         finally:
             with self.lock:
                 self.current_task = None

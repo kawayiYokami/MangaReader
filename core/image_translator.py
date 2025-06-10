@@ -46,11 +46,21 @@ class ImageTranslator:
     def _init_ocr_manager(self):
         """初始化OCR管理器"""
         try:
+            log.info("开始初始化OCR管理器...")
             self.ocr_manager = OCRManager()
+            log.info("OCR管理器实例创建成功，开始加载模型...")
             self.ocr_manager.load_model()
+
+            # 验证OCR管理器是否准备就绪
+            if not self.ocr_manager.is_ready():
+                raise RuntimeError("OCR管理器模型加载失败，未准备就绪")
+
             log.info("OCR管理器初始化成功")
         except Exception as e:
             log.error(f"OCR管理器初始化失败: {e}")
+            import traceback
+            log.error(traceback.format_exc())
+            self.ocr_manager = None
             raise RuntimeError(f"OCR管理器初始化失败: {e}")
     
     def _init_translator(self, translator_type_to_init: str, **kwargs):
@@ -115,15 +125,41 @@ class ImageTranslator:
             self.harmonization_manager = get_harmonization_map_manager_instance()
             log.info("和谐映射管理器初始化成功")
         except Exception as e:
-            log.error(f"和谐映射管理器初始化失败: {e}")
-            self.harmonization_manager = None # Ensure it's None on failure
+            log.warning(f"和谐映射管理器初始化失败: {e}，将创建空的管理器实例")
+            # 创建一个空的管理器实例，避免阻塞翻译功能
+            from core.harmonization_map_manager import HarmonizationMapManager
+            self.harmonization_manager = HarmonizationMapManager()
+            log.info("已创建空的和谐映射管理器实例")
     
     def is_ready(self) -> bool:
         """检查翻译器是否准备就绪"""
-        return (self.ocr_manager and self.ocr_manager.is_ready() and
-                self.translator and
-                self.manga_text_replacer and
-                self.harmonization_manager)
+        ready_status = {
+            'ocr_manager': self.ocr_manager is not None,
+            'ocr_ready': self.ocr_manager.is_ready() if self.ocr_manager else False,
+            'translator': self.translator is not None,
+            'manga_text_replacer': self.manga_text_replacer is not None,
+            'harmonization_manager': self.harmonization_manager is not None
+        }
+
+        all_ready = all(ready_status.values())
+
+        if not all_ready:
+            log.warning(f"翻译器准备状态检查失败: {ready_status}")
+            # 详细诊断每个组件
+            if not ready_status['ocr_manager']:
+                log.error("OCR管理器未初始化")
+            elif not ready_status['ocr_ready']:
+                log.error("OCR管理器未准备就绪")
+            if not ready_status['translator']:
+                log.error("翻译器未初始化")
+            if not ready_status['manga_text_replacer']:
+                log.error("漫画文本替换器未初始化")
+            if not ready_status['harmonization_manager']:
+                log.error("和谐映射管理器未初始化")
+        else:
+            log.debug(f"翻译器准备状态检查通过: {ready_status}")
+
+        return all_ready
 
     def cancel_translation(self):
         """取消当前翻译任务"""
@@ -154,9 +190,44 @@ class ImageTranslator:
         if not self.is_ready():
             log.warning("ImageTranslator 未准备就绪，尝试根据当前配置重新初始化翻译器...")
             try:
-                self._init_translator(config.translator_type.value) 
+                # 尝试重新初始化各个组件
+                if not self.ocr_manager or not self.ocr_manager.is_ready():
+                    log.info("重新初始化OCR管理器...")
+                    try:
+                        self._init_ocr_manager()
+                    except Exception as e:
+                        log.error(f"重新初始化OCR管理器失败: {e}")
+                        # OCR管理器初始化失败是致命的，直接抛出异常
+                        raise RuntimeError(f"OCR管理器重新初始化失败: {e}")
+
+                if not self.translator:
+                    log.info("重新初始化翻译器...")
+                    try:
+                        self._init_translator(config.translator_type.value)
+                    except Exception as e:
+                        log.error(f"重新初始化翻译器失败: {e}")
+                        raise RuntimeError(f"翻译器重新初始化失败: {e}")
+
+                if not self.manga_text_replacer:
+                    log.info("重新初始化文本替换器...")
+                    try:
+                        self._init_manga_text_replacer()
+                    except Exception as e:
+                        log.error(f"重新初始化文本替换器失败: {e}")
+                        raise RuntimeError(f"文本替换器重新初始化失败: {e}")
+
+                if not self.harmonization_manager:
+                    log.info("重新初始化和谐映射管理器...")
+                    try:
+                        self._init_harmonization_manager()
+                    except Exception as e:
+                        log.error(f"重新初始化和谐映射管理器失败: {e}")
+                        # 和谐映射管理器失败不是致命的，继续执行
+
                 if not self.is_ready(): # Re-check after attempting re-init
                      raise RuntimeError("图片翻译器仍未准备就绪，请检查各组件初始化状态和配置。")
+
+                log.info("翻译器重新初始化成功")
             except Exception as reinit_e:
                  raise RuntimeError(f"图片翻译器未准备就绪，重新初始化翻译器失败: {reinit_e}")
 
@@ -394,9 +465,44 @@ class ImageTranslator:
         if not self.is_ready():
             log.warning("ImageTranslator 未准备就绪 (optimized)，尝试根据当前配置重新初始化翻译器...")
             try:
-                self._init_translator(config.translator_type.value)
+                # 尝试重新初始化各个组件
+                if not self.ocr_manager or not self.ocr_manager.is_ready():
+                    log.info("重新初始化OCR管理器 (optimized)...")
+                    try:
+                        self._init_ocr_manager()
+                    except Exception as e:
+                        log.error(f"重新初始化OCR管理器失败 (optimized): {e}")
+                        # OCR管理器初始化失败是致命的，直接抛出异常
+                        raise RuntimeError(f"OCR管理器重新初始化失败 (optimized): {e}")
+
+                if not self.translator:
+                    log.info("重新初始化翻译器 (optimized)...")
+                    try:
+                        self._init_translator(config.translator_type.value)
+                    except Exception as e:
+                        log.error(f"重新初始化翻译器失败 (optimized): {e}")
+                        raise RuntimeError(f"翻译器重新初始化失败 (optimized): {e}")
+
+                if not self.manga_text_replacer:
+                    log.info("重新初始化文本替换器 (optimized)...")
+                    try:
+                        self._init_manga_text_replacer()
+                    except Exception as e:
+                        log.error(f"重新初始化文本替换器失败 (optimized): {e}")
+                        raise RuntimeError(f"文本替换器重新初始化失败 (optimized): {e}")
+
+                if not self.harmonization_manager:
+                    log.info("重新初始化和谐映射管理器 (optimized)...")
+                    try:
+                        self._init_harmonization_manager()
+                    except Exception as e:
+                        log.error(f"重新初始化和谐映射管理器失败 (optimized): {e}")
+                        # 和谐映射管理器失败不是致命的，继续执行
+
                 if not self.is_ready():
                      raise RuntimeError("图片翻译器仍未准备就绪 (optimized)，请检查各组件初始化状态和配置。")
+
+                log.info("翻译器重新初始化成功 (optimized)")
             except Exception as reinit_e:
                  raise RuntimeError(f"图片翻译器未准备就绪 (optimized)，重新初始化翻译器失败: {reinit_e}")
 
