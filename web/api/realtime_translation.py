@@ -1,28 +1,29 @@
 """
-实时翻译功能 API
+实时翻译功能 API 路由层
 
-提供实时翻译服务的RESTful接口。
+纯API路由层，遵循严格的分层架构原则：
+- web层：仅负责API路由和HTTP请求/响应处理
+- service层：负责业务逻辑协调
+- core层：负责具体功能实现
+
+所有业务逻辑都在core/realtime_translation_service.py中实现
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import os
-import base64
-import io
-import cv2
-import numpy as np
 
-from core.realtime_translator import get_realtime_translator, TranslationStatus
-from core.config import config
+from core.realtime_translation_service import get_realtime_translation_service
 from utils import manga_logger as log
 
 router = APIRouter()
 
-# 数据模型
+# ==================== 数据模型 ====================
+
 class StartTranslationServiceRequest(BaseModel):
     """启动翻译服务请求模型"""
-    translator_type: Optional[str] = None  # 如果为None，则使用配置文件中的设置
+    translator_type: Optional[str] = None
     api_key: Optional[str] = None
     model: Optional[str] = None
 
@@ -34,328 +35,266 @@ class SetCurrentMangaRequest(BaseModel):
 class RequestTranslationRequest(BaseModel):
     """请求翻译页面模型"""
     manga_path: str
-    page_indices: List[int]  # 支持批量请求
+    page_indices: List[int]
     priority: int = 10
 
-class TranslationStatusResponse(BaseModel):
-    """翻译状态响应模型"""
-    is_running: bool
-    current_manga: Optional[str]
-    current_page: int
-    queue_size: int
-    completed_count: int
-    current_task: Optional[Dict[str, Any]]
-
-class TranslatedPageResponse(BaseModel):
-    """翻译页面响应模型"""
-    manga_path: str
-    page_index: int
-    is_translated: bool
-    image_data: Optional[str] = None  # base64编码的图像数据
-    error_message: Optional[str] = None
+# ==================== 服务管理API ====================
 
 @router.get("/health")
 async def realtime_translation_health():
     """实时翻译模块健康检查"""
-    return {"status": "healthy", "module": "realtime_translation"}
+    return {
+        "status": "healthy",
+        "module": "realtime_translation",
+        "architecture": "service_layer_unified",
+        "version": "2.0"
+    }
 
 @router.post("/start-service")
 async def start_translation_service(request: StartTranslationServiceRequest):
     """启动实时翻译服务"""
     try:
-        # 确定要使用的翻译器类型
-        translator_type = request.translator_type or config.translator_type.value
-        log.info(f"收到启动翻译服务请求: {translator_type} (请求: {request.translator_type}, 配置: {config.translator_type.value})")
-
-        translator = get_realtime_translator()
-
-        # 配置翻译器参数
-        translator_kwargs = {}
-
-        # 根据翻译器类型设置默认参数
-        if translator_type == "智谱":
-            if request.api_key:
-                translator_kwargs["api_key"] = request.api_key
-            else:
-                translator_kwargs["api_key"] = config.zhipu_api_key.value
-
-            if request.model:
-                translator_kwargs["model"] = request.model
-            else:
-                translator_kwargs["model"] = config.zhipu_model.value
-        elif translator_type == "Google":
-            if request.api_key:
-                translator_kwargs["api_key"] = request.api_key
-            else:
-                translator_kwargs["api_key"] = config.google_api_key.value
-
-        log.info(f"设置翻译器配置: {translator_type}, 参数: {translator_kwargs}")
-        translator.set_translator_config(
-            translator_type=translator_type,
-            **translator_kwargs
+        service = get_realtime_translation_service()
+        result = service.start_service(
+            translator_type=request.translator_type,
+            api_key=request.api_key,
+            model=request.model
         )
 
-        # 检查翻译器是否配置成功
-        if not translator.image_translator:
-            raise Exception("翻译器配置失败，无法创建图片翻译器实例")
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["message"])
 
-        if not translator.image_translator.is_ready():
-            log.warning("翻译器未完全准备就绪，但将尝试启动服务")
+        return result
 
-        # 启动服务
-        log.info("启动翻译服务...")
-        translator.start_translation_service()
-
-        log.info(f"实时翻译服务启动成功: {translator_type}")
-        return {
-            "success": True,
-            "message": f"实时翻译服务已启动，使用翻译器: {translator_type}"
-        }
-
+    except HTTPException:
+        raise
     except Exception as e:
-        log.error(f"启动实时翻译服务失败: {e}")
-        import traceback
-        log.error(traceback.format_exc())
+        log.error(f"API路由层: 启动翻译服务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/stop-service")
 async def stop_translation_service():
     """停止实时翻译服务"""
     try:
-        translator = get_realtime_translator()
-        translator.stop_translation_service()
-        
-        return {
-            "success": True,
-            "message": "实时翻译服务已停止"
-        }
-        
+        service = get_realtime_translation_service()
+        result = service.stop_service()
+
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["message"])
+
+        return result
+
+    except HTTPException:
+        raise
     except Exception as e:
-        log.error(f"停止实时翻译服务失败: {e}")
+        log.error(f"API路由层: 停止翻译服务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/status")
+async def get_translation_status() -> Dict[str, Any]:
+    """获取翻译状态"""
+    try:
+        service = get_realtime_translation_service()
+        status = service.get_service_status()
+        return status
+
+    except Exception as e:
+        log.error(f"API路由层: 获取翻译状态失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/set-current-manga")
 async def set_current_manga(request: SetCurrentMangaRequest):
     """设置当前漫画和页面"""
     try:
-        # 验证文件路径
+        # 基础文件路径验证
         if not os.path.exists(request.manga_path):
             raise HTTPException(status_code=404, detail=f"漫画文件不存在: {request.manga_path}")
-        
-        translator = get_realtime_translator()
-        translator.set_current_manga(request.manga_path, request.current_page)
-        
-        # 自动请求翻译当前页面及附近页面
-        await _auto_request_nearby_pages(request.manga_path, request.current_page)
-        
-        return {
-            "success": True,
-            "message": f"已设置当前漫画: {os.path.basename(request.manga_path)}, 页面: {request.current_page}"
-        }
-        
+
+        service = get_realtime_translation_service()
+        result = service.set_current_manga(request.manga_path, request.current_page)
+
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["message"])
+
+        return result
+
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"设置当前漫画失败: {e}")
+        log.error(f"API路由层: 设置当前漫画失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/request-translation")
 async def request_translation(request: RequestTranslationRequest):
     """请求翻译指定页面"""
     try:
-        translator = get_realtime_translator()
-        
-        if not translator.is_running:
-            raise HTTPException(status_code=400, detail="翻译服务未启动")
-        
-        # 验证文件路径
+        # 基础文件路径验证
         if not os.path.exists(request.manga_path):
             raise HTTPException(status_code=404, detail=f"漫画文件不存在: {request.manga_path}")
-        
-        # 批量请求翻译
-        for page_index in request.page_indices:
-            translator.request_translation(
-                manga_path=request.manga_path,
-                page_index=page_index,
-                priority=request.priority
-            )
-        
-        return {
-            "success": True,
-            "message": f"已请求翻译 {len(request.page_indices)} 个页面",
-            "requested_pages": request.page_indices
-        }
-        
+
+        service = get_realtime_translation_service()
+        result = service.request_translation(
+            request.manga_path,
+            request.page_indices,
+            request.priority
+        )
+
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["message"])
+
+        return result
+
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"请求翻译失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/status")
-async def get_translation_status() -> TranslationStatusResponse:
-    """获取翻译状态"""
-    try:
-        translator = get_realtime_translator()
-        status = translator.get_translation_status()
-        
-        return TranslationStatusResponse(
-            is_running=status["is_running"],
-            current_manga=status["current_manga"],
-            current_page=status["current_page"],
-            queue_size=status["queue_size"],
-            completed_count=status["completed_count"],
-            current_task=status["current_task"]
-        )
-        
-    except Exception as e:
-        log.error(f"获取翻译状态失败: {e}")
+        log.error(f"API路由层: 请求翻译失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/translated-page/{manga_path:path}/{page_index}")
-async def get_translated_page(manga_path: str, page_index: int) -> TranslatedPageResponse:
-    """获取翻译后的页面"""
+async def get_translated_page(manga_path: str, page_index: int):
+    """获取翻译后的页面（统一接口）"""
     try:
-        translator = get_realtime_translator()
-        
-        # 检查是否已翻译
-        is_translated = translator.is_page_translated(manga_path, page_index)
-        
-        response = TranslatedPageResponse(
-            manga_path=manga_path,
-            page_index=page_index,
-            is_translated=is_translated
-        )
-        
-        if is_translated:
-            # 获取翻译后的图像
-            translated_image = translator.get_translated_page(manga_path, page_index)
-            
-            if translated_image is not None:
-                # 将图像转换为base64编码
-                image_data = _encode_image_to_base64(translated_image)
-                response.image_data = image_data
-            else:
-                response.error_message = "翻译图像数据为空"
-        
-        return response
-        
+        service = get_realtime_translation_service()
+        result = service.get_translated_page(manga_path, page_index)
+        return result
     except Exception as e:
-        log.error(f"获取翻译页面失败: {e}")
+        log.error(f"API路由层: 获取翻译页面失败: {e}")
+        return {
+            "is_translated": False,
+            "image_data": None,
+            "manga_path": manga_path,
+            "page_index": page_index,
+            "error": str(e)
+        }
+
+# ==================== 缓存管理API ====================
+
+@router.get("/check-cache/{manga_path:path}/{page_index}")
+async def check_cache_status(manga_path: str, page_index: int):
+    """检查缓存状态"""
+    try:
+        service = get_realtime_translation_service()
+        result = service.check_cache_status(manga_path, page_index)
+        return result
+    except Exception as e:
+        log.error(f"API路由层: 检查缓存状态失败: {e}")
+        return {
+            "success": False,
+            "manga_path": manga_path,
+            "page_index": page_index,
+            "has_cache": False,
+            "error": str(e)
+        }
+
+@router.get("/cache/statistics")
+async def get_cache_statistics():
+    """获取缓存统计信息"""
+    try:
+        service = get_realtime_translation_service()
+        stats = service.get_cache_statistics()
+        return stats
+    except Exception as e:
+        log.error(f"API路由层: 获取缓存统计失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/cache/clear")
+async def clear_all_cache():
+    """清空所有实时翻译缓存"""
+    try:
+        service = get_realtime_translation_service()
+        result = service.clear_cache()
+
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["message"])
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"API路由层: 清空缓存失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/check-pages-translated/{manga_path:path}")
 async def check_pages_translated(manga_path: str, page_indices: str):
-    """批量检查页面是否已翻译"""
+    """批量检查页面翻译状态"""
     try:
         # 解析页面索引
+        if not page_indices:
+            raise HTTPException(status_code=400, detail="page_indices参数不能为空")
+
         try:
-            page_list = [int(x.strip()) for x in page_indices.split(',') if x.strip()]
+            indices = [int(idx.strip()) for idx in page_indices.split(',') if idx.strip()]
         except ValueError:
-            raise HTTPException(status_code=400, detail="页面索引格式错误")
-        
-        translator = get_realtime_translator()
-        
+            raise HTTPException(status_code=400, detail="page_indices格式错误，应为逗号分隔的数字")
+
+        if not indices:
+            raise HTTPException(status_code=400, detail="page_indices不能为空")
+
+        service = get_realtime_translation_service()
+
+        # 批量检查每个页面的翻译状态
         results = {}
-        for page_index in page_list:
-            results[str(page_index)] = translator.is_page_translated(manga_path, page_index)
-        
+        for page_index in indices:
+            cache_result = service.check_cache_status(manga_path, page_index)
+            results[str(page_index)] = cache_result.get("has_cache", False)
+
         return {
             "success": True,
             "manga_path": manga_path,
-            "results": results
+            "results": results,
+            "total_checked": len(indices)
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"批量检查翻译状态失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/auto-translate-current")
-async def auto_translate_current():
-    """自动翻译当前漫画的当前页面及附近页面"""
-    try:
-        translator = get_realtime_translator()
-        status = translator.get_translation_status()
-        
-        if not status["is_running"]:
-            raise HTTPException(status_code=400, detail="翻译服务未启动")
-        
-        if not status["current_manga"]:
-            raise HTTPException(status_code=400, detail="未设置当前漫画")
-        
-        manga_path = status["current_manga"]
-        current_page = status["current_page"]
-        
-        # 自动请求翻译附近页面
-        await _auto_request_nearby_pages(manga_path, current_page)
-        
+        log.error(f"API路由层: 批量检查页面翻译状态失败: {e}")
         return {
-            "success": True,
-            "message": f"已自动请求翻译当前页面及附近页面",
+            "success": False,
             "manga_path": manga_path,
-            "current_page": current_page
+            "results": {},
+            "error": str(e)
         }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"自动翻译失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
-# 辅助函数
-async def _auto_request_nearby_pages(manga_path: str, current_page: int, range_size: int = 5):
-    """自动请求翻译附近页面"""
+# ==================== 兼容性API ====================
+
+@router.get("/translated-page-four-layer/{manga_path:path}/{page_index}")
+async def get_translated_page_four_layer_legacy(manga_path: str, page_index: int):
+    """获取翻译后的页面（兼容性API，重定向到统一接口）"""
     try:
-        from core.manga_model import MangaLoader
-        
-        # 加载漫画获取总页数
-        manga = MangaLoader.load_manga(manga_path)
-        if not manga:
-            log.warning(f"无法加载漫画: {manga_path}")
-            return
-        
-        translator = get_realtime_translator()
-        
-        # 计算要翻译的页面范围
-        start_page = max(0, current_page - range_size)
-        end_page = min(manga.total_pages - 1, current_page + range_size)
-        
-        # 按距离当前页面的远近设置优先级
-        for page_index in range(start_page, end_page + 1):
-            distance = abs(page_index - current_page)
-            priority = distance  # 距离越近优先级越高（数字越小）
-            
-            translator.request_translation(
-                manga_path=manga_path,
-                page_index=page_index,
-                priority=priority
-            )
-        
-        log.info(f"自动请求翻译页面范围: {start_page}-{end_page}, 当前页面: {current_page}")
-        
+        # 重定向到新的统一API
+        return await get_translated_page(manga_path, page_index)
     except Exception as e:
-        log.error(f"自动请求翻译附近页面失败: {e}")
+        log.error(f"API路由层: 兼容性API获取翻译页面失败: {e}")
+        return {
+            "is_translated": False,
+            "image_data": None,
+            "manga_path": manga_path,
+            "page_index": page_index,
+            "error": str(e)
+        }
 
-def _encode_image_to_base64(image: np.ndarray) -> str:
-    """将图像编码为base64字符串（仅返回base64数据，不包含data URL前缀）"""
+@router.get("/check-persistent-webp-cache/{manga_path:path}/{page_index}")
+async def check_persistent_webp_cache_legacy(manga_path: str, page_index: int):
+    """检查持久化WebP缓存（兼容性API）"""
     try:
-        # 确保图像是RGB格式
-        if len(image.shape) == 3 and image.shape[2] == 3:
-            # 转换为BGR格式（OpenCV默认）
-            image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        else:
-            image_bgr = image
+        # 重定向到新的统一缓存检查API
+        result = await check_cache_status(manga_path, page_index)
 
-        # 编码为JPEG格式
-        _, buffer = cv2.imencode('.jpg', image_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
-
-        # 转换为base64（仅返回base64数据，不包含data URL前缀）
-        image_base64 = base64.b64encode(buffer).decode('utf-8')
-
-        return image_base64
-
+        # 转换为旧格式
+        return {
+            "success": result["success"],
+            "manga_path": manga_path,
+            "page_index": page_index,
+            "has_cache": result["has_cache"],
+            "cache_type": result.get("cache_source", "unknown")
+        }
     except Exception as e:
-        log.error(f"图像编码失败: {e}")
-        raise
+        log.error(f"API路由层: 兼容性WebP缓存检查失败: {e}")
+        return {
+            "success": False,
+            "manga_path": manga_path,
+            "page_index": page_index,
+            "has_cache": False,
+            "error": str(e)
+        }

@@ -132,7 +132,7 @@ async def show_routes():
 
 # 导入API路由
 try:
-    from web.api import manga, translation, cache, settings, realtime_translation
+    from web.api import manga, translation, cache, settings, realtime_translation, realtime_translation_cache
 
     # 注册API路由
     app.include_router(manga.router, prefix="/api/manga", tags=["漫画管理"])
@@ -140,6 +140,7 @@ try:
     app.include_router(cache.router, prefix="/api/cache", tags=["缓存管理"])
     app.include_router(settings.router, prefix="/api/settings", tags=["设置管理"])
     app.include_router(realtime_translation.router, prefix="/api/realtime-translation", tags=["实时翻译"])
+    app.include_router(realtime_translation_cache.router, tags=["实时翻译缓存"])
 
     log.info("API路由注册完成")
     
@@ -165,3 +166,13 @@ def get_core_interface_instance():
 
 # 导出给其他模块使用
 __all__ = ["app", "get_core_interface_instance"]
+
+if __name__ == "__main__":
+    """直接运行时启动服务器"""
+    uvicorn.run(
+        "web.app:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=False,
+        log_level="info"
+    )

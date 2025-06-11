@@ -788,6 +788,172 @@ class ImageTranslator:
         
         return self.translator.translate(text_to_translate, target_lang=target_language)
 
+    def translate_image_with_cache_data(self, image_input: Union[str, np.ndarray],
+                                       target_language: str = "zh",
+                                       file_path_for_cache: Optional[str] = None,
+                                       page_num_for_cache: Optional[int] = None,
+                                       **kwargs) -> Optional[Dict[str, Any]]:
+        """
+        翻译图片并返回完整的缓存数据
+
+        Args:
+            image_input: 图片路径或numpy数组
+            target_language: 目标语言
+            file_path_for_cache: 用于缓存的文件路径
+            page_num_for_cache: 用于缓存的页面编号
+            **kwargs: 其他参数
+
+        Returns:
+            包含翻译结果和所有中间数据的字典
+        """
+        if not self.is_ready():
+            log.error("图片翻译器未准备就绪")
+            return None
+
+        try:
+            # 加载图像
+            if isinstance(image_input, str):
+                if not os.path.exists(image_input):
+                    log.error(f"图片文件不存在: {image_input}")
+                    return None
+                image_data = cv2.imdecode(np.fromfile(image_input, dtype=np.uint8), cv2.IMREAD_COLOR)
+                if image_data is None:
+                    log.error(f"无法读取图片文件: {image_input}")
+                    return None
+                image_data = cv2.cvtColor(image_data, cv2.COLOR_BGR2RGB)
+            elif isinstance(image_input, np.ndarray):
+                image_data = image_input.copy()
+            else:
+                log.error(f"不支持的图片输入类型: {type(image_input)}")
+                return None
+
+            log.info(f"开始翻译图片，尺寸: {image_data.shape}")
+
+            # 收集翻译过程中的所有数据
+            translation_data = {
+                "translated_image": None,
+                "ocr_results": [],
+                "structured_texts": [],
+                "original_texts": [],
+                "translated_texts": [],
+                "harmonized_texts": [],
+                "inpaint_regions": [],
+                "font_settings": {}
+            }
+
+            # 设置缓存路径
+            current_file_path_for_cache = file_path_for_cache
+            original_archive_path_for_cache = None
+
+            if current_file_path_for_cache and current_file_path_for_cache.endswith('.zip'):
+                original_archive_path_for_cache = current_file_path_for_cache
+
+            # OCR识别
+            log.info("开始OCR识别...")
+            ocr_results = self.ocr_manager.recognize_image_data_sync(
+                image_data,
+                file_path_for_cache=current_file_path_for_cache,
+                page_num_for_cache=page_num_for_cache,
+                original_archive_path=original_archive_path_for_cache,
+                options=kwargs.get('ocr_options')
+            )
+
+            translation_data["ocr_results"] = ocr_results
+
+            if not ocr_results:
+                log.warning("未识别到任何文本")
+                translation_data["translated_image"] = image_data
+                return translation_data
+
+            # 过滤OCR结果
+            filtered_results = self.ocr_manager.filter_numeric_and_symbols(ocr_results)
+            filtered_results = [r for r in filtered_results if r.confidence >= config.ocr_confidence_threshold.value]
+
+            # 获取结构化文本
+            structured_texts = self.ocr_manager.get_structured_text(filtered_results)
+            translation_data["structured_texts"] = structured_texts
+
+            if not structured_texts:
+                log.warning("未获取到结构化文本")
+                translation_data["translated_image"] = image_data
+                return translation_data
+
+            # 提取原始文本
+            original_texts = [result.text for result in structured_texts if result.text.strip()]
+            translation_data["original_texts"] = original_texts
+
+            if not original_texts:
+                log.warning("未提取到有效文本")
+                translation_data["translated_image"] = image_data
+                return translation_data
+
+            # 和谐化处理
+            harmonized_texts = []
+            try:
+                if self.harmonization_manager:
+                    for text in original_texts:
+                        harmonized_text = self.harmonization_manager.apply_mapping_to_text(text)
+                        harmonized_texts.append(harmonized_text)
+                else:
+                    harmonized_texts = original_texts.copy()
+                translation_data["harmonized_texts"] = harmonized_texts
+            except Exception as e:
+                log.warning(f"和谐化处理失败: {e}")
+                harmonized_texts = original_texts.copy()
+                translation_data["harmonized_texts"] = harmonized_texts
+
+            # 翻译文本
+            log.info(f"开始翻译 {len(harmonized_texts)} 个文本片段...")
+            translated_texts = []
+
+            for text in harmonized_texts:
+                if self.cancel_flag.is_set():
+                    log.info("翻译被取消")
+                    return None
+
+                translated_text = self.translator.translate(text, target_lang=target_language)
+                translated_texts.append(translated_text)
+
+            translation_data["translated_texts"] = translated_texts
+
+            # 应用翻译到图像
+            log.info("开始应用翻译到图像...")
+
+            # 为OCR结果添加翻译文本
+            for i, result in enumerate(structured_texts):
+                if i < len(translated_texts):
+                    result.translated_texts = [translated_texts[i]]
+
+            # 创建翻译映射
+            translation_mapping = {}
+            for i, original_text in enumerate(original_texts):
+                if i < len(translated_texts):
+                    translation_mapping[original_text] = translated_texts[i]
+
+            # 使用文本替换器处理图像
+            translated_image = self.manga_text_replacer.process_manga_image(
+                image_data,
+                structured_texts,
+                translation_mapping,
+                target_language=target_language,
+                inpaint_background=True
+            )
+
+            translation_data["translated_image"] = translated_image
+
+            # 收集字体设置（如果可用）
+            if hasattr(self.manga_text_replacer, 'get_font_settings'):
+                translation_data["font_settings"] = self.manga_text_replacer.get_font_settings()
+
+            log.info("图片翻译完成")
+            return translation_data
+
+        except Exception as e:
+            log.error(f"图片翻译失败: {e}")
+            import traceback
+            log.error(traceback.format_exc())
+            return None
+
     def _get_original_path(self, output_path: str) -> str:
         p = Path(output_path)
         return str(p.with_name(f"{p.stem}_original{p.suffix}"))

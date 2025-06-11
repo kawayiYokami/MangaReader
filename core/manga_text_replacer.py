@@ -81,7 +81,7 @@ class MangaTextReplacer:
         if font_name:
             font_path = os.path.join(self.font_dir, font_name)
             if os.path.exists(font_path):
-                log.info(f"使用配置的字体: {font_path}")
+                log.debug(f"使用配置的字体: {font_path}")
                 return font_path
             else:
                 log.warning(f"配置的字体不存在: {font_path}")
@@ -127,7 +127,7 @@ class MangaTextReplacer:
             if font_path:
                 try:
                     font = ImageFont.truetype(font_path, size)
-                    log.info(f"成功加载字体: {font_path} (大小: {size}px)")
+                    log.debug(f"成功加载字体: {font_path} (大小: {size}px)")
                 except Exception as e:
                     log.error(f"加载字体 {font_path} 失败: {e}")
                     font = ImageFont.load_default()

@@ -5,7 +5,8 @@
     width="600px"
     :close-on-click-modal="false"
     append-to-body
-    custom-class="modern-dialog dialog-theme-base">
+    custom-class="modern-dialog dialog-theme-base"
+    @close="cancelHarmonizationEdit">
 
     <el-form label-width="100px">
         <el-form-item label="原文">

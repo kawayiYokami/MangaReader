@@ -70,6 +70,24 @@
                         自动过滤
                     </el-button>
                 </template>
+
+                <!-- 实时翻译缓存特有按钮 -->
+                <template v-if="selectedCacheType === 'realtime_translation'">
+                    <el-button
+                        size="small"
+                        type="warning"
+                        @click="cleanupMissingFiles">
+                        <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">cleaning_services</span>
+                        清理丢失文件
+                    </el-button>
+                    <el-button
+                        size="small"
+                        type="info"
+                        @click="showCacheStatistics">
+                        <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">analytics</span>
+                        统计信息
+                    </el-button>
+                </template>
             </div>
         </div>
 
@@ -102,6 +120,14 @@
                         <!-- 翻译缓存特有的列 -->
                         <template v-if="selectedCacheType === 'translation'">
                             <th class="cache-table-header-cell">敏感内容</th>
+                        </template>
+                        <!-- 实时翻译缓存特有的列 -->
+                        <template v-if="selectedCacheType === 'realtime_translation'">
+                            <th class="cache-table-header-cell">页面</th>
+                            <th class="cache-table-header-cell">语言</th>
+                            <th class="cache-table-header-cell">原文数量</th>
+                            <th class="cache-table-header-cell">访问次数</th>
+                            <th class="cache-table-header-cell">最后访问</th>
                         </template>
                         <th class="cache-table-header-cell action-cell">操作</th>
                     </tr>
@@ -167,6 +193,28 @@
                                     size="small"
                                     v-text="entry.is_sensitive ? '是' : '否'">
                                 </el-tag>
+                            </td>
+                        </template>
+                        <!-- 实时翻译缓存特有的列 -->
+                        <template v-if="selectedCacheType === 'realtime_translation'">
+                            <td class="cache-table-cell page-cell">
+                                <span v-text="entry.page_display || `第${entry.page_index + 1}页`"></span>
+                            </td>
+                            <td class="cache-table-cell language-cell">
+                                <el-tag
+                                    type="info"
+                                    size="small"
+                                    v-text="entry.target_language || 'zh'">
+                                </el-tag>
+                            </td>
+                            <td class="cache-table-cell texts-count-cell">
+                                <span v-text="entry.original_texts_count || 0"></span>
+                            </td>
+                            <td class="cache-table-cell access-count-cell">
+                                <span v-text="entry.access_count || 0"></span>
+                            </td>
+                            <td class="cache-table-cell last-accessed-cell">
+                                <span v-text="formatDateTime(entry.last_accessed)" :title="entry.last_accessed"></span>
                             </td>
                         </template>
                         <td class="cache-table-cell action-cell">

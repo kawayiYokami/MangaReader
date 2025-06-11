@@ -5,10 +5,11 @@ from core.cache_interface import CacheInterface
 from core.manga_cache import MangaListCacheManager
 from core.ocr_cache_manager import OcrCacheManager
 from core.translation_cache_manager import TranslationCacheManager
+from core.realtime_translation_cache_manager import RealtimeTranslationCacheManager
 # DangerousWordCacheManager import removed
 
 # Define a type for cache types for better type hinting
-CacheType = Literal["manga_list", "ocr", "translation"] # "dangerous_word" removed
+CacheType = Literal["manga_list", "ocr", "translation", "realtime_translation"] # "dangerous_word" removed
 
 # 事件广播函数
 async def broadcast_cache_event(event_type: str, cache_type: str, data: Dict[str, Any] = None):
@@ -59,7 +60,7 @@ class CacheManagerFactory:
         使用单例模式确保每种类型的管理器只有一个实例。
 
         Args:
-            cache_type: 缓存类型 ("manga_list", "ocr", "translation")
+            cache_type: 缓存类型 ("manga_list", "ocr", "translation", "realtime_translation")
 
         Returns:
             CacheInterface: 对应类型的缓存管理器实例。
@@ -74,6 +75,8 @@ class CacheManagerFactory:
                 self._managers[cache_type] = OcrCacheManager()
             elif cache_type == "translation":
                 self._managers[cache_type] = TranslationCacheManager()
+            elif cache_type == "realtime_translation":
+                self._managers[cache_type] = RealtimeTranslationCacheManager()
             # "dangerous_word" case removed
             else:
                 # This case should ideally be caught by Literal type hinting

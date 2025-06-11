@@ -11,6 +11,7 @@
     <!-- 自定义样式 -->
     <link rel="stylesheet" href="/static/css/modern-theme.css">
     <link rel="stylesheet" href="/static/css/viewer.css">
+
 </head>
 <body>
     <div id="app">
@@ -135,6 +136,8 @@
                     :src="currentImageUrls[0]"
                     :alt="`第 ${currentPage + 1} 页`"
                     class="manga-image single-page"
+                    loading="eager"
+                    decoding="sync"
                     @load="onImageLoad"
                     @error="onImageError"
                     ref="mangaImage">
@@ -147,6 +150,8 @@
                         :src="imageUrl"
                         :alt="`第 ${currentPage + index + 1} 页`"
                         class="manga-image double-page"
+                        loading="eager"
+                        decoding="sync"
                         @load="onImageLoad"
                         @error="onImageError">
                 </div>
@@ -160,6 +165,7 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
 
     <!-- 实时翻译功能 -->
     <script src="/static/js/realtime_translation.js"></script>
@@ -186,6 +192,8 @@
                 const isFullscreen = ref(false);
                 const displayMode = ref('auto'); // 'auto', 'single', 'double'
                 const translationEnabled = ref(false); // 翻译开关状态
+
+
                 const screenInfo = reactive({
                     width: window.innerWidth,
                     height: window.innerHeight,
@@ -236,6 +244,8 @@
                     const circumference = progressCircumference.value;
                     return circumference - (progressPercentage.value / 100) * circumference;
                 });
+
+
                 
                 // 自定义滑块样式
                 const thumbStyle = computed(() => {
@@ -260,8 +270,11 @@
                 // This viewer is intentionally set to always use a dark theme (via <html class="theme-dark">)
                 // and does not sync with or inherit theme from the parent page.
 
+
+
                 // 应用CSS变量
                 onMounted(async () => {
+
                     // 初始化实时翻译
                     try {
                         if (typeof RealtimeTranslation !== 'undefined') {
@@ -387,112 +400,357 @@ console.log('窗口尺寸:', screenInfo.width, 'x', screenInfo.height);
                     }
                 }
 
-                // 图片预加载缓存
+                // ==================== 前端缓存系统 ====================
+
+                // 前端缓存配置
+                const frontendCacheConfig = {
+                    maxSize: 50,           // 最大缓存页面数
+                    cleanupThreshold: 60,  // 清理阈值
+                    accessTimeout: 30 * 60 * 1000, // 30分钟访问超时
+                };
+
+                // 前端页面缓存（仅缓存用户已访问的页面）
                 const imageCache = new Map();
+
+                // 缓存元数据（访问时间、类型等）
+                const cacheMetadata = new Map();
+
                 // 请求去重机制
                 const pendingPageRequests = new Map();
 
-                // 清除指定页面的缓存
-                function clearPageCache(pageNum) {
-                    const cacheKey = `${mangaPath}_${pageNum}`;
-                    if (imageCache.has(cacheKey)) {
-                        imageCache.delete(cacheKey);
-                        console.log(`清除页面 ${pageNum + 1} 缓存`);
+                // 缓存管理函数
+                function updateCacheAccess(cacheKey) {
+                    const metadata = cacheMetadata.get(cacheKey) || {};
+                    metadata.lastAccess = Date.now();
+                    metadata.accessCount = (metadata.accessCount || 0) + 1;
+                    cacheMetadata.set(cacheKey, metadata);
+                }
+
+                function cleanupExpiredCache() {
+                    const now = Date.now();
+                    let cleanedCount = 0;
+
+                    for (const [key, metadata] of cacheMetadata.entries()) {
+                        if (now - metadata.lastAccess > frontendCacheConfig.accessTimeout) {
+                            imageCache.delete(key);
+                            cacheMetadata.delete(key);
+                            cleanedCount++;
+                        }
+                    }
+
+                    // 如果缓存过大，清理最少使用的
+                    if (imageCache.size > frontendCacheConfig.cleanupThreshold) {
+                        const entries = [...cacheMetadata.entries()]
+                            .sort(([,a], [,b]) => a.lastAccess - b.lastAccess);
+
+                        const toRemove = entries.slice(0, imageCache.size - frontendCacheConfig.maxSize);
+                        for (const [key] of toRemove) {
+                            imageCache.delete(key);
+                            cacheMetadata.delete(key);
+                            cleanedCount++;
+                        }
+                    }
+
+                    if (cleanedCount > 0) {
+                        console.log(`🧹 前端缓存清理: 移除${cleanedCount}项，当前大小${imageCache.size}`);
                     }
                 }
 
-                async function loadPageImages(startPage, count) {
+                // 定期清理缓存
+                setInterval(cleanupExpiredCache, 5 * 60 * 1000); // 每5分钟清理一次
+
+                // 清除指定页面的缓存（支持类型指定）
+                function clearPageCache(pageNum, type = 'all') {
+                    const timestamp = new Date().toLocaleTimeString();
+                    let clearedCount = 0;
+
+                    if (type === 'all' || type === 'original') {
+                        const origKey = generateCacheKey(mangaPath, pageNum, 'original');
+                        if (imageCache.has(origKey)) {
+                            imageCache.delete(origKey);
+                            clearedCount++;
+                            console.log(`🗑️ [${timestamp}] 清除页面 ${pageNum + 1} 原始缓存 (键: ${origKey})`);
+                        }
+                    }
+
+                    if (type === 'all' || type === 'translated') {
+                        const transKey = generateCacheKey(mangaPath, pageNum, 'translated');
+                        if (imageCache.has(transKey)) {
+                            imageCache.delete(transKey);
+                            clearedCount++;
+                            console.log(`🗑️ [${timestamp}] 清除页面 ${pageNum + 1} 翻译缓存 (键: ${transKey})`);
+                        }
+                    }
+
+                    if (clearedCount === 0) {
+                        console.log(`ℹ️ [${timestamp}] 页面 ${pageNum + 1} 无${type}缓存需要清除`);
+                    }
+
+                    return clearedCount;
+                }
+
+                // 清除所有页面缓存（支持类型过滤）
+                function clearAllPageCache(type = 'all') {
+                    const timestamp = new Date().toLocaleTimeString();
+                    let clearedCount = 0;
+                    const keysToDelete = [];
+
+                    // 收集需要删除的键
+                    for (const [key, value] of imageCache.entries()) {
+                        if (type === 'all') {
+                            keysToDelete.push(key);
+                        } else if (type === 'original' && key.startsWith('ORIG_')) {
+                            keysToDelete.push(key);
+                        } else if (type === 'translated' && key.startsWith('TRANS_')) {
+                            keysToDelete.push(key);
+                        }
+                    }
+
+                    // 删除收集的键
+                    keysToDelete.forEach(key => {
+                        imageCache.delete(key);
+                        clearedCount++;
+                    });
+
+                    console.log(`🗑️ [${timestamp}] 清除${type}页面缓存，共 ${clearedCount} 项`);
+                    return clearedCount;
+                }
+
+                // 清除翻译相关缓存
+                function clearTranslationCache() {
+                    const timestamp = new Date().toLocaleTimeString();
+                    let totalCleared = 0;
+
+                    // 清除前端页面翻译缓存
+                    const pageCleared = clearAllPageCache('translated');
+                    totalCleared += pageCleared;
+
+                    // 清除实时翻译模块缓存
+                    if (window.realtimeTranslation) {
+                        try {
+                            const moduleCleared = window.realtimeTranslation.clearCache('translated');
+                            totalCleared += moduleCleared;
+                            console.log(`🗑️ [${timestamp}] 清除实时翻译模块缓存，共 ${moduleCleared} 项`);
+                        } catch (error) {
+                            console.warn(`⚠️ [${timestamp}] 清除实时翻译模块缓存失败:`, error);
+                        }
+                    }
+
+                    console.log(`✅ [${timestamp}] 翻译缓存清除完成，总计 ${totalCleared} 项`);
+                    return totalCleared;
+                }
+
+                // 刷新所有已翻译的页面缓存
+                async function refreshTranslatedPages() {
+                    if (!translationEnabled.value || !window.realtimeTranslation) {
+                        return;
+                    }
+
+                    try {
+                        // 获取所有页面的翻译状态
+                        const allPages = Array.from({length: mangaInfo.total_pages}, (_, i) => i);
+                        const translatedStatus = await window.realtimeTranslation.checkPagesTranslated(
+                            mangaInfo.file_path,
+                            allPages
+                        );
+
+                        // 清除已翻译页面的缓存，强制重新加载
+                        for (const [pageIndexStr, isTranslated] of Object.entries(translatedStatus)) {
+                            if (isTranslated) {
+                                const pageIndex = parseInt(pageIndexStr);
+                                clearPageCache(pageIndex);
+                                console.log(`发现已翻译页面，清除缓存: 页面 ${pageIndex + 1}`);
+                            }
+                        }
+
+                        // 如果当前页面已翻译，重新加载
+                        const currentPageTranslated = translatedStatus[currentPage.value.toString()];
+                        if (currentPageTranslated) {
+                            console.log(`当前页面已翻译，重新加载: 页面 ${currentPage.value + 1}`);
+                            await loadCurrentPage();
+                        }
+
+                    } catch (error) {
+                        console.log('刷新翻译页面失败:', error);
+                    }
+                }
+
+                async function loadPageImages(startPage, count, forceOriginal = false) {
                     const imageUrls = [];
+                    const timestamp = new Date().toLocaleTimeString();
+                    console.log(`🔄 [${timestamp}] 开始加载页面: 起始页${startPage + 1}, 数量${count}, 强制原始=${forceOriginal}`);
 
                     for (let i = 0; i < count; i++) {
                         const pageNum = startPage + i;
 
                         // 检查页码是否有效
-                        if (pageNum >= mangaInfo.total_pages || pageNum < 0) break;
+                        if (pageNum >= mangaInfo.total_pages || pageNum < 0) {
+                            console.log(`⚠️ [${timestamp}] 页面${pageNum + 1}超出范围，停止加载`);
+                            break;
+                        }
 
-                        // 检查缓存
-                        const cacheKey = `${mangaPath}_${pageNum}`;
-                        if (imageCache.has(cacheKey)) {
-                            imageUrls.push(imageCache.get(cacheKey));
-                            console.log(`页面 ${pageNum + 1} 从缓存加载`);
+                        // 生成正确的缓存键值
+                        const expectedType = (translationEnabled.value && !forceOriginal) ? 'translated' : 'original';
+                        const cacheKey = generateCacheKey(mangaPath, pageNum, expectedType);
+
+                        // 检查缓存（根据当前翻译状态选择合适的缓存）
+                        if (!forceOriginal && imageCache.has(cacheKey)) {
+                            const cachedUrl = imageCache.get(cacheKey);
+                            imageUrls.push(cachedUrl);
+
+                            // 更新缓存访问记录
+                            updateCacheAccess(cacheKey);
+
+                            console.log(`💾 [${timestamp}] 页面 ${pageNum + 1} 从${expectedType}缓存加载 (键: ${cacheKey})`);
                             continue;
                         }
 
                         // 检查是否有相同的请求正在进行
-                        const requestKey = `page_${mangaPath}_${pageNum}`;
+                        const requestKey = `page_${mangaPath}_${pageNum}_${expectedType}${forceOriginal ? '_force' : ''}`;
                         if (pendingPageRequests.has(requestKey)) {
-                            console.log(`⏳ 页面 ${pageNum + 1} 请求正在进行中，等待结果`);
+                            console.log(`⏳ [${timestamp}] 页面 ${pageNum + 1} 请求正在进行中，等待结果`);
                             try {
                                 const imageUrl = await pendingPageRequests.get(requestKey);
                                 imageUrls.push(imageUrl);
                                 continue;
                             } catch (error) {
-                                console.error(`等待页面 ${pageNum + 1} 请求失败:`, error);
+                                console.error(`❌ [${timestamp}] 等待页面 ${pageNum + 1} 请求失败:`, error);
                                 break;
                             }
                         }
 
                         // 创建新的请求
-                        const requestPromise = loadSinglePage(mangaPath, pageNum);
+                        console.log(`🚀 [${timestamp}] 发起新请求: 页面${pageNum + 1}, 类型=${expectedType}`);
+                        const requestPromise = loadSinglePage(mangaPath, pageNum, forceOriginal);
                         pendingPageRequests.set(requestKey, requestPromise);
 
                         try {
                             const imageUrl = await requestPromise;
                             if (imageUrl) {
                                 imageUrls.push(imageUrl);
-                                imageCache.set(cacheKey, imageUrl);
-                                console.log(`页面 ${pageNum + 1} 加载成功`);
+
+                                // 缓存到正确的键值
+                                if (!forceOriginal) {
+                                    imageCache.set(cacheKey, imageUrl);
+
+                                    // 记录缓存元数据
+                                    const metadata = {
+                                        timestamp: Date.now(),
+                                        lastAccess: Date.now(),
+                                        accessCount: 1,
+                                        type: expectedType,
+                                        pageNum: pageNum
+                                    };
+                                    cacheMetadata.set(cacheKey, metadata);
+
+                                    console.log(`💾 [${timestamp}] 页面 ${pageNum + 1} 已缓存到${expectedType}缓存 (键: ${cacheKey}, 总缓存: ${imageCache.size})`);
+                                } else {
+                                    console.log(`📄 [${timestamp}] 页面 ${pageNum + 1} 强制原始模式，不缓存`);
+                                }
                             } else {
-                                console.warn(`页面 ${pageNum + 1} 数据无效`);
+                                console.warn(`⚠️ [${timestamp}] 页面 ${pageNum + 1} 数据无效`);
                                 break;
                             }
                         } catch (error) {
-                            console.error(`加载页面 ${pageNum + 1} 失败:`, error);
+                            console.error(`❌ [${timestamp}] 加载页面 ${pageNum + 1} 失败:`, error);
                             break;
                         } finally {
                             pendingPageRequests.delete(requestKey);
                         }
                     }
 
+                    console.log(`✅ [${timestamp}] 页面加载完成: 成功${imageUrls.length}/${count}页`);
                     return imageUrls;
                 }
 
-                // 加载单个页面的函数
-                async function loadSinglePage(mangaPath, pageNum) {
-                    // 如果启用了翻译，优先检查翻译结果
-                    if (translationEnabled.value && window.realtimeTranslation) {
+                // 生成缓存键值的统一函数
+                function generateCacheKey(mangaPath, pageNum, type = 'original') {
+                    // 使用不同的前缀确保翻译缓存和原始缓存完全分离
+                    const prefix = type === 'translated' ? 'TRANS' : 'ORIG';
+                    return `${prefix}_${mangaPath}_${pageNum}`;
+                }
+
+                // 统一的页面获取机制（四层缓存架构版本）
+                async function getPageImage(mangaPath, pageNum, forceOriginal = false) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    console.log(`🔍 [${timestamp}] 四层缓存架构: 获取页面图像 页面${pageNum + 1}, 强制原始=${forceOriginal}, 翻译启用=${translationEnabled.value}`);
+
+                    // 决定返回哪个版本的页面
+                    const shouldUseTranslation = translationEnabled.value && !forceOriginal && window.realtimeTranslation;
+
+                    if (shouldUseTranslation) {
+                        console.log(`📝 [${timestamp}] 四层缓存架构: 尝试获取翻译版本 页面${pageNum + 1}`);
+
+                        // 1. 检查前端翻译页面缓存（内存base64）
+                        const translationCacheKey = `TRANS_${mangaPath}:${pageNum}`;
+                        if (window.realtimeTranslation && window.realtimeTranslation.translatedPages &&
+                            window.realtimeTranslation.translatedPages.has(translationCacheKey)) {
+                            const cachedImage = window.realtimeTranslation.translatedPages.get(translationCacheKey);
+                            console.log(`💾 [${timestamp}] 页面${pageNum + 1}前端翻译缓存命中（内存base64）`);
+                            return {
+                                imageData: `data:image/jpeg;base64,${cachedImage}`,
+                                isTranslated: true,
+                                source: 'frontend_translation_cache'
+                            };
+                        }
+
+                        // 2-4. 通过实时翻译模块检查后端三层缓存
                         try {
                             const translatedImage = await window.realtimeTranslation.getTranslatedPage(mangaPath, pageNum);
                             if (translatedImage) {
-                                console.log(`页面 ${pageNum + 1} 使用翻译结果`);
-                                // 翻译结果是JPEG格式的base64数据，添加正确的data URL前缀
-                                return `data:image/jpeg;base64,${translatedImage}`;
+                                console.log(`✅ [${timestamp}] 页面${pageNum + 1}使用翻译结果 (来源: 后端缓存)`);
+                                // 翻译结果是WebP或JPEG格式的base64数据，添加正确的data URL前缀
+                                return {
+                                    imageData: `data:image/jpeg;base64,${translatedImage}`,
+                                    isTranslated: true,
+                                    source: 'backend_translation_cache'
+                                };
+                            } else {
+                                console.log(`⚠️ [${timestamp}] 页面${pageNum + 1}翻译结果为空，回退到原始图像`);
                             }
                         } catch (error) {
-                            console.log(`获取页面 ${pageNum + 1} 翻译结果失败:`, error);
+                            console.warn(`❌ [${timestamp}] 获取页面${pageNum + 1}翻译结果失败:`, error);
                         }
+                    } else {
+                        console.log(`📄 [${timestamp}] 直接获取原始图像: 页面${pageNum + 1} (翻译=${translationEnabled.value}, 强制=${forceOriginal})`);
                     }
 
-                    // 获取原始图像
-                    const response = await axios.post('/api/manga/viewer/page', {
-                        manga_path: mangaPath,
-                        page_num: pageNum
-                    });
+                    // 获取原始图像（第四层：后端原始漫画缓存）
+                    try {
+                        const response = await axios.post('/api/manga/viewer/page', {
+                            manga_path: mangaPath,
+                            page_num: pageNum
+                        });
 
-                    if (response.data && response.data.image) {
-                        return response.data.image;
-                    } else {
-                        throw new Error(`页面 ${pageNum + 1} 数据无效`);
+                        if (response.data && response.data.image) {
+                            console.log(`✅ [${timestamp}] 页面${pageNum + 1}使用原始图像 (来源: 后端原始漫画缓存)`);
+                            return {
+                                imageData: response.data.image,
+                                isTranslated: false,
+                                source: 'backend_original_cache'
+                            };
+                        } else {
+                            throw new Error(`页面 ${pageNum + 1} 数据无效`);
+                        }
+                    } catch (error) {
+                        console.error(`❌ [${timestamp}] 获取页面${pageNum + 1}原始图像失败:`, error);
+                        throw error;
                     }
                 }
 
-                async function loadCurrentPage() {
+                // 加载单个页面的函数（使用统一机制）
+                async function loadSinglePage(mangaPath, pageNum, forceOriginal = false) {
+                    const result = await getPageImage(mangaPath, pageNum, forceOriginal);
+                    return result.imageData;
+                }
+
+                async function loadCurrentPage(forceOriginal = false) {
                     try {
                         const mode = actualDisplayMode.value;
                         const pagesToLoad = mode === 'double' ? 2 : 1;
 
                         // 加载当前页面
-                        const imageUrls = await loadPageImages(currentPage.value, pagesToLoad);
+                        const imageUrls = await loadPageImages(currentPage.value, pagesToLoad, forceOriginal);
 
 nextTick(() => {
                                 if (viewerContent.value) {
@@ -525,67 +783,166 @@ nextTick(() => {
                     }
                 }
 
+                // 智能预加载策略配置
+                const preloadConfig = {
+                    // 基础预加载范围（相邻页面）
+                    immediate: {
+                        single: 1,  // 单页模式：当前页 + 下1页
+                        double: 2   // 双页模式：当前2页 + 下2页
+                    },
+                    // 渐进式预加载范围
+                    progressive: {
+                        single: 3,  // 单页模式：再预加载前后3页
+                        double: 4   // 双页模式：再预加载前后4页
+                    },
+                    // 预加载延迟（毫秒）
+                    delays: {
+                        immediate: 100,    // 立即预加载延迟
+                        progressive: 1000  // 渐进式预加载延迟
+                    }
+                };
+
                 async function preloadNextPages() {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const mode = actualDisplayMode.value;
+                    const currentPageNum = currentPage.value;
+
+                    console.log(`🔄 [${timestamp}] 开始智能预加载: 当前页${currentPageNum + 1}, 模式=${mode}`);
+
                     try {
-                        const mode = actualDisplayMode.value;
-                        const step = mode === 'double' ? 2 : 1;
-                        const currentPageNum = currentPage.value;
+                        // 第一阶段：立即预加载相邻页面
+                        await immediatePreload(mode, currentPageNum);
 
-                        // 预加载前后50页的范围
-                        const preloadRange = 50;
-                        const startPage = Math.max(0, currentPageNum - preloadRange);
-                        const endPage = Math.min(mangaInfo.total_pages - 1, currentPageNum + preloadRange);
-
-                        console.log(`预加载页面范围: ${startPage + 1} - ${endPage + 1}`);
-
-                        // 分批预加载，避免一次性加载太多
-                        const batchSize = 10;
-                        for (let i = startPage; i <= endPage; i += batchSize) {
-                            const batchEnd = Math.min(i + batchSize - 1, endPage);
-
-                            // 异步预加载这一批页面
-                            setTimeout(async () => {
-                                try {
-                                    for (let pageNum = i; pageNum <= batchEnd; pageNum++) {
-                                        if (pageNum !== currentPageNum) {
-                                            await loadPageImages(pageNum, 1);
-                                        }
-                                    }
-                                    console.log(`预加载完成: 第${i + 1}-${batchEnd + 1}页`);
-                                } catch (error) {
-                                    console.log(`预加载批次失败 (${i + 1}-${batchEnd + 1}):`, error);
-                                }
-                            }, (i - startPage) * 100); // 每批间隔100ms
-                        }
-
-                        // 如果启用了翻译，也预加载翻译
-                        if (translationEnabled.value && window.realtimeTranslation) {
-                            const pagesToTranslate = [];
-                            for (let i = startPage; i <= endPage; i++) {
-                                pagesToTranslate.push(i);
-                            }
-
-                            // 分批请求翻译
-                            const translationBatchSize = 20;
-                            for (let i = 0; i < pagesToTranslate.length; i += translationBatchSize) {
-                                const batch = pagesToTranslate.slice(i, i + translationBatchSize);
-                                setTimeout(async () => {
-                                    try {
-                                        await window.realtimeTranslation.requestTranslation(
-                                            mangaInfo.file_path,
-                                            batch,
-                                            1  // 低优先级，后台翻译
-                                        );
-                                    } catch (error) {
-                                        console.log('预加载翻译失败:', error);
-                                    }
-                                }, i * 50); // 每批间隔50ms
-                            }
-                        }
+                        // 第二阶段：延迟渐进式预加载
+                        setTimeout(() => {
+                            progressivePreload(mode, currentPageNum);
+                        }, preloadConfig.delays.progressive);
 
                     } catch (error) {
-                        // 预加载失败不影响当前显示
-                        console.log('预加载失败:', error);
+                        console.warn(`⚠️ [${timestamp}] 预加载失败:`, error);
+                    }
+                }
+
+                // 立即预加载相邻页面
+                async function immediatePreload(mode, currentPageNum) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const range = preloadConfig.immediate[mode];
+
+                    // 计算需要预加载的页面
+                    const pagesToPreload = [];
+
+                    // 预加载下一组页面（用户最可能访问的）
+                    for (let i = 1; i <= range; i++) {
+                        const nextPage = currentPageNum + i;
+                        if (nextPage < mangaInfo.total_pages) {
+                            pagesToPreload.push(nextPage);
+                        }
+                    }
+
+                    console.log(`⚡ [${timestamp}] 立即预加载: 页面${pagesToPreload.map(p => p + 1).join(', ')}`);
+
+                    // 并发预加载，但限制并发数
+                    const concurrentLimit = 2;
+                    for (let i = 0; i < pagesToPreload.length; i += concurrentLimit) {
+                        const batch = pagesToPreload.slice(i, i + concurrentLimit);
+
+                        await Promise.allSettled(
+                            batch.map(pageNum => preloadSinglePage(pageNum))
+                        );
+
+                        // 批次间短暂延迟
+                        if (i + concurrentLimit < pagesToPreload.length) {
+                            await new Promise(resolve => setTimeout(resolve, preloadConfig.delays.immediate));
+                        }
+                    }
+                }
+
+                // 渐进式预加载
+                async function progressivePreload(mode, currentPageNum) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const range = preloadConfig.progressive[mode];
+
+                    // 计算渐进式预加载范围
+                    const pagesToPreload = [];
+
+                    // 向前预加载
+                    for (let i = 1; i <= range; i++) {
+                        const prevPage = currentPageNum - i;
+                        if (prevPage >= 0) {
+                            pagesToPreload.push(prevPage);
+                        }
+                    }
+
+                    // 向后预加载（跳过已经在立即预加载中的页面）
+                    const immediateRange = preloadConfig.immediate[mode];
+                    for (let i = immediateRange + 1; i <= range; i++) {
+                        const nextPage = currentPageNum + i;
+                        if (nextPage < mangaInfo.total_pages) {
+                            pagesToPreload.push(nextPage);
+                        }
+                    }
+
+                    if (pagesToPreload.length === 0) {
+                        console.log(`ℹ️ [${timestamp}] 无需渐进式预加载`);
+                        return;
+                    }
+
+                    console.log(`🔮 [${timestamp}] 渐进式预加载: 页面${pagesToPreload.map(p => p + 1).join(', ')}`);
+
+                    // 低优先级预加载，更长的延迟
+                    for (const pageNum of pagesToPreload) {
+                        setTimeout(() => {
+                            preloadSinglePage(pageNum, true); // 标记为低优先级
+                        }, Math.random() * 2000); // 随机延迟0-2秒
+                    }
+                }
+
+                // 预加载单个页面
+                async function preloadSinglePage(pageNum, lowPriority = false) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const expectedType = (translationEnabled.value) ? 'translated' : 'original';
+                    const cacheKey = generateCacheKey(mangaPath, pageNum, expectedType);
+
+                    // 检查是否已缓存
+                    if (imageCache.has(cacheKey)) {
+                        console.log(`💾 [${timestamp}] 页面${pageNum + 1}已缓存，跳过预加载`);
+                        return;
+                    }
+
+                    // 检查是否正在加载
+                    const requestKey = `page_${mangaPath}_${pageNum}_${expectedType}_preload`;
+                    if (pendingPageRequests.has(requestKey)) {
+                        console.log(`⏳ [${timestamp}] 页面${pageNum + 1}正在预加载中`);
+                        return;
+                    }
+
+                    try {
+                        const priority = lowPriority ? '低' : '高';
+                        console.log(`🚀 [${timestamp}] 预加载页面${pageNum + 1} (优先级: ${priority})`);
+
+                        const requestPromise = loadSinglePage(mangaPath, pageNum);
+                        pendingPageRequests.set(requestKey, requestPromise);
+
+                        const imageUrl = await requestPromise;
+                        if (imageUrl) {
+                            imageCache.set(cacheKey, imageUrl);
+                            console.log(`✅ [${timestamp}] 页面${pageNum + 1}预加载完成`);
+
+                            // 如果启用翻译且这是原始页面，请求翻译
+                            if (translationEnabled.value && window.realtimeTranslation && expectedType === 'original') {
+                                setTimeout(() => {
+                                    window.realtimeTranslation.requestTranslation(
+                                        mangaInfo.file_path,
+                                        pageNum,
+                                        lowPriority ? 2 : 5
+                                    );
+                                }, lowPriority ? 2000 : 500);
+                            }
+                        }
+                    } catch (error) {
+                        console.warn(`⚠️ [${timestamp}] 页面${pageNum + 1}预加载失败:`, error);
+                    } finally {
+                        pendingPageRequests.delete(requestKey);
                     }
                 }
 
@@ -608,28 +965,117 @@ nextTick(() => {
                 }
 
                 async function onPageChange(newPage) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    console.log(`📖 [${timestamp}] 页面切换: ${currentPage.value + 1} → ${newPage + 1}`);
+
                     currentPage.value = newPage;
                     pageInputText.value = (newPage + 1).toString(); // 同步更新输入框文本
-                    loadCurrentPage();
 
-                    // 如果启用了翻译，请求翻译当前页面和周围页面
+                    // 先加载当前页面
+                    await loadCurrentPage();
+
+                    // 如果启用了翻译，智能请求翻译
                     if (translationEnabled.value && window.realtimeTranslation) {
-                        try {
-                            const pagesToTranslate = [];
-                            for (let i = Math.max(0, newPage - 5);
-                                 i <= Math.min(mangaInfo.total_pages - 1, newPage + 5);
-                                 i++) {
-                                pagesToTranslate.push(i);
-                            }
+                        await requestTranslationForCurrentView(newPage);
+                    } else {
+                        console.log(`ℹ️ [${timestamp}] 翻译未启用，跳过翻译请求`);
+                    }
+                }
 
+                // 为当前视图请求翻译（与预加载策略保持一致）
+                async function requestTranslationForCurrentView(currentPageNum) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const mode = actualDisplayMode.value;
+
+                    try {
+                        // 翻译请求范围与预加载范围保持一致
+                        const immediateRange = preloadConfig.immediate[mode];
+                        const progressiveRange = preloadConfig.progressive[mode];
+
+                        // 第一优先级：当前显示的页面
+                        const currentPages = [];
+                        const pagesInView = mode === 'double' ? 2 : 1;
+                        for (let i = 0; i < pagesInView; i++) {
+                            const pageNum = currentPageNum + i;
+                            if (pageNum < mangaInfo.total_pages) {
+                                currentPages.push(pageNum);
+                            }
+                        }
+
+                        if (currentPages.length > 0) {
+                            console.log(`🔥 [${timestamp}] 高优先级翻译请求: 当前页面${currentPages.map(p => p + 1).join(', ')}`);
                             await window.realtimeTranslation.requestTranslation(
                                 mangaInfo.file_path,
-                                pagesToTranslate,
-                                5  // 高优先级
+                                currentPages,
+                                10  // 最高优先级
                             );
-                        } catch (error) {
-                            console.log('请求翻译失败:', error);
                         }
+
+                        // 第二优先级：立即预加载范围
+                        const immediatePages = [];
+                        for (let i = 1; i <= immediateRange; i++) {
+                            const nextPage = currentPageNum + i;
+                            if (nextPage < mangaInfo.total_pages) {
+                                immediatePages.push(nextPage);
+                            }
+                        }
+
+                        if (immediatePages.length > 0) {
+                            setTimeout(async () => {
+                                console.log(`⚡ [${timestamp}] 中优先级翻译请求: 相邻页面${immediatePages.map(p => p + 1).join(', ')}`);
+                                await window.realtimeTranslation.requestTranslation(
+                                    mangaInfo.file_path,
+                                    immediatePages,
+                                    7  // 高优先级
+                                );
+                            }, 200);
+                        }
+
+                        // 第三优先级：渐进式预加载范围（延迟请求）
+                        setTimeout(async () => {
+                            const progressivePages = [];
+
+                            // 向前
+                            for (let i = 1; i <= progressiveRange; i++) {
+                                const prevPage = currentPageNum - i;
+                                if (prevPage >= 0) {
+                                    progressivePages.push(prevPage);
+                                }
+                            }
+
+                            // 向后（跳过已请求的立即范围）
+                            for (let i = immediateRange + 1; i <= progressiveRange; i++) {
+                                const nextPage = currentPageNum + i;
+                                if (nextPage < mangaInfo.total_pages) {
+                                    progressivePages.push(nextPage);
+                                }
+                            }
+
+                            if (progressivePages.length > 0) {
+                                console.log(`🔮 [${timestamp}] 低优先级翻译请求: 扩展页面${progressivePages.map(p => p + 1).join(', ')}`);
+
+                                // 分批请求，避免一次性请求过多
+                                const batchSize = 3;
+                                for (let i = 0; i < progressivePages.length; i += batchSize) {
+                                    const batch = progressivePages.slice(i, i + batchSize);
+
+                                    setTimeout(async () => {
+                                        try {
+                                            await window.realtimeTranslation.requestTranslation(
+                                                mangaInfo.file_path,
+                                                batch,
+                                                3  // 低优先级
+                                            );
+                                        } catch (error) {
+                                            console.warn(`⚠️ [${timestamp}] 低优先级翻译请求失败:`, error);
+                                        }
+                                    }, i * 300); // 每批间隔300ms
+                                }
+                            }
+                        }, 1000); // 延迟1秒后请求低优先级翻译
+
+                    } catch (error) {
+                        console.error(`❌ [${timestamp}] 翻译请求失败:`, error);
                     }
                 }
 
@@ -789,29 +1235,35 @@ const computedStyle = window.getComputedStyle(img);
                 }
 
                 async function toggleTranslation() {
-                    translationEnabled.value = !translationEnabled.value;
+                    const currentState = translationEnabled.value;
+                    const newState = !currentState;
+                    const timestamp = new Date().toLocaleTimeString();
 
-                    if (translationEnabled.value) {
+                    console.log(`🔄 [${timestamp}] 翻译按钮点击: ${currentState} -> ${newState}`);
+
+                    if (newState) {
+                        // 启用翻译
                         try {
                             // 检查翻译模块是否可用
                             if (!window.realtimeTranslation) {
                                 throw new Error('实时翻译模块未初始化');
                             }
 
-                            // 启动实时翻译服务
-                            console.log('启动实时翻译服务...');
-                            // 不传递翻译器类型，让后端使用配置文件中的设置
+                            console.log(`🚀 [${timestamp}] 启动实时翻译服务...`);
                             const success = await window.realtimeTranslation.startService();
 
                             if (success) {
+                                // 只有服务启动成功后才更新状态
+                                translationEnabled.value = true;
+                                console.log(`✅ [${timestamp}] 翻译状态已更新为: ${translationEnabled.value}`);
                                 ElMessage.success('实时翻译已启用');
 
                                 // 设置翻译完成回调
                                 window.realtimeTranslation.onTranslationCompleted = (mangaPath, pageIndex, imageData) => {
-                                    console.log(`翻译完成回调: 页面 ${pageIndex + 1}`);
+                                    console.log(`🔔 [${timestamp}] 翻译完成回调: 页面 ${pageIndex + 1}`);
 
                                     // 如果是当前显示的页面，刷新显示
-                                    if (mangaPath === mangaInfo.file_path) {
+                                    if (mangaPath === mangaInfo.file_path && translationEnabled.value) {
                                         const mode = actualDisplayMode.value;
                                         const currentPageNum = currentPage.value;
 
@@ -820,10 +1272,10 @@ const computedStyle = window.getComputedStyle(img);
 
                                         // 检查是否是当前显示的页面
                                         if (mode === 'single' && pageIndex === currentPageNum) {
-                                            console.log(`刷新当前页面显示: ${pageIndex + 1}`);
+                                            console.log(`🔄 [${timestamp}] 刷新当前页面显示: ${pageIndex + 1}`);
                                             loadCurrentPage();
                                         } else if (mode === 'double' && (pageIndex === currentPageNum || pageIndex === currentPageNum + 1)) {
-                                            console.log(`刷新双页显示: ${pageIndex + 1}`);
+                                            console.log(`🔄 [${timestamp}] 刷新双页显示: ${pageIndex + 1}`);
                                             loadCurrentPage();
                                         }
                                     }
@@ -849,26 +1301,60 @@ const computedStyle = window.getComputedStyle(img);
                                     5  // 高优先级
                                 );
 
-                                console.log('实时翻译服务启动成功');
+                                // 刷新已翻译的页面
+                                setTimeout(() => {
+                                    refreshTranslatedPages();
+                                }, 2000);
+
+                                console.log(`✅ [${timestamp}] 实时翻译服务启动成功`);
                             } else {
                                 throw new Error('启动翻译服务失败');
                             }
                         } catch (error) {
-                            console.error('启动翻译服务失败:', error);
+                            console.error(`❌ [${timestamp}] 启动翻译服务失败:`, error);
                             ElMessage.error('启动翻译服务失败: ' + error.message);
+                            // 确保状态保持为关闭
                             translationEnabled.value = false;
+                            console.log(`🔄 [${timestamp}] 翻译状态回滚为: ${translationEnabled.value}`);
                         }
                     } else {
+                        // 关闭翻译
                         try {
+                            console.log(`🛑 [${timestamp}] 关闭翻译功能...`);
+
+                            // 先更新状态，确保后续操作使用原始图像
+                            translationEnabled.value = false;
+                            console.log(`✅ [${timestamp}] 翻译状态已更新为: ${translationEnabled.value}`);
+
                             // 停止翻译服务
-                            await window.realtimeTranslation.stopService();
+                            if (window.realtimeTranslation) {
+                                await window.realtimeTranslation.stopService();
+                            }
+
+                            // 清除翻译相关缓存
+                            const clearedCount = clearTranslationCache();
+
+                            // 重新加载当前页面（强制使用原始图像）
+                            await loadCurrentPage(true);
+
                             ElMessage.info('实时翻译已关闭');
-                            console.log('翻译功能已关闭');
+                            console.log(`✅ [${timestamp}] 翻译功能已关闭，已切换到原始图像，清除缓存${clearedCount}项`);
+
                         } catch (error) {
-                            console.error('停止翻译服务失败:', error);
+                            console.error(`❌ [${timestamp}] 停止翻译服务失败:`, error);
                             ElMessage.warning('停止翻译服务失败: ' + error.message);
+                            // 即使停止失败，也要确保状态正确
+                            translationEnabled.value = false;
+                            console.log(`🔄 [${timestamp}] 翻译状态强制设为: ${translationEnabled.value}`);
+                            clearTranslationCache();
+                            await loadCurrentPage(true);
                         }
                     }
+
+                    // 强制触发Vue响应式更新
+                    nextTick(() => {
+                        console.log(`🎨 [${timestamp}] Vue响应式更新完成，当前翻译状态: ${translationEnabled.value}`);
+                    });
                 }
 
                 // ==================== 事件处理 ====================
@@ -974,6 +1460,8 @@ const computedStyle = window.getComputedStyle(img);
                     thumbStyle,
                     isDragging,
 
+
+
                     // DOM引用
                     viewerContent,
                     mangaImage,
@@ -996,7 +1484,9 @@ const computedStyle = window.getComputedStyle(img);
                     onImageError,
                     toggleFullscreen,
                     onThumbMouseDown,
-                    onTrackClick
+                    onTrackClick,
+
+
                 };
             }
         }).use(ElementPlus).mount('#app');
