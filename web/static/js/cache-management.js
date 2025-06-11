@@ -243,45 +243,49 @@ window.CacheManagementMethods = {
 
     async showRealtimeTranslationDetail(entry) {
         try {
-            const response = await axios.get(`/api/realtime-translation-cache/detail/${entry.key}`);
-            const detail = response.data;
-
+            // 对于实时翻译缓存，显示漫画级别的缓存信息
             const message = `
                 <div style="text-align: left; max-height: 400px; overflow-y: auto;">
-                    <h4>基本信息</h4>
-                    <p><strong>漫画:</strong> ${detail.manga_path}</p>
-                    <p><strong>页面:</strong> 第${detail.page_index + 1}页</p>
-                    <p><strong>目标语言:</strong> ${detail.target_language}</p>
-                    <p><strong>图像尺寸:</strong> ${detail.image_width} × ${detail.image_height}</p>
-                    <p><strong>图像哈希:</strong> ${detail.image_hash}</p>
+                    <h4>漫画缓存信息</h4>
+                    <p><strong>漫画名称:</strong> ${entry.manga_name || '未知'}</p>
+                    <p><strong>漫画路径:</strong> ${entry.manga_path}</p>
+                    <p><strong>翻译引擎:</strong> ${entry.translator_type}</p>
+                    <p><strong>缓存页数:</strong> ${entry.cached_pages_count} 页</p>
 
-                    <h4>翻译内容</h4>
-                    <p><strong>原文数量:</strong> ${detail.original_texts.length}</p>
-                    <p><strong>译文数量:</strong> ${detail.translated_texts.length}</p>
-                    <p><strong>文本区域数量:</strong> ${detail.text_regions_count}</p>
-                    <p><strong>和谐化处理:</strong> ${detail.harmonization_applied ? '是' : '否'}</p>
+                    <h4>页面范围</h4>
+                    <p><strong>首页:</strong> 第${entry.first_page + 1}页</p>
+                    <p><strong>末页:</strong> 第${entry.last_page + 1}页</p>
 
-                    <h4>翻译映射</h4>
-                    <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; margin: 8px 0;">
-                        ${Object.entries(detail.translation_mappings).map(([original, translated]) =>
-                            `<div style="margin-bottom: 4px;"><strong>${original}</strong> → ${translated}</div>`
-                        ).join('')}
+                    <h4>缓存来源</h4>
+                    <div style="max-height: 100px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; margin: 8px 0;">
+                        ${entry.cache_sources ? entry.cache_sources.map(source =>
+                            `<div style="margin-bottom: 2px;">• ${source}</div>`
+                        ).join('') : '无详细信息'}
                     </div>
 
-                    <h4>访问统计</h4>
-                    <p><strong>创建时间:</strong> ${this.formatDateTime(detail.created_at)}</p>
-                    <p><strong>最后访问:</strong> ${this.formatDateTime(detail.last_accessed)}</p>
-                    <p><strong>访问次数:</strong> ${detail.access_count}</p>
+                    <h4>缓存页面列表</h4>
+                    <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; margin: 8px 0;">
+                        ${entry.cached_pages ? entry.cached_pages.map(page =>
+                            `<div style="margin-bottom: 2px;">第${page + 1}页</div>`
+                        ).join('') : '无页面信息'}
+                    </div>
+
+                    <div style="margin-top: 16px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+                        <p style="margin: 0; font-size: 12px; color: #666;">
+                            💡 提示：这是按漫画和翻译引擎分组的缓存信息。每个条目包含该漫画在指定翻译引擎下的所有缓存页面。
+                        </p>
+                    </div>
                 </div>
             `;
 
             this.$alert(message, '实时翻译缓存详情', {
                 dangerouslyUseHTMLString: true,
-                confirmButtonText: '确定'
+                confirmButtonText: '确定',
+                customClass: 'realtime-cache-detail-dialog'
             });
         } catch (error) {
-            console.error('获取缓存详情失败:', error);
-            ElMessage.error('获取缓存详情失败');
+            console.error('显示缓存详情失败:', error);
+            ElMessage.error('显示缓存详情失败');
         }
     },
 

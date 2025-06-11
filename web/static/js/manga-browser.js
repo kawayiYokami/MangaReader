@@ -321,38 +321,45 @@ window.MangaBrowserMethods = {
     // ==================== 新的缩略图系统 ====================
 
     initThumbnailObserver() {
-        // 创建Intersection Observer来监听卡片进入视口
+        // 销毁现有的Observer，避免重复创建
+        if (this.thumbnailObserver) {
+            this.thumbnailObserver.disconnect();
+        }
+        if (this.preloadObserver) {
+            this.preloadObserver.disconnect();
+        }
+
+        // 创建统一的Intersection Observer来监听卡片进入视口
         this.thumbnailObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const mangaPath = entry.target.dataset.mangaPath;
                     if (mangaPath && !this.thumbnailCache.has(mangaPath) && !this.loadingThumbnails.has(mangaPath)) {
-                        this.loadThumbnail(mangaPath);
+                        // 根据距离视口的位置决定加载优先级
+                        const rect = entry.boundingClientRect;
+                        const viewportHeight = window.innerHeight;
+                        const isInViewport = rect.top < viewportHeight && rect.bottom > 0;
+
+                        if (isInViewport) {
+                            // 在视口内，立即加载
+                            this.loadThumbnail(mangaPath, false);
+                        } else {
+                            // 在预加载范围内，延迟加载
+                            setTimeout(() => {
+                                if (!this.thumbnailCache.has(mangaPath) && !this.loadingThumbnails.has(mangaPath)) {
+                                    this.loadThumbnail(mangaPath, true);
+                                }
+                            }, 200);
+                        }
                     }
                 }
             });
         }, {
-            rootMargin: '200px', // 提前200px开始加载，增加预加载范围
+            rootMargin: '300px', // 统一的预加载范围
             threshold: 0.1
         });
 
-        // 创建预加载Observer，更大的预加载范围
-        this.preloadObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const mangaPath = entry.target.dataset.mangaPath;
-                    if (mangaPath && !this.thumbnailCache.has(mangaPath) && !this.loadingThumbnails.has(mangaPath)) {
-                        // 延迟预加载，避免影响当前视口的加载
-                        setTimeout(() => {
-                            this.loadThumbnail(mangaPath, true);
-                        }, 100);
-                    }
-                }
-            });
-        }, {
-            rootMargin: '500px', // 更大的预加载范围
-            threshold: 0.01
-        });
+        console.log('🔍 缩略图懒加载Observer已初始化');
     },
 
     async loadThumbnail(mangaPath, isPreload = false) {
@@ -452,25 +459,15 @@ window.MangaBrowserMethods = {
     },
 
     observeCard(element) {
-        if (element) {
-            // 同时使用两个Observer
-            if (this.thumbnailObserver) {
-                this.thumbnailObserver.observe(element);
-            }
-            if (this.preloadObserver) {
-                this.preloadObserver.observe(element);
-            }
+        if (element && this.thumbnailObserver) {
+            // 使用统一的Observer
+            this.thumbnailObserver.observe(element);
         }
     },
 
     unobserveCard(element) {
-        if (element) {
-            if (this.thumbnailObserver) {
-                this.thumbnailObserver.unobserve(element);
-            }
-            if (this.preloadObserver) {
-                this.preloadObserver.unobserve(element);
-            }
+        if (element && this.thumbnailObserver) {
+            this.thumbnailObserver.unobserve(element);
         }
     },
 

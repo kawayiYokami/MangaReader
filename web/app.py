@@ -140,7 +140,7 @@ try:
     app.include_router(cache.router, prefix="/api/cache", tags=["缓存管理"])
     app.include_router(settings.router, prefix="/api/settings", tags=["设置管理"])
     app.include_router(realtime_translation.router, prefix="/api/realtime-translation", tags=["实时翻译"])
-    app.include_router(realtime_translation_cache.router, tags=["实时翻译缓存"])
+    app.include_router(realtime_translation_cache.router, tags=["实时翻译缓存"])  # 不需要额外前缀，因为router内部已定义
 
     log.info("API路由注册完成")
     

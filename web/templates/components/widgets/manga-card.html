@@ -6,13 +6,12 @@
          @click="selectManga(manga)"
          :ref="el => { if (el) observeCard(el) }">
 
-    <!-- 封面图片 - 简化结构 -->
+    <!-- 封面图片 - 简化结构，移除原生懒加载避免与自定义懒加载冲突 -->
     <img v-if="getThumbnailUrl(manga.file_path)"
          :src="getThumbnailUrl(manga.file_path)"
          :alt="getTitleTag(manga.tags) || '漫画封面'"
          class="cover-image"
-         decoding="async"
-         loading="lazy">
+         decoding="async">
 
     <!-- 加载中状态 -->
     <div v-else-if="isThumbnailLoading(manga.file_path)" class="cover-loading">

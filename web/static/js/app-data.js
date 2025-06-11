@@ -22,11 +22,10 @@ window.AppData = {
     activeTagCategory: '作者',
     tagCategoryShowAll: {},
 
-    // 新的缩略图系统
+    // 新的缩略图系统（优化版本）
     thumbnailCache: new Map(),
     loadingThumbnails: new Set(),
     thumbnailObserver: null,
-    preloadObserver: null,
     preloadQueue: new Set(),
     visibleCards: new Set(),
 

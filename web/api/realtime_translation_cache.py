@@ -94,15 +94,38 @@ async def get_cache_statistics():
         raise HTTPException(status_code=500, detail=f"获取缓存统计失败: {str(e)}")
 
 
-@router.get("/detail/{cache_key}", response_model=CacheDetailResponse)
+@router.get("/detail/{cache_key:path}", response_model=CacheDetailResponse)
 async def get_cache_detail(cache_key: str):
     """获取缓存详情"""
     try:
+        # URL解码缓存键
+        import urllib.parse
+        decoded_cache_key = urllib.parse.unquote(cache_key)
+
         cache_manager = get_cache_factory_instance().get_manager("realtime_translation")
-        cache_data = cache_manager.get(cache_key)
-        
-        if not cache_data:
-            raise HTTPException(status_code=404, detail="缓存条目不存在")
+
+        # 检查是否是manga_path:translator_type格式的键
+        if ':' in decoded_cache_key and not decoded_cache_key.startswith('TRANS_'):
+            # 这是一个manga_path:translator_type格式的键，需要获取该漫画的第一个缓存条目作为示例
+            parts = decoded_cache_key.split(':', 1)
+            if len(parts) == 2:
+                manga_path, translator_type = parts
+                # 获取该漫画的所有缓存条目
+                manga_caches = cache_manager.get_cache_by_manga(manga_path)
+
+                if not manga_caches:
+                    raise HTTPException(status_code=404, detail=f"漫画缓存不存在: {manga_path}")
+
+                # 使用第一个缓存条目作为详情显示
+                cache_data = manga_caches[0]
+            else:
+                raise HTTPException(status_code=400, detail=f"无效的缓存键格式: {decoded_cache_key}")
+        else:
+            # 这是一个具体的缓存键，直接获取
+            cache_data = cache_manager.get(decoded_cache_key)
+
+            if not cache_data:
+                raise HTTPException(status_code=404, detail=f"缓存条目不存在: {decoded_cache_key}")
         
         return CacheDetailResponse(
             manga_path=cache_data.manga_path,
