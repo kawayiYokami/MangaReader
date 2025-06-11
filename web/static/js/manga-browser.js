@@ -356,6 +356,7 @@ window.MangaBrowserMethods = {
     },
 
     async loadThumbnail(mangaPath, isPreload = false) {
+        console.log(`[Thumbnail] 触发加载: ${mangaPath}, 预加载: ${isPreload}`);
         if (this.loadingThumbnails.has(mangaPath)) return;
 
         try {

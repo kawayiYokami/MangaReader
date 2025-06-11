@@ -103,7 +103,33 @@ def _dispatch_feedback_event(success, message, added=0, failed=0):
             log.debug(f"发送桌面事件反馈: 成功={success}, 消息={message}")
             detail_payload = {"success": success, "message": message, "added": added, "failed": failed}
             detail_json = json.dumps(detail_payload, ensure_ascii=False)
-            js_code = f'window.dispatchEvent(new CustomEvent("desktopImportComplete", {{ detail: {detail_json} }}));'
+
+            # 增强的JavaScript代码，包含漫画列表刷新逻辑
+            js_code = f'''
+            window.dispatchEvent(new CustomEvent("desktopImportComplete", {{ detail: {detail_json} }}));
+
+            // 如果是成功的扫描操作，触发漫画列表刷新
+            if ({json.dumps(success)} && ({added} > 0 || "{message}".includes("扫描") || "{message}".includes("设置目录"))) {{
+                console.log("🔄 扫描操作成功，触发漫画列表刷新");
+                // 延迟500ms后刷新，确保后端数据已更新
+                setTimeout(() => {{
+                    // 尝试多种方式触发刷新
+                    if (window.Vue && window.Vue.loadMangaData) {{
+                        window.Vue.loadMangaData();
+                        console.log("✅ 漫画列表已刷新 (Vue实例)");
+                    }} else if (window.app && window.app.loadMangaData) {{
+                        window.app.loadMangaData();
+                        console.log("✅ 漫画列表已刷新 (app实例)");
+                    }} else {{
+                        console.warn("⚠️ 未找到Vue实例或loadMangaData方法，尝试事件触发");
+                        // 尝试通过事件触发刷新
+                        const refreshEvent = new CustomEvent("refreshMangaList");
+                        window.dispatchEvent(refreshEvent);
+                    }}
+                }}, 500);
+            }}
+            '''
+
             target_window.evaluate_js(js_code)
             log.debug("桌面事件已发送")
         except Exception as e:
@@ -280,7 +306,7 @@ class MangaTranslatorDesktop:
     def __init__(self):
         global core_interface, manga_manager # 确保我们使用的是全局实例
         self.app = app
-        self.port = 8081
+        self.port = 8082
         self.host = '127.0.0.1'
         self.server_thread = None
         self.window = None

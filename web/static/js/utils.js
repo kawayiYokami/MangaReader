@@ -114,9 +114,35 @@ window.UtilsMethods = {
             ElMessage.error('API连接失败: ' + error.message);
         }
     },
-    // 检测是否运行在桌面环境中
+    // 检测是否运行在桌面环境中（增强版本）
     isDesktop() {
         return !!window.PYWEBVIEW_DESKTOP || (!!window.pywebview && !!window.pywebview.api);
+    },
+
+    // 检测并设置桌面模式标识
+    detectAndSetDesktopMode() {
+        const checks = {
+            pywebview: typeof window.pywebview !== 'undefined',
+            userAgent: window.navigator.userAgent.includes('pywebview'),
+            hostname: window.location.hostname === '127.0.0.1',
+            protocol: window.location.protocol === 'http:',
+            port: window.location.port === '8082', // 桌面版专用端口
+            localStorage: localStorage.getItem('DESKTOP_MODE') === 'true'
+        };
+
+        // 如果检测到桌面环境，设置持久化标识
+        if (checks.pywebview || checks.userAgent || (checks.hostname && checks.protocol && checks.port)) {
+            localStorage.setItem('DESKTOP_MODE', 'true');
+            localStorage.setItem('DESKTOP_MODE_TIMESTAMP', Date.now().toString());
+            console.log('🖥️ 检测到桌面模式，已设置持久化标识');
+
+            // 设置全局标识
+            window.DESKTOP_MODE = true;
+        } else if (checks.localStorage) {
+            // 如果localStorage中有桌面模式标识，恢复全局标识
+            window.DESKTOP_MODE = true;
+            console.log('🖥️ 从localStorage恢复桌面模式标识');
+        }
     },
 
     // ==================== 主题管理 ====================

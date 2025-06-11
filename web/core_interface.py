@@ -90,6 +90,11 @@ class CoreInterface:
         self._manga_manager: Optional[MangaManager] = None
         self._manga_loader: Optional[MangaLoader] = None
         self._thumbnail_cache: Optional[ThumbnailCache] = None
+
+        # 转换结果缓存机制
+        self._conversion_cache: Dict[str, WebMangaInfo] = {}
+        self._conversion_cache_timestamps: Dict[str, float] = {}
+        self._cache_expire_time = 300  # 5分钟缓存过期时间
         
     @property
     def manga_manager(self) -> MangaManager:
@@ -437,8 +442,21 @@ class CoreInterface:
     # ==================== 数据转换工具 ====================
 
     def _convert_manga_info(self, manga_info: MangaInfo) -> WebMangaInfo:
-        """将Core的MangaInfo转换为Web的WebMangaInfo"""
+        """将Core的MangaInfo转换为Web的WebMangaInfo（带缓存优化）"""
         try:
+            # 生成缓存键（基于文件路径和最后修改时间）
+            cache_key = f"{manga_info.file_path}:{manga_info.last_modified}"
+            current_time = time.time()
+
+            # 检查缓存是否存在且未过期
+            if (cache_key in self._conversion_cache and
+                cache_key in self._conversion_cache_timestamps and
+                current_time - self._conversion_cache_timestamps[cache_key] < self._cache_expire_time):
+
+                # 缓存命中，直接返回
+                return self._conversion_cache[cache_key]
+
+            # 缓存未命中或已过期，执行转换
             # 处理last_modified字段
             last_modified_str = ""
             if manga_info.last_modified:
@@ -446,11 +464,11 @@ class CoreInterface:
                     last_modified_str = manga_info.last_modified.isoformat()
                 else:
                     last_modified_str = str(manga_info.last_modified)
-            
+
             # 确定文件类型
             file_type = "unknown"
             file_size = None
-            
+
             if os.path.isdir(manga_info.file_path):
                 file_type = "folder"
             elif manga_info.file_path.lower().endswith(('.zip', '.cbz', '.cbr')):
@@ -459,7 +477,7 @@ class CoreInterface:
                     file_size = os.path.getsize(manga_info.file_path)
                 except:
                     pass
-            
+
             # 处理标签，保留原始格式（包含前缀）
             clean_tags = list(manga_info.tags)
 
@@ -482,11 +500,20 @@ class CoreInterface:
             if hasattr(manga_info, 'page_dimensions'):
                 web_manga.page_dimensions = manga_info.page_dimensions
 
-            # DEBUG: 检查属性复制
-            log.debug(f"DEBUG 转换完成: {manga_info.file_path}, dimension_variance={getattr(web_manga, 'dimension_variance', 'N/A')}")
+            # 保存到缓存
+            self._conversion_cache[cache_key] = web_manga
+            self._conversion_cache_timestamps[cache_key] = current_time
+
+            # 清理过期缓存（每100次转换清理一次）
+            if len(self._conversion_cache) % 100 == 0:
+                self._cleanup_expired_cache()
+
+            # 只在首次转换时输出DEBUG日志
+            if cache_key not in self._conversion_cache_timestamps or current_time - self._conversion_cache_timestamps.get(cache_key, 0) > self._cache_expire_time:
+                log.debug(f"转换完成（新转换）: {manga_info.file_path}, dimension_variance={getattr(web_manga, 'dimension_variance', 'N/A')}")
 
             return web_manga
-            
+
         except Exception as e:
             log.error(f"转换漫画信息失败: {e}")
             # 返回一个基本的错误信息
@@ -500,6 +527,34 @@ class CoreInterface:
                 file_type="unknown"
             )
     
+    # ==================== 缓存管理 ====================
+
+    def _cleanup_expired_cache(self):
+        """清理过期的转换缓存"""
+        try:
+            current_time = time.time()
+            expired_keys = []
+
+            for cache_key, timestamp in self._conversion_cache_timestamps.items():
+                if current_time - timestamp > self._cache_expire_time:
+                    expired_keys.append(cache_key)
+
+            for key in expired_keys:
+                self._conversion_cache.pop(key, None)
+                self._conversion_cache_timestamps.pop(key, None)
+
+            if expired_keys:
+                log.debug(f"清理了 {len(expired_keys)} 个过期的转换缓存项")
+
+        except Exception as e:
+            log.warning(f"清理转换缓存失败: {e}")
+
+    def clear_conversion_cache(self):
+        """手动清空转换缓存"""
+        self._conversion_cache.clear()
+        self._conversion_cache_timestamps.clear()
+        log.info("转换缓存已清空")
+
     # ==================== 清理和关闭 ====================
     
     def add_manga_from_path(self, path: str) -> WebScanResult:

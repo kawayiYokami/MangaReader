@@ -281,9 +281,13 @@ class RealtimeTranslationService:
                     "error": f"页面索引超出范围: {page_index} >= {manga.total_pages}"
                 }
 
+            # 获取当前翻译引擎类型
+            current_status = self.status_manager.get_status()
+            translator_type = current_status.get("translator_type", "unknown")
+
             # 通过缓存协调器获取翻译页面和缓存来源
-            image_data = self.cache_coordinator.get_translated_page(manga_path, page_index, target_language)
-            has_cache, cache_source = self.cache_coordinator.has_cached_translation(manga_path, page_index, target_language)
+            image_data = self.cache_coordinator.get_translated_page(manga_path, page_index, target_language, translator_type)
+            has_cache, cache_source = self.cache_coordinator.has_cached_translation(manga_path, page_index, target_language, translator_type)
 
             # 验证图像数据有效性
             is_valid_data = (image_data is not None and
@@ -324,7 +328,11 @@ class RealtimeTranslationService:
     def check_cache_status(self, manga_path: str, page_index: int, target_language: str = "zh") -> Dict[str, Any]:
         """检查缓存状态"""
         try:
-            has_cache, cache_source = self.cache_coordinator.has_cached_translation(manga_path, page_index, target_language)
+            # 获取当前翻译引擎类型
+            current_status = self.status_manager.get_status()
+            translator_type = current_status.get("translator_type", "unknown")
+
+            has_cache, cache_source = self.cache_coordinator.has_cached_translation(manga_path, page_index, target_language, translator_type)
             
             return {
                 "success": True,
@@ -356,10 +364,10 @@ class RealtimeTranslationService:
         """清空缓存"""
         try:
             cleared_counts = self.cache_coordinator.clear_cache(manga_path)
-            
+
             # 同时清空翻译器内存缓存
             if manga_path:
-                keys_to_remove = [k for k in self.translator.completed_translations.keys() 
+                keys_to_remove = [k for k in self.translator.completed_translations.keys()
                                 if k.startswith(f"{manga_path}:")]
                 for key in keys_to_remove:
                     del self.translator.completed_translations[key]
@@ -367,18 +375,55 @@ class RealtimeTranslationService:
             else:
                 cleared_counts["translator_memory"] = len(self.translator.completed_translations)
                 self.translator.completed_translations.clear()
-            
+
             return {
                 "success": True,
                 "message": "缓存清理完成",
                 "cleared_counts": cleared_counts
             }
-            
+
         except Exception as e:
             log.error(f"清空缓存失败: {e}")
             return {
                 "success": False,
                 "message": f"清空缓存失败: {str(e)}"
+            }
+
+    def get_cached_manga_list(self) -> Dict[str, Any]:
+        """获取已缓存的漫画列表（按作品和翻译引擎分组）"""
+        try:
+            return self.cache_coordinator.get_cached_manga_list()
+        except Exception as e:
+            log.error(f"获取缓存漫画列表失败: {e}")
+            return {
+                "success": False,
+                "manga_list": [],
+                "error": str(e)
+            }
+
+    def clear_manga_cache_by_translator(self, manga_path: str, translator_type: str) -> Dict[str, Any]:
+        """清空指定漫画指定翻译引擎的缓存"""
+        try:
+            cleared_counts = self.cache_coordinator.clear_manga_cache_by_translator(manga_path, translator_type)
+
+            # 同时清空翻译器内存缓存中相关的条目
+            translator_keys_to_remove = [k for k in self.translator.completed_translations.keys()
+                                       if k.startswith(f"{manga_path}:") and translator_type in k]
+            for key in translator_keys_to_remove:
+                del self.translator.completed_translations[key]
+            cleared_counts["translator_memory"] = len(translator_keys_to_remove)
+
+            return {
+                "success": True,
+                "message": f"已清理 {manga_path} 的 {translator_type} 翻译缓存",
+                "cleared_counts": cleared_counts
+            }
+
+        except Exception as e:
+            log.error(f"清空漫画翻译缓存失败: {e}")
+            return {
+                "success": False,
+                "message": f"清空漫画翻译缓存失败: {str(e)}"
             }
     
     # ==================== 私有方法 ====================

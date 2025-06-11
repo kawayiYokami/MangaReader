@@ -214,6 +214,34 @@ async def clear_all_cache():
         log.error(f"API路由层: 清空缓存失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/cache/manga-list")
+async def get_cached_manga_list():
+    """获取已缓存的漫画列表（按作品和翻译引擎分组）"""
+    try:
+        service = get_realtime_translation_service()
+        result = service.get_cached_manga_list()
+        return result
+    except Exception as e:
+        log.error(f"API路由层: 获取缓存漫画列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/cache/clear-manga/{manga_path:path}")
+async def clear_manga_cache_by_translator(manga_path: str, translator_type: str):
+    """清空指定漫画指定翻译引擎的缓存"""
+    try:
+        service = get_realtime_translation_service()
+        result = service.clear_manga_cache_by_translator(manga_path, translator_type)
+
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["message"])
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"API路由层: 清空漫画翻译缓存失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/check-pages-translated/{manga_path:path}")
 async def check_pages_translated(manga_path: str, page_indices: str):
     """批量检查页面翻译状态"""

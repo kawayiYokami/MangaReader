@@ -123,11 +123,11 @@
                         </template>
                         <!-- 实时翻译缓存特有的列 -->
                         <template v-if="selectedCacheType === 'realtime_translation'">
-                            <th class="cache-table-header-cell">页面</th>
-                            <th class="cache-table-header-cell">语言</th>
-                            <th class="cache-table-header-cell">原文数量</th>
-                            <th class="cache-table-header-cell">访问次数</th>
-                            <th class="cache-table-header-cell">最后访问</th>
+                            <th class="cache-table-header-cell">翻译引擎</th>
+                            <th class="cache-table-header-cell">缓存页数</th>
+                            <th class="cache-table-header-cell">页面范围</th>
+                            <th class="cache-table-header-cell">缓存来源</th>
+                            <th class="cache-table-header-cell">操作</th>
                         </template>
                         <th class="cache-table-header-cell action-cell">操作</th>
                     </tr>
@@ -197,24 +197,39 @@
                         </template>
                         <!-- 实时翻译缓存特有的列 -->
                         <template v-if="selectedCacheType === 'realtime_translation'">
-                            <td class="cache-table-cell page-cell">
-                                <span v-text="entry.page_display || `第${entry.page_index + 1}页`"></span>
-                            </td>
-                            <td class="cache-table-cell language-cell">
+                            <td class="cache-table-cell translator-cell">
                                 <el-tag
-                                    type="info"
                                     size="small"
-                                    v-text="entry.target_language || 'zh'">
+                                    :type="getTranslatorTagType(entry.translator_type)"
+                                    v-text="entry.translator_type">
                                 </el-tag>
                             </td>
-                            <td class="cache-table-cell texts-count-cell">
-                                <span v-text="entry.original_texts_count || 0"></span>
+                            <td class="cache-table-cell count-cell">
+                                <span v-text="entry.cached_pages_count"></span>
                             </td>
-                            <td class="cache-table-cell access-count-cell">
-                                <span v-text="entry.access_count || 0"></span>
+                            <td class="cache-table-cell range-cell">
+                                <span v-if="entry.cached_pages_count > 0">
+                                    第<span v-text="entry.first_page + 1"></span>-<span v-text="entry.last_page + 1"></span>页
+                                </span>
+                                <span v-else>无</span>
                             </td>
-                            <td class="cache-table-cell last-accessed-cell">
-                                <span v-text="formatDateTime(entry.last_accessed)" :title="entry.last_accessed"></span>
+                            <td class="cache-table-cell source-cell">
+                                <el-tag
+                                    v-for="source in entry.cache_sources"
+                                    :key="source"
+                                    size="small"
+                                    type="info"
+                                    style="margin-right: 4px;"
+                                    v-text="getCacheSourceName(source)">
+                                </el-tag>
+                            </td>
+                            <td class="cache-table-cell action-cell">
+                                <el-button
+                                    size="small"
+                                    type="danger"
+                                    @click="clearMangaTranslatorCache(entry.manga_path, entry.translator_type)">
+                                    清理
+                                </el-button>
                             </td>
                         </template>
                         <td class="cache-table-cell action-cell">

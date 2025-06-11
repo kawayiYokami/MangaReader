@@ -175,11 +175,33 @@ window.AppData = {
 
 // 计算属性
 window.AppComputed = {
-    // 重新添加：计算是否在桌面应用中运行
+    // 重新添加：计算是否在桌面应用中运行（增强版本）
     runningInDesktopApp() {
-        // 检查 window.pywebview 是否存在
-        const isDesktop = typeof window.pywebview !== 'undefined';
-        // console.log(`[Computed] runningInDesktopApp: ${isDesktop}`); // 减少日志
+        // 多重检测机制确保桌面模式的正确识别
+        const checks = {
+            pywebview: typeof window.pywebview !== 'undefined',
+            userAgent: window.navigator.userAgent.includes('pywebview'),
+            hostname: window.location.hostname === '127.0.0.1',
+            protocol: window.location.protocol === 'http:',
+            port: window.location.port === '8082', // 桌面版专用端口
+            localStorage: localStorage.getItem('DESKTOP_MODE') === 'true'
+        };
+
+        // 如果pywebview存在，确保设置桌面模式标识
+        if (checks.pywebview) {
+            localStorage.setItem('DESKTOP_MODE', 'true');
+            localStorage.setItem('DESKTOP_MODE_TIMESTAMP', Date.now().toString());
+        }
+
+        // 桌面模式判断：pywebview存在 或 localStorage中有桌面模式标识
+        const isDesktop = checks.pywebview || checks.localStorage;
+
+        // 如果检测到桌面模式但localStorage中没有标识，设置标识
+        if ((checks.userAgent || (checks.hostname && checks.protocol && checks.port)) && !checks.localStorage) {
+            localStorage.setItem('DESKTOP_MODE', 'true');
+            localStorage.setItem('DESKTOP_MODE_TIMESTAMP', Date.now().toString());
+        }
+
         return isDesktop;
     }, // 注意这里的逗号
 
@@ -259,6 +281,8 @@ window.AppComputed = {
 // 生命周期方法
 window.AppLifecycle = {
     mounted() {
+        // 首先检测并设置桌面模式标识
+        this.detectAndSetDesktopMode();
 
         // 首先加载初始设置
         this.loadInitialSettings();
@@ -314,6 +338,16 @@ window.AppLifecycle = {
             console.warn('[Mounted] handleDesktopImportComplete method not found on Vue instance, listener not added.');
         }
 
+        // 添加漫画列表刷新事件监听器
+        this.refreshMangaListHandler = () => {
+            console.log('🔄 收到刷新漫画列表事件');
+            if (this.loadMangaData) {
+                this.loadMangaData();
+            }
+        };
+        window.addEventListener('refreshMangaList', this.refreshMangaListHandler);
+        console.log('[Mounted] Added refreshMangaList event listener.');
+
         // 初始化WebSocket连接
         if (this.initWebSocket) {
             this.initWebSocket();
@@ -339,6 +373,12 @@ window.AppLifecycle = {
         if (typeof this.handleDesktopImportComplete === 'function') {
             window.removeEventListener('desktopImportComplete', this.handleDesktopImportComplete.bind(this));
              console.log('[beforeUnmount] Removed desktopImportComplete event listener.');
+        }
+
+        // 移除漫画列表刷新事件监听器
+        if (this.refreshMangaListHandler) {
+            window.removeEventListener('refreshMangaList', this.refreshMangaListHandler);
+            console.log('[beforeUnmount] Removed refreshMangaList event listener.');
         }
     }
     // loadInitialSettings 函数已移至 utils.js

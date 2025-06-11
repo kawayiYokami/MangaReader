@@ -929,7 +929,15 @@ class RealtimeTranslationManager {
             // 获取漫画总页数，避免检查不存在的页面
             let totalPages = 999; // 默认值
             try {
-                const response = await fetch(`/api/manga/info/${encodeURIComponent(this.currentManga)}`);
+                const response = await fetch('/api/manga/viewer/info', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        manga_path: this.currentManga
+                    })
+                });
                 if (response.ok) {
                     const mangaInfo = await response.json();
                     totalPages = mangaInfo.total_pages || 999;
@@ -955,16 +963,26 @@ class RealtimeTranslationManager {
             this._lastCheckTime = now;
 
             for (const pageIndex of pagesToCheck) {
+                // 确保页面索引在有效范围内
+                if (pageIndex < 0 || pageIndex >= totalPages) {
+                    console.debug(`跳过无效页面索引: ${pageIndex + 1} (总页数: ${totalPages})`);
+                    continue;
+                }
+
                 const translationCacheKey = `TRANS_${this.currentManga}:${pageIndex}`;
 
                 // 如果本地缓存中没有，检查服务器
                 if (!this.translatedPages.has(translationCacheKey)) {
-                    const result = await this.getTranslatedPage(this.currentManga, pageIndex);
+                    try {
+                        const result = await this.getTranslatedPage(this.currentManga, pageIndex);
 
-                    // 如果返回错误（如页面不存在），停止检查后续页面
-                    if (result === null) {
-                        console.debug(`页面${pageIndex + 1}检查失败，停止后续检查`);
-                        break;
+                        // 如果返回错误（如页面不存在），记录但继续检查其他页面
+                        if (result === null) {
+                            console.debug(`页面${pageIndex + 1}检查失败，但继续检查其他页面`);
+                        }
+                    } catch (error) {
+                        console.debug(`页面${pageIndex + 1}检查出错:`, error);
+                        // 继续检查其他页面，不中断
                     }
                 }
             }
