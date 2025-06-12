@@ -360,6 +360,8 @@ html, body {
     border-color: rgba(var(--color-accent-default), 0.8) !important; /* Use rgba with variable */
 }
 
+
+
 /* 返回按钮 */
 .back-button-section {
     display: flex;
