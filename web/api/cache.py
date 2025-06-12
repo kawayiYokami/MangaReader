@@ -64,7 +64,7 @@ class CacheHandler(ABC):
         pass
     
     @abstractmethod
-    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None) -> Dict[str, Any]:
+    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """获取缓存条目列表"""
         pass
     
@@ -127,7 +127,7 @@ class MangaListCacheHandler(CacheHandler):
             self.log.error(f"获取漫画列表缓存信息失败: {e}")
             return CacheInfo(cache_type=self.cache_type, total_entries=0, size_bytes=0)
     
-    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None) -> Dict[str, Any]:
+    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """获取漫画列表缓存条目"""
         try:
             # 获取所有漫画条目
@@ -140,36 +140,56 @@ class MangaListCacheHandler(CacheHandler):
                     manga_list = self.manager.get(directory_path)
                     if manga_list:
                         all_manga.extend(manga_list)
-            
-            # 搜索过滤
+
+            # 1. 应用新的布尔筛选
+            show_unlikely = kwargs.get("show_unlikely", False)
+            if show_unlikely:
+                all_manga = [
+                    manga for manga in all_manga
+                    if manga.get("is_likely_manga") is False and manga.get("dimension_variance") is not None
+                ]
+
+            # 2. 应用文本搜索过滤
             if search:
                 query = search.lower()
-                filtered_manga = []
-                for manga in all_manga:
-                    title = str(manga.get("title", "")).lower()
-                    file_path = str(manga.get("file_path", "")).lower()
-                    tags = str(manga.get("tags", [])).lower()
-                    if query in title or query in file_path or query in tags:
-                        filtered_manga.append(manga)
-                all_manga = filtered_manga
+                # 避免在已有 unlikely 筛选时重复过滤
+                if not show_unlikely: 
+                    if "category:unlikely_manga" in query:
+                        # 提示用户使用开关，但仍执行一次
+                        self.log.info("检测到旧的过滤语法，请使用'仅显示可能非漫画'开关。")
+                        all_manga = [
+                            manga for manga in all_manga
+                            if manga.get("is_likely_manga") is False and manga.get("dimension_variance") is not None
+                        ]
+                        # 移除分类指令，只留下搜索词
+                        query = query.replace("category:unlikely_manga", "").strip()
+
+                if query: # 如果移除指令后还有搜索词
+                    filtered_manga = []
+                    for manga in all_manga:
+                        title = str(manga.get("title", "")).lower()
+                        file_path = str(manga.get("file_path", "")).lower()
+                        tags = str(manga.get("tags", [])).lower()
+                        if query in title or query in file_path or query in tags:
+                            filtered_manga.append(manga)
+                    all_manga = filtered_manga
             
-            # 分页
+            # 3. 分页
             total = len(all_manga)
             start = (page - 1) * page_size
             end = start + page_size
             page_manga = all_manga[start:end]
             
-            # 格式化条目
-            entries = []
-            for manga in page_manga:
-                entries.append(self._format_manga_entry(manga))
+            # 4. 格式化条目
+            entries = [self._format_manga_entry(manga) for manga in page_manga]
             
             return {
                 "entries": entries,
                 "total": total,
                 "page": page,
                 "page_size": page_size,
-                "total_pages": (total + page_size - 1) // page_size if page_size > 0 else 0
+                "total_pages": (total + page_size - 1) // page_size if page_size > 0 else 0,
+                "filter_applied": "unlikely" if show_unlikely else None
             }
         except Exception as e:
             self.log.error(f"获取漫画列表缓存条目失败: {e}")
@@ -290,7 +310,7 @@ class OcrCacheHandler(CacheHandler):
             self.log.error(f"获取OCR缓存信息失败: {e}")
             return CacheInfo(cache_type=self.cache_type, total_entries=0, size_bytes=0)
 
-    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None) -> Dict[str, Any]:
+    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """获取OCR缓存条目"""
         try:
             all_entries = self.manager.get_all_entries_for_display() if hasattr(self.manager, 'get_all_entries_for_display') else []
@@ -411,40 +431,42 @@ class TranslationCacheHandler(CacheHandler):
             self.log.error(f"获取翻译缓存信息失败: {e}")
             return CacheInfo(cache_type=self.cache_type, total_entries=0, size_bytes=0)
 
-    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None) -> Dict[str, Any]:
+    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """获取翻译缓存条目"""
         try:
             all_entries = self.manager.get_all_entries_for_display() if hasattr(self.manager, 'get_all_entries_for_display') else []
+            filter_sensitive = kwargs.get("filter_sensitive", False)
 
-            # 搜索过滤
+            # 1. 应用敏感内容筛选
+            if filter_sensitive:
+                all_entries = [entry for entry in all_entries if entry.get("is_sensitive", False)]
+
+            # 2. 应用文本搜索过滤
             if search:
                 query = search.lower()
-                filtered_entries = []
-                for entry in all_entries:
-                    cache_key = str(entry.get("cache_key", "")).lower()
-                    original_text = str(entry.get("original_text", "")).lower()
-                    translated_text = str(entry.get("translated_text", "")).lower()
-                    if query in cache_key or query in original_text or query in translated_text:
-                        filtered_entries.append(entry)
-                all_entries = filtered_entries
+                all_entries = [
+                    entry for entry in all_entries
+                    if query in str(entry.get("cache_key", "")).lower() or \
+                        query in str(entry.get("original_text", "")).lower() or \
+                        query in str(entry.get("translated_text", "")).lower()
+                ]
 
-            # 分页
+            # 3. 分页
             total = len(all_entries)
             start = (page - 1) * page_size
             end = start + page_size
             page_entries = all_entries[start:end]
 
-            # 格式化条目
-            entries = []
-            for entry in page_entries:
-                entries.append(self._format_translation_entry(entry))
+            # 4. 格式化条目
+            entries = [self._format_translation_entry(entry) for entry in page_entries]
 
             return {
                 "entries": entries,
                 "total": total,
                 "page": page,
                 "page_size": page_size,
-                "total_pages": (total + page_size - 1) // page_size if page_size > 0 else 0
+                "total_pages": (total + page_size - 1) // page_size if page_size > 0 else 0,
+                "filter_applied": "sensitive" if filter_sensitive else None
             }
         except Exception as e:
             self.log.error(f"获取翻译缓存条目失败: {e}")
@@ -560,7 +582,7 @@ class HarmonizationMapCacheHandler(CacheHandler):
             self.log.error(f"获取和谐映射缓存信息失败: {e}")
             return CacheInfo(cache_type=self.cache_type, total_entries=0, size_bytes=0)
 
-    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None) -> Dict[str, Any]:
+    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """获取和谐映射缓存条目"""
         try:
             mappings = self.manager.get_all_mappings()
@@ -676,50 +698,84 @@ class PersistentTranslationCacheHandler(CacheHandler):
             self.log.error(f"获取持久化翻译缓存信息失败: {e}")
             return CacheInfo(cache_type=self.cache_type, total_entries=0, size_bytes=0)
 
-    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None) -> Dict[str, Any]:
-        """获取持久化翻译缓存条目"""
+    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+        """获取持久化翻译缓存条目，并按（漫画路径, 翻译器类型）聚合"""
         try:
-            all_entries = self.manager.get_all_entries_for_display()
+            # 1. 从管理器获取所有原始、未分组的条目
+            all_raw_entries = self.manager.get_all_entries_for_display()
 
+            # 2. 按 (manga_path, translator_type) 进行分组
+            grouped_entries = {}
+            for entry in all_raw_entries:
+                group_key = (entry.get("manga_path"), entry.get("translator_type"))
+                if not all(group_key):
+                    continue
+
+                if group_key not in grouped_entries:
+                    grouped_entries[group_key] = {
+                        "manga_path": entry.get("manga_path"),
+                        "manga_name": entry.get("manga_name"),
+                        "translator_type": entry.get("translator_type"),
+                        "page_indices": set(), # 使用集合以避免重复并提高效率
+                        "last_accessed": entry.get("created_at", "1970-01-01T00:00:00")
+                    }
+
+                page_index = entry.get("page_index")
+                if page_index is not None:
+                    grouped_entries[group_key]["page_indices"].add(page_index)
+
+                # 更新为最新的访问时间
+                current_last_accessed = entry.get("created_at", "1970-01-01T00:00:00")
+                if current_last_accessed > grouped_entries[group_key]["last_accessed"]:
+                    grouped_entries[group_key]["last_accessed"] = current_last_accessed
+
+            # 3. 将分组后的数据转换为最终的列表格式
+            final_list = []
+            for (manga_path, translator_type), group_data in grouped_entries.items():
+                page_indices = sorted(list(group_data["page_indices"]))
+
+                # 创建一个唯一的、稳定的复合键，用于前端操作
+                composite_key = f"{manga_path}:::{translator_type}"
+
+                final_list.append({
+                    "key": composite_key,
+                    "manga_path": manga_path,
+                    "manga_name": group_data["manga_name"],
+                    "translator_type": translator_type,
+                    "cached_pages_count": len(page_indices),
+                    "first_page": page_indices[0] if page_indices else -1,
+                    "last_page": page_indices[-1] if page_indices else -1,
+                    "last_accessed": group_data["last_accessed"],
+                    "value_preview": f"漫画: {group_data['manga_name']} ({translator_type})"
+                })
+
+            # 4. 对聚合后的列表进行搜索过滤
             if search:
                 query = search.lower()
-                all_entries = [
-                    entry for entry in all_entries
-                    if query in str(entry.get("manga_name", "")).lower() or \
-                       query in str(entry.get("manga_path", "")).lower()
+                final_list = [
+                    entry for entry in final_list
+                    if query in entry["manga_name"].lower() or query in entry["manga_path"].lower()
                 ]
 
-            total = len(all_entries)
+            # 5. 对最终列表进行分页
+            total = len(final_list)
             start = (page - 1) * page_size
             end = start + page_size
-            page_items = all_entries[start:end]
-
-            formatted_entries = [self._format_entry(item) for item in page_items]
+            paginated_list = final_list[start:end]
 
             return {
-                "entries": formatted_entries,
+                "entries": paginated_list,
                 "total": total,
                 "page": page,
                 "page_size": page_size,
                 "total_pages": (total + page_size - 1) // page_size if page_size > 0 else 0
             }
+
         except Exception as e:
-            self.log.error(f"获取持久化翻译缓存条目失败: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            self.log.error(f"聚合获取持久化翻译缓存条目失败: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"获取缓存条目失败: {e}")
 
-    def _format_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
-        """格式化条目"""
-        cache_key = entry.get("cache_key", "N/A")
-        manga_name = entry.get("manga_name", "N/A")
-        page_display = entry.get("page_display", "N/A")
 
-        return {
-            "key": cache_key,
-            "value": entry,
-            "value_preview": f"漫画: {manga_name} - {page_display}",
-            "size_bytes": 0, # 大小在统计信息中提供
-            "created_time": entry.get("created_at"),
-        }
 
     async def clear(self) -> Dict[str, Any]:
         """清空持久化翻译缓存"""
@@ -731,14 +787,23 @@ class PersistentTranslationCacheHandler(CacheHandler):
             return {"success": False, "message": str(e)}
 
     async def delete_entry(self, key: str) -> Dict[str, Any]:
-        """删除持久化翻译缓存中的单个条目（按漫画路径）"""
+        """删除持久化翻译缓存中的单个条目（按复合键）"""
         try:
-            # 'key' 在这里是 manga_path
-            deleted_count = self.manager.delete_by_manga(key)
-            if deleted_count > 0:
-                return {"success": True, "message": f"已删除漫画 {os.path.basename(key)} 的 {deleted_count} 个缓存条目"}
+            # 解析复合键：manga_path:::translator_type
+            if ":::" in key:
+                manga_path, translator_type = key.split(":::", 1)
+                deleted_count = self.manager.clear_manga_translator_cache(manga_path, translator_type)
+                if deleted_count > 0:
+                    return {"success": True, "message": f"已删除漫画 {os.path.basename(manga_path)} 的 {translator_type} 翻译缓存 ({deleted_count} 个条目)"}
+                else:
+                    return {"success": False, "message": "未找到相关缓存条目"}
             else:
-                return {"success": False, "message": "未找到相关缓存条目"}
+                # 兼容旧格式：直接按漫画路径删除
+                deleted_count = self.manager.delete_by_manga(key)
+                if deleted_count > 0:
+                    return {"success": True, "message": f"已删除漫画 {os.path.basename(key)} 的 {deleted_count} 个缓存条目"}
+                else:
+                    return {"success": False, "message": "未找到相关缓存条目"}
         except Exception as e:
             self.log.error(f"删除持久化翻译缓存条目失败: {e}")
             return {"success": False, "message": str(e)}
@@ -879,16 +944,25 @@ async def get_cache_entries(
     cache_type: str,
     page: int = 1,
     page_size: int = 20,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    filter_sensitive: bool = False,
+    show_unlikely: bool = False
 ):
-    """获取指定缓存类型的条目列表（分页和搜索）"""
+    """获取指定缓存类型的条目列表（分页、搜索和过滤）"""
     try:
         # 确保参数类型正确
         page = int(page) if isinstance(page, str) else page
         page_size = int(page_size) if isinstance(page_size, str) else page_size
 
         handler = CacheHandlerFactory.get_handler(cache_type)
-        result = await handler.get_entries(page, page_size, search)
+        
+        # 将过滤参数打包
+        filter_kwargs = {
+            "filter_sensitive": filter_sensitive,
+            "show_unlikely": show_unlikely
+        }
+        
+        result = await handler.get_entries(page, page_size, search, **filter_kwargs)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

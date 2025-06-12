@@ -69,7 +69,34 @@
                         <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">filter_alt</span>
                         自动过滤
                     </el-button>
+                    <!-- “可能非漫画”筛选开关 -->
+                    <el-switch
+                        v-model="showOnlyUnlikelyManga"
+                        @change="onFilterChange"
+                        active-text="仅显示可能非漫画"
+                        style="margin-left: 1rem;">
+                    </el-switch>
                 </template>
+
+                <!-- 翻译缓存敏感内容筛选开关 -->
+                <template v-if="selectedCacheType === 'translation'">
+                    <el-switch
+                        v-model="showOnlySensitive"
+                        @change="onFilterChange"
+                        active-text="仅显示敏感内容"
+                        style="margin-left: 1rem;">
+                    </el-switch>
+                </template>
+
+                <!-- 通用清除筛选按钮 -->
+                <el-button
+                    v-if="cacheSearchQuery"
+                    size="small"
+                    type="info"
+                    @click="clearFilter">
+                    <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">clear</span>
+                    清除筛选
+                </el-button>
 
 
             </div>
@@ -82,7 +109,7 @@
                 placeholder="搜索..."
                 prefix-icon="Search"
                 clearable
-                @input="filterCacheEntries">
+                @change="onFilterChange">
             </el-input>
         </div>
 

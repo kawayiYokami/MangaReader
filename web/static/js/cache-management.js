@@ -71,28 +71,40 @@ window.CacheManagementMethods = {
         await this.loadCacheEntries();
     },
 
+async onFilterChange() {
+        this.currentPage = 1; // 任何筛选变化都重置到第一页
+        await this.loadCacheEntries();
+    },
     async loadCacheEntries() {
         if (!this.selectedCacheType) return;
 
         this.isLoadingEntries = true;
         try {
-            let response;
+            const params = {
+                page: this.currentPage,
+                page_size: this.pageSize,
+                search: this.cacheSearchQuery || null
+            };
 
-            // 所有缓存类型使用统一的API
-            response = await axios.get(`/api/cache/${this.selectedCacheType}/entries`, {
-                params: {
-                    page: this.currentPage,
-                    page_size: this.pageSize,
-                    search: this.cacheSearchQuery
-                }
-            });
+            // 根据缓存类型添加特定的过滤参数
+            if (this.selectedCacheType === 'translation') {
+                params.filter_sensitive = this.showOnlySensitive;
+            }
+            if (this.selectedCacheType === 'manga_list') {
+                // 假设 showOnlyUnlikelyManga 控制 "unlikely_manga" 的显示
+                params.show_unlikely = this.showOnlyUnlikelyManga; 
+            }
+
+            const response = await axios.get(`/api/cache/${this.selectedCacheType}/entries`, { params });
+
+            // 直接将后端返回的结果赋给 filteredCacheEntries
             this.cacheEntries = response.data.entries || [];
+            this.filteredCacheEntries = this.cacheEntries;
             this.totalEntries = response.data.total || 0;
 
-            this.filterCacheEntries(); // 应用搜索过滤
         } catch (error) {
             console.error('加载缓存条目失败:', error);
-            ElMessage.error('加载缓存条目失败');
+            ElMessage.error('加载缓存条目失败: ' + (error.response?.data?.detail || error.message));
             this.cacheEntries = [];
             this.filteredCacheEntries = [];
             this.totalEntries = 0;
@@ -101,20 +113,7 @@ window.CacheManagementMethods = {
         }
     },
 
-    filterCacheEntries() {
-        // 实时搜索过滤 (基于内存中的 cacheEntries)
-        if (!this.cacheSearchQuery) {
-            this.filteredCacheEntries = this.cacheEntries;
-        } else {
-            const query = this.cacheSearchQuery.toLowerCase();
-            this.filteredCacheEntries = this.cacheEntries.filter(entry =>
-                (entry.key && entry.key.toLowerCase().includes(query)) ||
-                (entry.value_preview && entry.value_preview.toLowerCase().includes(query))
-            );
-        }
-         // Bug Fix: 如果分页后过滤，需要确保 filteredCacheEntries 在 load 时被重置
-         // 上面 loadCacheEntries 中已添加 filterCacheEntries() 调用，应该没问题了
-    },
+    
 
     async onPageChange(page) {
         this.currentPage = page;
@@ -428,6 +427,8 @@ window.CacheManagementMethods = {
         }
     },
     // --- End of New Dialog Methods ---
+
+    
 
     // --- 持久化翻译缓存删除方法 ---
     async deleteCacheEntry(entry) {
