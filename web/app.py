@@ -107,6 +107,11 @@ async def cache_management(request: Request):
     """缓存管理页面"""
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/test-viewer", response_class=HTMLResponse)
+async def test_viewer_page(request: Request):
+    """翻译工厂架构测试页面"""
+    return templates.TemplateResponse("test_viewer.html", {"request": request})
+
 @app.get("/health")
 async def health_check():
     """健康检查接口"""
@@ -132,15 +137,15 @@ async def show_routes():
 
 # 导入API路由
 try:
-    from web.api import manga, translation, cache, settings, realtime_translation, realtime_translation_cache
+    from web.api import manga, translation, cache, settings, viewer
 
     # 注册API路由
     app.include_router(manga.router, prefix="/api/manga", tags=["漫画管理"])
     app.include_router(translation.router, prefix="/api/translation", tags=["翻译功能"])
     app.include_router(cache.router, prefix="/api/cache", tags=["缓存管理"])
     app.include_router(settings.router, prefix="/api/settings", tags=["设置管理"])
-    app.include_router(realtime_translation.router, prefix="/api/realtime-translation", tags=["实时翻译"])
-    app.include_router(realtime_translation_cache.router, tags=["实时翻译缓存"])  # 不需要额外前缀，因为router内部已定义
+
+    app.include_router(viewer.router, prefix="/api/viewer", tags=["漫画查看器"])
 
     log.info("API路由注册完成")
     

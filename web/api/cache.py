@@ -655,6 +655,101 @@ class HarmonizationMapCacheHandler(CacheHandler):
             return {"success": False, "message": f"删除失败: {e}"}
 
 
+class PersistentTranslationCacheHandler(CacheHandler):
+    """持久化翻译缓存处理器"""
+
+    def __init__(self):
+        super().__init__("persistent_translation")
+        self.manager = get_cache_factory_instance().get_manager("persistent_translation")
+
+    async def get_info(self) -> CacheInfo:
+        """获取持久化翻译缓存信息"""
+        try:
+            stats = self.manager.get_cache_statistics()
+            return CacheInfo(
+                cache_type=self.cache_type,
+                total_entries=stats.get("total_entries", 0),
+                size_bytes=stats.get("cache_size_bytes", 0),
+                last_updated=datetime.now().isoformat()
+            )
+        except Exception as e:
+            self.log.error(f"获取持久化翻译缓存信息失败: {e}")
+            return CacheInfo(cache_type=self.cache_type, total_entries=0, size_bytes=0)
+
+    async def get_entries(self, page: int, page_size: int, search: Optional[str] = None) -> Dict[str, Any]:
+        """获取持久化翻译缓存条目"""
+        try:
+            all_entries = self.manager.get_all_entries_for_display()
+
+            if search:
+                query = search.lower()
+                all_entries = [
+                    entry for entry in all_entries
+                    if query in str(entry.get("manga_name", "")).lower() or \
+                       query in str(entry.get("manga_path", "")).lower()
+                ]
+
+            total = len(all_entries)
+            start = (page - 1) * page_size
+            end = start + page_size
+            page_items = all_entries[start:end]
+
+            formatted_entries = [self._format_entry(item) for item in page_items]
+
+            return {
+                "entries": formatted_entries,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total + page_size - 1) // page_size if page_size > 0 else 0
+            }
+        except Exception as e:
+            self.log.error(f"获取持久化翻译缓存条目失败: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def _format_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+        """格式化条目"""
+        cache_key = entry.get("cache_key", "N/A")
+        manga_name = entry.get("manga_name", "N/A")
+        page_display = entry.get("page_display", "N/A")
+
+        return {
+            "key": cache_key,
+            "value": entry,
+            "value_preview": f"漫画: {manga_name} - {page_display}",
+            "size_bytes": 0, # 大小在统计信息中提供
+            "created_time": entry.get("created_at"),
+        }
+
+    async def clear(self) -> Dict[str, Any]:
+        """清空持久化翻译缓存"""
+        try:
+            self.manager.clear()
+            return {"success": True, "message": "持久化翻译缓存已清空"}
+        except Exception as e:
+            self.log.error(f"清空持久化翻译缓存失败: {e}")
+            return {"success": False, "message": str(e)}
+
+    async def delete_entry(self, key: str) -> Dict[str, Any]:
+        """删除持久化翻译缓存中的单个条目（按漫画路径）"""
+        try:
+            # 'key' 在这里是 manga_path
+            deleted_count = self.manager.delete_by_manga(key)
+            if deleted_count > 0:
+                return {"success": True, "message": f"已删除漫画 {os.path.basename(key)} 的 {deleted_count} 个缓存条目"}
+            else:
+                return {"success": False, "message": "未找到相关缓存条目"}
+        except Exception as e:
+            self.log.error(f"删除持久化翻译缓存条目失败: {e}")
+            return {"success": False, "message": str(e)}
+
+    async def refresh(self) -> Dict[str, Any]:
+        return {"success": True, "message": "持久化翻译缓存不支持显式刷新"}
+
+    async def update_entry(self, request: UpdateEntryRequest) -> Dict[str, Any]:
+        return {"success": False, "message": "持久化翻译缓存不支持更新单个条目"}
+
+
 # ==================== 缓存处理器工厂 ====================
 
 class CacheHandlerFactory:
@@ -664,7 +759,8 @@ class CacheHandlerFactory:
         "manga_list": MangaListCacheHandler,
         "ocr": OcrCacheHandler,
         "translation": TranslationCacheHandler,
-        "harmonization_map": HarmonizationMapCacheHandler
+        "harmonization_map": HarmonizationMapCacheHandler,
+        "persistent_translation": PersistentTranslationCacheHandler
     }
 
     @classmethod
@@ -720,7 +816,8 @@ async def get_cache_types():
             {"key": "manga_list", "name": "漫画列表", "description": "漫画文件扫描结果缓存"},
             {"key": "ocr", "name": "OCR", "description": "文字识别结果缓存"},
             {"key": "translation", "name": "翻译", "description": "翻译结果缓存"},
-            {"key": "harmonization_map", "name": "和谐映射", "description": "内容和谐化映射缓存"}
+            {"key": "harmonization_map", "name": "和谐映射", "description": "内容和谐化映射缓存"},
+            {"key": "persistent_translation", "name": "持久化翻译", "description": "按页存储的完整翻译结果缓存"}
         ]
         return {"cache_types": cache_types}
     except Exception as e:

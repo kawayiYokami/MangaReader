@@ -33,17 +33,7 @@ window.CacheManagementMethods = {
                 this.cacheStats[key] = response.data.stats[key];
             }
 
-            // 加载实时翻译缓存统计
-            try {
-                const realtimeResponse = await axios.get('/api/realtime-translation-cache/statistics');
-                this.cacheStats['realtime_translation'] = {
-                    entries: realtimeResponse.data.total_entries,
-                    size: realtimeResponse.data.cache_size_bytes
-                };
-            } catch (realtimeError) {
-                console.warn('加载实时翻译缓存统计失败:', realtimeError);
-                this.cacheStats['realtime_translation'] = { entries: 0, size: 0 };
-            }
+
 
             // 如果响应中没有某个 key，确保它存在且为 0
              this.cacheTypes.forEach(type => {
@@ -88,36 +78,16 @@ window.CacheManagementMethods = {
         try {
             let response;
 
-            // 实时翻译缓存使用新的按作品和翻译引擎分组的API
-            if (this.selectedCacheType === 'realtime_translation') {
-                response = await axios.get('/api/realtime-translation/cache/manga-list');
-                // 转换数据格式以适配现有的表格显示
-                const entries = response.data.manga_list.map(entry => ({
-                    key: `${entry.manga_path}:${entry.translator_type}`,
-                    value_preview: entry.manga_name,
-                    manga_path: entry.manga_path,
-                    manga_name: entry.manga_name,
-                    translator_type: entry.translator_type,
-                    cached_pages_count: entry.cached_pages_count,
-                    cached_pages: entry.cached_pages,
-                    cache_sources: entry.cache_sources,
-                    first_page: entry.first_page,
-                    last_page: entry.last_page
-                }));
-                this.cacheEntries = entries;
-                this.totalEntries = entries.length;
-            } else {
-                // 其他缓存类型使用原有API
-                response = await axios.get(`/api/cache/${this.selectedCacheType}/entries`, {
-                    params: {
-                        page: this.currentPage,
-                        page_size: this.pageSize,
-                        search: this.cacheSearchQuery
-                    }
-                });
-                this.cacheEntries = response.data.entries || [];
-                this.totalEntries = response.data.total || 0;
-            }
+            // 所有缓存类型使用统一的API
+            response = await axios.get(`/api/cache/${this.selectedCacheType}/entries`, {
+                params: {
+                    page: this.currentPage,
+                    page_size: this.pageSize,
+                    search: this.cacheSearchQuery
+                }
+            });
+            this.cacheEntries = response.data.entries || [];
+            this.totalEntries = response.data.total || 0;
 
             this.filterCacheEntries(); // 应用搜索过滤
         } catch (error) {
@@ -218,9 +188,10 @@ window.CacheManagementMethods = {
             this.harmonizationDialog.originalText = entry.key; // 原文是 key
             this.harmonizationDialog.harmonizedText = entry.value || ''; // 和谐后是 value
             this.harmonizationDialog.currentKey = entry.key; // 存储原始 key 用于更新/删除
-        } else if (this.selectedCacheType === 'realtime_translation') {
-            // --- 实时翻译缓存显示详情 ---
-            this.showRealtimeTranslationDetail(entry);
+        } else if (this.selectedCacheType === 'persistent_translation') {
+            // --- 持久化翻译缓存是只读的，不可编辑 ---
+            ElMessage.info('持久化翻译缓存条目为只读，不可编辑。');
+            return;
         } else {
             // --- 使用旧的 Element Plus 对话框编辑其他类型 ---
             this.editDialog.visible = true;
@@ -241,53 +212,7 @@ window.CacheManagementMethods = {
         }
     },
 
-    async showRealtimeTranslationDetail(entry) {
-        try {
-            // 对于实时翻译缓存，显示漫画级别的缓存信息
-            const message = `
-                <div style="text-align: left; max-height: 400px; overflow-y: auto;">
-                    <h4>漫画缓存信息</h4>
-                    <p><strong>漫画名称:</strong> ${entry.manga_name || '未知'}</p>
-                    <p><strong>漫画路径:</strong> ${entry.manga_path}</p>
-                    <p><strong>翻译引擎:</strong> ${entry.translator_type}</p>
-                    <p><strong>缓存页数:</strong> ${entry.cached_pages_count} 页</p>
 
-                    <h4>页面范围</h4>
-                    <p><strong>首页:</strong> 第${entry.first_page + 1}页</p>
-                    <p><strong>末页:</strong> 第${entry.last_page + 1}页</p>
-
-                    <h4>缓存来源</h4>
-                    <div style="max-height: 100px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; margin: 8px 0;">
-                        ${entry.cache_sources ? entry.cache_sources.map(source =>
-                            `<div style="margin-bottom: 2px;">• ${source}</div>`
-                        ).join('') : '无详细信息'}
-                    </div>
-
-                    <h4>缓存页面列表</h4>
-                    <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; margin: 8px 0;">
-                        ${entry.cached_pages ? entry.cached_pages.map(page =>
-                            `<div style="margin-bottom: 2px;">第${page + 1}页</div>`
-                        ).join('') : '无页面信息'}
-                    </div>
-
-                    <div style="margin-top: 16px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
-                        <p style="margin: 0; font-size: 12px; color: #666;">
-                            💡 提示：这是按漫画和翻译引擎分组的缓存信息。每个条目包含该漫画在指定翻译引擎下的所有缓存页面。
-                        </p>
-                    </div>
-                </div>
-            `;
-
-            this.$alert(message, '实时翻译缓存详情', {
-                dangerouslyUseHTMLString: true,
-                confirmButtonText: '确定',
-                customClass: 'realtime-cache-detail-dialog'
-            });
-        } catch (error) {
-            console.error('显示缓存详情失败:', error);
-            ElMessage.error('显示缓存详情失败');
-        }
-    },
 
     async saveEdit() { // 保存旧对话框的逻辑 (非和谐映射)
         try {
@@ -504,62 +429,38 @@ window.CacheManagementMethods = {
     },
     // --- End of New Dialog Methods ---
 
-    // --- 实时翻译缓存特殊方法 ---
-    async cleanupMissingFiles() {
+    // --- 持久化翻译缓存删除方法 ---
+    async deleteCacheEntry(entry) {
+        if (!entry || !entry.key) {
+            ElMessage.error('无效的缓存条目，无法删除。');
+            return;
+        }
+
         try {
-            await this.$confirm('确定要清理所有源文件已丢失的翻译缓存吗？', '确认清理', {
-                confirmButtonText: '清理',
+            await this.$confirm(`此操作将删除漫画 "${entry.value_preview || entry.key}" 的所有持久化翻译缓存。确定吗？`, '确认删除', {
+                confirmButtonText: '删除',
                 cancelButtonText: '取消',
                 type: 'warning'
             });
 
-            const response = await axios.post('/api/realtime-translation-cache/cleanup');
+            // 调用后端的通用删除接口。URL中的key需要编码以处理特殊字符。
+            const response = await axios.delete(`/api/cache/persistent_translation/entries/${encodeURIComponent(entry.key)}`);
 
-            if (response.data.deleted_count > 0) {
-                ElMessage.success(`清理完成，删除了 ${response.data.deleted_count} 个丢失文件的缓存条目`);
-                await this.loadCacheEntries();
-                await this.loadCacheStats();
-            } else {
-                ElMessage.info('没有发现需要清理的缓存条目');
-            }
+            ElMessage.success('漫画的持久化翻译缓存已删除');
+            await this.loadCacheEntries(); // 重新加载条目
+            await this.loadCacheStats();   // 更新统计信息
         } catch (error) {
-            // 检查是否是用户取消操作
+            // 忽略用户取消操作
             if (error !== 'cancel' && error !== 'close' && error?.message !== 'cancel') {
-                console.error('清理缓存失败:', error);
-                ElMessage.error('清理缓存失败: ' + (error.response?.data?.detail || error.message));
+                console.error('删除缓存失败:', error);
+                ElMessage.error('删除失败: ' + (error.response?.data?.detail || error.message));
             }
         }
     },
 
-    async showCacheStatistics() {
-        try {
-            const response = await axios.get('/api/realtime-translation-cache/statistics');
-            const stats = response.data;
 
-            const message = `
-                <div style="text-align: left;">
-                    <p><strong>总缓存条目:</strong> ${stats.total_entries}</p>
-                    <p><strong>缓存大小:</strong> ${this.formatFileSize(stats.cache_size_bytes)}</p>
-                    <p><strong>最近7天访问:</strong> ${stats.recent_accessed}</p>
-                    <p><strong>平均访问次数:</strong> ${stats.average_access_count}</p>
-                    <p><strong>语言分布:</strong></p>
-                    <ul style="margin: 0; padding-left: 20px;">
-                        ${Object.entries(stats.language_stats).map(([lang, count]) =>
-                            `<li>${lang}: ${count} 条</li>`
-                        ).join('')}
-                    </ul>
-                </div>
-            `;
 
-            this.$alert(message, '实时翻译缓存统计', {
-                dangerouslyUseHTMLString: true,
-                confirmButtonText: '确定'
-            });
-        } catch (error) {
-            console.error('获取缓存统计失败:', error);
-            ElMessage.error('获取缓存统计失败');
-        }
-    },
+
 
     formatDateTime(dateTimeStr) {
         if (!dateTimeStr) return '未知';
@@ -602,14 +503,8 @@ window.CacheManagementMethods = {
 
             let response;
 
-            // 实时翻译缓存使用专门的API
-            if (cacheType === 'realtime_translation') {
-                response = await axios.delete('/api/realtime-translation-cache/clear');
-                // 适配响应格式
-                response.data = { success: true, message: response.data.message };
-            } else {
-                response = await axios.post(`/api/cache/${cacheType}/clear`);
-            }
+            // 所有缓存类型使用统一的API
+            response = await axios.post(`/api/cache/${cacheType}/clear`);
 
             if (response.data.success) {
                 ElMessage.success(`${this.cacheTypes.find(t => t.key === cacheType)?.name} 缓存已清空`);
@@ -1014,70 +909,7 @@ window.CacheManagementMethods = {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     },
 
-    // ==================== 实时翻译缓存管理方法 ====================
 
-    /**
-     * 获取翻译引擎标签类型
-     */
-    getTranslatorTagType(translator_type) {
-        switch(translator_type) {
-            case '智谱': return 'success';
-            case 'Google': return 'primary';
-            case 'Baidu': return 'warning';
-            case 'DeepL': return 'info';
-            default: return 'info';
-        }
-    },
-
-    /**
-     * 获取缓存来源显示名称
-     */
-    getCacheSourceName(source) {
-        switch(source) {
-            case 'memory': return '内存';
-            case 'persistent_webp': return 'WebP';
-            case 'sqlite': return 'SQLite';
-            case 'legacy': return '传统';
-            default: return source;
-        }
-    },
-
-    /**
-     * 清理指定漫画指定翻译引擎的缓存
-     */
-    async clearMangaTranslatorCache(manga_path, translator_type) {
-        try {
-            await this.$confirm(
-                `确定要清理 "${manga_path}" 的 "${translator_type}" 翻译缓存吗？`,
-                '确认清理',
-                {
-                    confirmButtonText: '清理',
-                    cancelButtonText: '取消',
-                    type: 'warning'
-                }
-            );
-
-            const response = await axios.delete(
-                `/api/realtime-translation/cache/clear-manga/${encodeURIComponent(manga_path)}`,
-                {
-                    params: { translator_type: translator_type }
-                }
-            );
-
-            if (response.data.success) {
-                ElMessage.success('缓存清理成功');
-                await this.loadCacheEntries();
-                await this.loadCacheStats();
-            } else {
-                ElMessage.error(response.data.message || '缓存清理失败');
-            }
-        } catch (error) {
-            if (error !== 'cancel' && error !== 'close' && error?.message !== 'cancel') {
-                console.error('清理缓存失败:', error);
-                ElMessage.error('清理缓存失败: ' + (error.response?.data?.detail || error.message));
-            }
-        }
-    },
 
     /**
      * 格式化日期时间

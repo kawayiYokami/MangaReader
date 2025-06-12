@@ -71,23 +71,7 @@
                     </el-button>
                 </template>
 
-                <!-- 实时翻译缓存特有按钮 -->
-                <template v-if="selectedCacheType === 'realtime_translation'">
-                    <el-button
-                        size="small"
-                        type="warning"
-                        @click="cleanupMissingFiles">
-                        <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">cleaning_services</span>
-                        清理丢失文件
-                    </el-button>
-                    <el-button
-                        size="small"
-                        type="info"
-                        @click="showCacheStatistics">
-                        <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">analytics</span>
-                        统计信息
-                    </el-button>
-                </template>
+
             </div>
         </div>
 
@@ -121,14 +105,7 @@
                         <template v-if="selectedCacheType === 'translation'">
                             <th class="cache-table-header-cell">敏感内容</th>
                         </template>
-                        <!-- 实时翻译缓存特有的列 -->
-                        <template v-if="selectedCacheType === 'realtime_translation'">
-                            <th class="cache-table-header-cell">翻译引擎</th>
-                            <th class="cache-table-header-cell">缓存页数</th>
-                            <th class="cache-table-header-cell">页面范围</th>
-                            <th class="cache-table-header-cell">缓存来源</th>
-                            <th class="cache-table-header-cell">操作</th>
-                        </template>
+
                         <th class="cache-table-header-cell action-cell">操作</th>
                     </tr>
                 </thead>
@@ -195,49 +172,25 @@
                                 </el-tag>
                             </td>
                         </template>
-                        <!-- 实时翻译缓存特有的列 -->
-                        <template v-if="selectedCacheType === 'realtime_translation'">
-                            <td class="cache-table-cell translator-cell">
-                                <el-tag
-                                    size="small"
-                                    :type="getTranslatorTagType(entry.translator_type)"
-                                    v-text="entry.translator_type">
-                                </el-tag>
-                            </td>
-                            <td class="cache-table-cell count-cell">
-                                <span v-text="entry.cached_pages_count"></span>
-                            </td>
-                            <td class="cache-table-cell range-cell">
-                                <span v-if="entry.cached_pages_count > 0">
-                                    第<span v-text="entry.first_page + 1"></span>-<span v-text="entry.last_page + 1"></span>页
-                                </span>
-                                <span v-else>无</span>
-                            </td>
-                            <td class="cache-table-cell source-cell">
-                                <el-tag
-                                    v-for="source in entry.cache_sources"
-                                    :key="source"
-                                    size="small"
-                                    type="info"
-                                    style="margin-right: 4px;"
-                                    v-text="getCacheSourceName(source)">
-                                </el-tag>
-                            </td>
-                            <td class="cache-table-cell action-cell">
-                                <el-button
-                                    size="small"
-                                    type="danger"
-                                    @click="clearMangaTranslatorCache(entry.manga_path, entry.translator_type)">
-                                    清理
-                                </el-button>
-                            </td>
-                        </template>
+
                         <td class="cache-table-cell action-cell">
+                            <!-- 对大多数类型，显示"编辑"按钮 -->
                             <el-button
+                                v-if="selectedCacheType !== 'persistent_translation'"
                                 size="small"
                                 text
                                 @click="editCacheEntry(entry)">
                                 编辑
+                            </el-button>
+
+                            <!-- 仅当选择"持久化翻译"时，显示"删除"按钮 -->
+                            <el-button
+                                v-if="selectedCacheType === 'persistent_translation'"
+                                size="small"
+                                type="danger"
+                                text
+                                @click="deleteCacheEntry(entry)">
+                                删除
                             </el-button>
                         </td>
                     </tr>

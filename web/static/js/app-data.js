@@ -44,7 +44,7 @@ window.AppData = {
         { key: 'manga_list', name: '漫画列表', icon: 'menu_book', description: '漫画文件扫描结果缓存' }, // Replaced Emoji
         { key: 'ocr', name: 'OCR识别', icon: 'translate', description: '文字识别结果缓存' },        // Replaced Emoji
         { key: 'translation', name: '翻译结果', icon: 'language', description: '翻译结果缓存' },    // Replaced Emoji
-        { key: 'realtime_translation', name: '实时翻译', icon: 'auto_awesome', description: '实时翻译完整数据缓存' }, // 新增
+        { key: 'persistent_translation', name: '持久化翻译', icon: 'save', description: '按页存储的完整翻译结果缓存' },
         { key: 'harmonization_map', name: '和谐映射', icon: 'shield', description: '内容和谐化映射缓存' } // Replaced Emoji
     ],
     selectedCacheType: null,

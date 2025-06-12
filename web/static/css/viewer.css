@@ -1,3 +1,8 @@
+/* 禁用所有动画和过渡 */
+* {
+    transition: none !important;
+    animation: none !important;
+}
 /* 漫画查看器样式 */
 
 /* 全局样式重置 */
