@@ -82,7 +82,6 @@ class CoreInterfaceError(Exception):
 
 
 
-
 class CoreInterface:
     """Web UI与Core模块的统一接口"""
 
@@ -172,7 +171,15 @@ class CoreInterface:
         """获取缩略图缓存管理器实例（懒加载）"""
         if self._thumbnail_cache is None:
             try:
-                self._thumbnail_cache = ThumbnailCache()
+                self._thumbnail_cache = ThumbnailCache(
+                    cache_dir=config.thumbnail_cache_dir.value,
+                    output_size=(
+                        config.thumbnail_output_width.value,
+                        config.thumbnail_output_height.value
+                    ),
+                    quality=config.thumbnail_quality.value,
+                    max_cache_size_mb=config.thumbnail_max_size_mb.value
+                )
                 log.info("缩略图缓存管理器初始化成功")
             except Exception as e:
                 log.error(f"缩略图缓存管理器初始化失败: {e}")
@@ -269,17 +276,12 @@ class CoreInterface:
         try:
             web_manga_list = []
 
-            # DEBUG: 检查manga_manager返回的数据
-            for i, manga_info in enumerate(self.manga_manager.manga_list[:5]):  # 只检查前5个
-                log.debug(f"DEBUG 接口层原始 {i}: title={manga_info.title}, dimension_variance={getattr(manga_info, 'dimension_variance', 'N/A')}, 类型={type(getattr(manga_info, 'dimension_variance', None))}")
+            # # DEBUG: 检查manga_manager返回的数据 (Startup performance optimization)
+            # for i, manga_info in enumerate(self.manga_manager.manga_list[:5]):  # 只检查前5个
+            #     log.debug(f"DEBUG 接口层原始 {i}: title={manga_info.title}, dimension_variance={getattr(manga_info, 'dimension_variance', 'N/A')}, 类型={type(getattr(manga_info, 'dimension_variance', None))}")
 
             for manga_info in self.manga_manager.manga_list:
                 web_manga = self._convert_manga_info(manga_info)
-
-                # DEBUG: 检查转换后的数据
-                if not manga_info.file_path.endswith('/') and len(web_manga_list) < 5:  # 只检查前5个ZIP文件
-                    log.debug(f"DEBUG 接口层转换后: file_path={manga_info.file_path}, dimension_variance={getattr(web_manga, 'dimension_variance', 'N/A')}, 类型={type(getattr(web_manga, 'dimension_variance', None))}")
-
                 web_manga_list.append(web_manga)
 
             # 按最后修改时间排序（最新的在前）
@@ -366,11 +368,11 @@ class CoreInterface:
             log.error(f"获取漫画封面失败 {manga_path}: {e}")
             return None
 
-    def get_manga_thumbnail(self, manga_path: str, max_size: int = 300) -> Optional[str]:
+    def get_manga_thumbnail(self, manga_path: str) -> Optional[str]:
         """获取漫画缩略图的base64编码（使用缓存）"""
         try:
             # 获取缩略图文件路径
-            thumbnail_path = self.thumbnail_cache.get_thumbnail_path(manga_path, max_size)
+            thumbnail_path = self.thumbnail_cache.get_thumbnail_path(manga_path)
             if not thumbnail_path:
                 return None
 

@@ -388,7 +388,7 @@ class MangaTranslatorDesktop:
             log.info(f"窗口创建后的实例: {self.window}")
 
             log.info("🎉 启动PyWebView事件循环...")
-            webview.start(debug=True) # 启用调试模式
+            webview.start(debug=False) # 启用调试模式
 
             log.info("👋 桌面应用程序已关闭")
             return True

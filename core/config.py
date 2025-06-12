@@ -185,6 +185,13 @@ class Config:
         )
         self.filter_non_manga = ConfigItem("Manga", "FilterNonManga", False)  # 是否过滤非漫画文件
 
+        # ==================== 缩略图缓存设置 ====================
+        self.thumbnail_cache_dir = ConfigItem("ThumbnailCache", "CacheDirectory", "cache/thumbnails")
+        self.thumbnail_output_width = RangeConfigItem("ThumbnailCache", "OutputWidth", 256, validator=RangeValidator(100, 1024))
+        self.thumbnail_output_height = RangeConfigItem("ThumbnailCache", "OutputHeight", 342, validator=RangeValidator(100, 1024))
+        self.thumbnail_quality = RangeConfigItem("ThumbnailCache", "Quality", 75, validator=RangeValidator(10, 100))
+        self.thumbnail_max_size_mb = RangeConfigItem("ThumbnailCache", "MaxSizeMB", 500, validator=RangeValidator(50, 10240))
+
         # ==================== MangaManager 状态 ====================
         self.manga_dir = ConfigItem("Manager", "MangaDirectory", "")
         self.current_page = ConfigItem("Manager", "CurrentPage", 0)

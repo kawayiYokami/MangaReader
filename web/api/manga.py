@@ -448,7 +448,7 @@ async def get_manga_thumbnail_post(
             raise HTTPException(status_code=400, detail="缺少manga_path参数")
 
         # 获取缩略图文件路径
-        thumbnail_path = interface.thumbnail_cache.get_thumbnail_path(manga_path, size)
+        thumbnail_path = interface.thumbnail_cache.get_thumbnail_path(manga_path)
 
         if thumbnail_path and os.path.exists(thumbnail_path):
             # 直接返回文件，让浏览器缓存
