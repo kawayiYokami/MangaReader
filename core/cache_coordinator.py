@@ -59,17 +59,20 @@ class CacheCoordinator:
         cache_key = self.generate_cache_key(manga_path, page_index, target_language, translator_type)
         
         # 1. 检查内存缓存
+        log.debug(f"检查内存缓存: {cache_key}")
         if cache_key in self.memory_cache:
             log.debug(f"内存缓存命中: {cache_key}")
             return True, "memory"
         
         # 2. 检查持久化WebP缓存
+        log.debug(f"检查持久化WebP缓存: {cache_key}")
         if self.persistent_cache.has_cached_translation(manga_path, page_index, target_language):
             log.debug(f"持久化WebP缓存命中: {cache_key}")
             return True, "persistent_webp"
         
         # 3. 检查SQLite缓存
         try:
+            log.debug(f"检查SQLite缓存: {cache_key}")
             sqlite_key = self.sqlite_cache.generate_key(manga_path, page_index, target_language)
             if self.sqlite_cache.get(sqlite_key) is not None:
                 log.debug(f"SQLite缓存命中: {cache_key}")
@@ -78,6 +81,7 @@ class CacheCoordinator:
             log.warning(f"SQLite缓存检查失败: {e}")
         
         # 4. 检查传统缓存
+        log.debug(f"检查传统缓存: {cache_key}")
         if not self.legacy_cache.is_translation_needed(manga_path, page_index, target_language):
             log.debug(f"传统缓存命中: {cache_key}")
             return True, "legacy"

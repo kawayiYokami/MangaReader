@@ -31,8 +31,6 @@ class RealtimeTranslationManager {
 
         // 初始化缓存系统
         this._initializeCacheSystem();
-
-        console.log('实时翻译管理器初始化完成 (增强缓存版本)');
     }
 
     /**
@@ -62,13 +60,11 @@ class RealtimeTranslationManager {
             if (translatedCache) {
                 const data = JSON.parse(translatedCache);
                 this.translatedPages = new Map(data);
-                console.log(`从存储恢复翻译缓存: ${this.translatedPages.size} 项`);
             }
 
             if (originalCache) {
                 const data = JSON.parse(originalCache);
                 this.originalPages = new Map(data);
-                console.log(`从存储恢复原始缓存: ${this.originalPages.size} 项`);
             }
 
             if (metadataCache) {
@@ -76,7 +72,7 @@ class RealtimeTranslationManager {
                 this.cacheMetadata = new Map(data);
             }
         } catch (error) {
-            console.warn('加载缓存失败:', error);
+            // 静默处理缓存加载失败
         }
     }
 
@@ -85,16 +81,12 @@ class RealtimeTranslationManager {
      */
     _saveCacheToStorage() {
         if (!this.cacheConfig.enablePersistence) {
-            console.log('💾 localStorage持久化已禁用，跳过localStorage保存');
             return;
         }
-
-        const timestamp = new Date().toLocaleTimeString();
 
         try {
             // 检查存储配额
             if (this.cacheConfig.enableStorageCheck && !this._checkStorageQuota()) {
-                console.warn(`⚠️ [${timestamp}] localStorage配额不足，跳过保存`);
                 return;
             }
 
@@ -107,24 +99,18 @@ class RealtimeTranslationManager {
             const estimatedSize = this._estimateDataSize(translatedData, originalData, metadataData);
 
             if (estimatedSize > this.cacheConfig.maxStorageSize) {
-                console.warn(`⚠️ [${timestamp}] 缓存数据过大 (${(estimatedSize / 1024 / 1024).toFixed(2)}MB)，执行清理`);
                 this._cleanupForStorage();
                 return; // 清理后不再尝试保存，避免递归
             }
 
             // 分别保存，捕获每个操作的错误
-            this._saveToLocalStorageWithFallback('rt_translated_cache', translatedData, '翻译缓存');
-            this._saveToLocalStorageWithFallback('rt_original_cache', originalData, '原始缓存');
-            this._saveToLocalStorageWithFallback('rt_metadata_cache', metadataData, '元数据缓存');
-
-            console.log(`✅ [${timestamp}] 缓存保存成功 (大小: ${(estimatedSize / 1024).toFixed(1)}KB)`);
+            this._saveToLocalStorageWithFallback('rt_translated_cache', translatedData);
+            this._saveToLocalStorageWithFallback('rt_original_cache', originalData);
+            this._saveToLocalStorageWithFallback('rt_metadata_cache', metadataData);
 
         } catch (error) {
-            console.error(`❌ [${timestamp}] 保存缓存失败:`, error);
-
             // 如果是配额错误，清理缓存并禁用持久化
             if (error.name === 'QuotaExceededError') {
-                console.warn(`⚠️ [${timestamp}] 检测到配额超限，禁用持久化缓存`);
                 this.cacheConfig.enablePersistence = false;
                 this._clearAllLocalStorage();
             }
@@ -134,25 +120,20 @@ class RealtimeTranslationManager {
     /**
      * 安全保存到localStorage，带降级处理
      */
-    _saveToLocalStorageWithFallback(key, data, description) {
+    _saveToLocalStorageWithFallback(key, data) {
         try {
             const jsonString = JSON.stringify(data);
             localStorage.setItem(key, jsonString);
-            console.log(`💾 ${description}保存成功 (${(jsonString.length / 1024).toFixed(1)}KB)`);
         } catch (error) {
             if (error.name === 'QuotaExceededError') {
-                console.warn(`⚠️ ${description}保存失败：配额超限`);
                 // 尝试清理其他缓存后重试
                 this._clearOtherLocalStorageData();
                 try {
                     localStorage.setItem(key, JSON.stringify(data));
-                    console.log(`💾 ${description}重试保存成功`);
                 } catch (retryError) {
-                    console.error(`❌ ${description}重试保存仍然失败:`, retryError);
                     throw retryError;
                 }
             } else {
-                console.error(`❌ ${description}保存失败:`, error);
                 throw error;
             }
         }
@@ -196,12 +177,9 @@ class RealtimeTranslationManager {
      * 为存储清理缓存
      */
     _cleanupForStorage() {
-        const timestamp = new Date().toLocaleTimeString();
-        console.log(`🧹 [${timestamp}] 开始清理缓存以释放存储空间`);
-
         // 清理最旧的翻译缓存
         const translatedEntries = [...this.cacheMetadata.entries()]
-            .filter(([key, metadata]) => metadata.type === 'translated')
+            .filter(([, metadata]) => metadata.type === 'translated')
             .sort(([,a], [,b]) => a.lastAccess - b.lastAccess);
 
         const toRemove = Math.ceil(translatedEntries.length * 0.5); // 清理50%
@@ -210,8 +188,6 @@ class RealtimeTranslationManager {
             this.translatedPages.delete(key);
             this.cacheMetadata.delete(key);
         }
-
-        console.log(`🧹 [${timestamp}] 清理完成，移除${toRemove}个翻译缓存项`);
     }
 
     /**
@@ -232,13 +208,12 @@ class RealtimeTranslationManager {
                 try {
                     localStorage.removeItem(key);
                 } catch (error) {
-                    console.warn(`清理localStorage键失败: ${key}`, error);
+                    // 静默处理清理失败
                 }
             });
 
-            console.log(`🧹 清理了${keysToRemove.length}个localStorage项`);
         } catch (error) {
-            console.warn('清理其他localStorage数据失败:', error);
+            // 静默处理清理失败
         }
     }
 
@@ -250,9 +225,8 @@ class RealtimeTranslationManager {
             localStorage.removeItem('rt_translated_cache');
             localStorage.removeItem('rt_original_cache');
             localStorage.removeItem('rt_metadata_cache');
-            console.log('🧹 已清理所有实时翻译localStorage缓存');
         } catch (error) {
-            console.warn('清理localStorage失败:', error);
+            // 静默处理清理失败
         }
     }
 
@@ -277,7 +251,6 @@ class RealtimeTranslationManager {
         this._limitCacheSize();
 
         if (cleanedCount > 0) {
-            console.log(`清理过期缓存: ${cleanedCount} 项`);
             this._saveCacheToStorage();
         }
     }
@@ -318,7 +291,6 @@ class RealtimeTranslationManager {
         if (preferTranslated) {
             // 1. 前端翻译页面缓存
             if (this.translatedPages.has(cacheKey)) {
-                console.log(`前端翻译缓存命中: ${cacheKey}`);
                 this._updateCacheAccess(cacheKey);
                 return {
                     type: 'translated',
@@ -330,7 +302,6 @@ class RealtimeTranslationManager {
             // 2. 后端翻译结果缓存
             const translatedPage = await this.getTranslatedPage(mangaPath, pageIndex);
             if (translatedPage) {
-                console.log(`后端翻译缓存命中: ${cacheKey}`);
                 return {
                     type: 'translated',
                     data: translatedPage,
@@ -341,7 +312,6 @@ class RealtimeTranslationManager {
 
         // 3. 前端原始页面缓存
         if (this.originalPages.has(cacheKey)) {
-            console.log(`前端原始缓存命中: ${cacheKey}`);
             this._updateCacheAccess(cacheKey);
             return {
                 type: 'original',
@@ -352,7 +322,6 @@ class RealtimeTranslationManager {
 
         // 4. 发起新的翻译请求（如果需要翻译）
         if (preferTranslated && this.isServiceRunning) {
-            console.log(`缓存未命中，发起翻译请求: ${cacheKey}`);
             await this.requestTranslation(mangaPath, pageIndex);
         }
 
@@ -383,8 +352,6 @@ class RealtimeTranslationManager {
 
         this._limitCacheSize();
         this._saveCacheToStorage();
-
-        console.log(`缓存原始页面: ${cacheKey}`);
     }
 
     /**
@@ -419,19 +386,17 @@ class RealtimeTranslationManager {
             if (result.success) {
                 this.isServiceRunning = true;
                 this._startStatusMonitoring();
-                console.log('实时翻译服务启动成功:', result.message);
-                
+
                 if (this.onStatusChanged) {
                     this.onStatusChanged('service_started', result);
                 }
-                
+
                 return true;
             } else {
                 throw new Error(result.message || '启动服务失败');
             }
-            
+
         } catch (error) {
-            console.error('启动实时翻译服务失败:', error);
             // 检查是否有ElMessage可用
             if (typeof ElMessage !== 'undefined') {
                 ElMessage.error(`启动翻译服务失败: ${error.message}`);
@@ -455,19 +420,17 @@ class RealtimeTranslationManager {
                 this.isServiceRunning = false;
                 this._stopStatusMonitoring();
                 this.translatedPages.clear();
-                console.log('实时翻译服务停止成功');
-                
+
                 if (this.onStatusChanged) {
                     this.onStatusChanged('service_stopped', result);
                 }
-                
+
                 return true;
             } else {
                 throw new Error(result.message || '停止服务失败');
             }
-            
+
         } catch (error) {
-            console.error('停止实时翻译服务失败:', error);
             // 检查是否有ElMessage可用
             if (typeof ElMessage !== 'undefined') {
                 ElMessage.error(`停止翻译服务失败: ${error.message}`);
@@ -482,10 +445,9 @@ class RealtimeTranslationManager {
     async setCurrentManga(mangaPath, currentPage = 0) {
         try {
             if (!this.isServiceRunning) {
-                console.warn('翻译服务未启动，无法设置当前漫画');
                 return false;
             }
-            
+
             const response = await fetch('/api/realtime-translation/set-current-manga', {
                 method: 'POST',
                 headers: {
@@ -496,34 +458,31 @@ class RealtimeTranslationManager {
                     current_page: currentPage
                 })
             });
-            
+
             const result = await response.json();
-            
+
             if (result.success) {
                 // 如果切换了漫画，清空缓存
                 if (this.currentManga !== mangaPath) {
                     this.translatedPages.clear();
                 }
-                
+
                 this.currentManga = mangaPath;
                 this.currentPage = currentPage;
-                
-                console.log('设置当前漫画成功:', result.message);
-                
+
                 if (this.onStatusChanged) {
                     this.onStatusChanged('manga_changed', {
                         manga_path: mangaPath,
                         current_page: currentPage
                     });
                 }
-                
+
                 return true;
             } else {
                 throw new Error(result.message || '设置当前漫画失败');
             }
-            
+
         } catch (error) {
-            console.error('设置当前漫画失败:', error);
             ElMessage.error(`设置当前漫画失败: ${error.message}`);
             return false;
         }
@@ -535,51 +494,41 @@ class RealtimeTranslationManager {
     async requestTranslation(mangaPath, pageIndices, priority = 10) {
         try {
             if (!this.isServiceRunning) {
-                console.warn('翻译服务未启动，无法请求翻译');
                 return false;
             }
 
             const indices = Array.isArray(pageIndices) ? pageIndices : [pageIndices];
 
-            // 过滤已缓存的页面，减少重复请求（修复版本）
+            // 过滤已缓存的页面，减少重复请求
             const uncachedIndices = [];
-            const timestamp = new Date().toLocaleTimeString();
 
             for (const pageIndex of indices) {
                 const translationCacheKey = `TRANS_${mangaPath}:${pageIndex}`;
-                const timestamp_inner = new Date().toLocaleTimeString();
 
                 // 1. 检查前端翻译页面缓存（内存base64）
                 if (this.translatedPages.has(translationCacheKey)) {
-                    console.log(`💾 [${timestamp_inner}] 页面${pageIndex + 1}前端翻译缓存命中（内存base64），跳过请求 (键: ${translationCacheKey})`);
                     continue;
                 }
 
                 // 2. 检查后端持久化WebP缓存（磁盘文件）
                 const hasBackendWebPCache = await this._quickCheckPersistentWebPCache(mangaPath, pageIndex);
                 if (hasBackendWebPCache) {
-                    console.log(`🗄️ [${timestamp_inner}] 页面${pageIndex + 1}后端持久化WebP缓存命中（磁盘文件），跳过请求`);
                     continue;
                 }
 
                 // 3. 检查后端实时翻译工具缓存（内存数组）
                 const hasBackendTranslationToolCache = await this._quickCheckBackendTranslationToolCache(mangaPath, pageIndex);
                 if (hasBackendTranslationToolCache) {
-                    console.log(`🧠 [${timestamp_inner}] 页面${pageIndex + 1}后端翻译工具缓存命中（内存数组），跳过请求`);
                     continue;
                 }
 
                 // 4. 页面需要翻译，加入请求队列
                 uncachedIndices.push(pageIndex);
-                console.log(`🔄 [${timestamp_inner}] 页面${pageIndex + 1}需要翻译，加入请求队列`);
             }
 
             if (uncachedIndices.length === 0) {
-                console.log(`✅ [${timestamp}] 所有${indices.length}个页面都已有翻译缓存，跳过翻译请求`);
                 return true;
             }
-
-            console.log(`请求翻译 ${uncachedIndices.length}/${indices.length} 个页面:`, uncachedIndices);
 
             const response = await fetch('/api/realtime-translation/request-translation', {
                 method: 'POST',
@@ -596,14 +545,12 @@ class RealtimeTranslationManager {
             const result = await response.json();
 
             if (result.success) {
-                console.log('请求翻译成功:', result.message);
                 return true;
             } else {
                 throw new Error(result.message || '请求翻译失败');
             }
 
         } catch (error) {
-            console.error('请求翻译失败:', error);
             return false;
         }
     }
@@ -620,14 +567,12 @@ class RealtimeTranslationManager {
                 const hasCache = result.has_cache === true;
                 const cacheSource = result.cache_source;
                 if (hasCache && (cacheSource === 'persistent_webp' || cacheSource === 'memory')) {
-                    console.log(`🗄️ 后端持久化WebP缓存检查: 页面${pageIndex + 1} -> 命中 (来源: ${cacheSource})`);
                     return true;
                 }
             }
 
             return false;
         } catch (error) {
-            console.debug('检查后端持久化WebP缓存失败:', error);
             return false;
         }
     }
@@ -644,14 +589,12 @@ class RealtimeTranslationManager {
                 const hasCache = result.has_cache === true;
                 const cacheSource = result.cache_source;
                 if (hasCache && (cacheSource === 'memory' || cacheSource === 'translation_tool')) {
-                    console.log(`🧠 后端翻译工具缓存检查: 页面${pageIndex + 1} -> 命中 (来源: ${cacheSource})`);
                     return true;
                 }
             }
 
             return false;
         } catch (error) {
-            console.debug('检查后端翻译工具缓存失败:', error);
             return false;
         }
     }
@@ -670,7 +613,6 @@ class RealtimeTranslationManager {
 
             return false;
         } catch (error) {
-            console.debug('快速检查传统磁盘缓存失败:', error);
             return false;
         }
     }
@@ -679,20 +621,14 @@ class RealtimeTranslationManager {
      * 获取翻译后的页面（四层缓存架构版本）
      */
     async getTranslatedPage(mangaPath, pageIndex) {
-        const timestamp = new Date().toLocaleTimeString();
         const translationCacheKey = `TRANS_${mangaPath}:${pageIndex}`;
 
         try {
-            console.log(`🔍 [${timestamp}] 四层缓存架构: 获取翻译页面 ${pageIndex + 1}`);
-
             // 1. 检查前端翻译页面缓存（内存base64）
             if (this.translatedPages.has(translationCacheKey)) {
-                console.log(`💾 [${timestamp}] 页面${pageIndex + 1}前端翻译缓存命中（内存base64） (键: ${translationCacheKey})`);
                 this._updateCacheAccess(translationCacheKey);
                 return this.translatedPages.get(translationCacheKey);
             }
-
-            console.log(`🔍 [${timestamp}] 检查后端三层缓存: 页面${pageIndex + 1}`);
 
             // 2. 通过API检查后端三层缓存（持久化WebP + 翻译工具 + 原始漫画）
             const response = await fetch(`/api/realtime-translation/translated-page/${encodeURIComponent(mangaPath)}/${pageIndex}`);
@@ -704,20 +640,6 @@ class RealtimeTranslationManager {
                                  result.image_data.length > 0;
 
             if (result.is_translated && hasValidData) {
-                // 根据缓存来源显示详细日志
-                let cacheSource = '未知缓存';
-                if (result.cache_source === 'persistent_webp') {
-                    cacheSource = '后端持久化WebP缓存（磁盘文件）';
-                } else if (result.cache_source === 'memory') {
-                    cacheSource = '后端内存缓存（快速访问）';
-                } else if (result.cache_source === 'sqlite') {
-                    cacheSource = '后端SQLite缓存（完整数据）';
-                } else if (result.cache_source === 'legacy') {
-                    cacheSource = '后端传统缓存（兼容性）';
-                }
-
-                console.log(`🗄️ [${timestamp}] 页面${pageIndex + 1}${cacheSource}命中 (数据长度: ${result.image_data.length}字符)`);
-
                 // 检查是否是新的翻译结果
                 const isNewTranslation = !this.translatedPages.has(translationCacheKey);
 
@@ -726,29 +648,11 @@ class RealtimeTranslationManager {
 
                 // 只有新的翻译结果才触发回调
                 if (isNewTranslation && this.onTranslationCompleted) {
-                    console.log(`🔔 [${timestamp}] 触发翻译完成回调: 页面${pageIndex + 1}`);
                     this.onTranslationCompleted(mangaPath, pageIndex, result.image_data);
                 }
 
                 return result.image_data;
             } else {
-                // 详细的错误信息，帮助调试
-                const debugInfo = {
-                    is_translated: result.is_translated,
-                    has_image_data: !!result.image_data,
-                    data_type: typeof result.image_data,
-                    data_length: result.image_data ? result.image_data.length : 0,
-                    cache_source: result.cache_source || 'unknown',
-                    error: result.error || 'no_error'
-                };
-
-                // 如果是页面不存在错误，使用debug级别避免日志污染
-                if (result.error && result.error.includes('页面索引超出范围')) {
-                    console.debug(`📄 [${timestamp}] 页面${pageIndex + 1}不存在:`, debugInfo);
-                } else {
-                    console.log(`❌ [${timestamp}] 页面${pageIndex + 1}数据验证失败:`, debugInfo);
-                }
-
                 // 对于明确的错误（如页面不存在），标记为已处理，避免重复检查
                 if (result.error) {
                     const errorCacheKey = `ERROR_${mangaPath}:${pageIndex}`;
@@ -759,7 +663,6 @@ class RealtimeTranslationManager {
             return null;
 
         } catch (error) {
-            console.error(`❌ [${timestamp}] 四层缓存架构: 获取翻译页面失败 ${pageIndex + 1}:`, error);
             return null;
         }
     }
@@ -776,18 +679,8 @@ class RealtimeTranslationManager {
      * 带类型标记的缓存页面方法
      */
     _cacheTranslatedPageWithType(mangaPath, pageIndex, imageData, cacheType) {
-        const timestamp = new Date().toLocaleTimeString();
         const cacheKey = cacheType === 'translated' ? `TRANS_${mangaPath}:${pageIndex}` : `ORIG_${mangaPath}:${pageIndex}`;
         const targetCache = cacheType === 'translated' ? this.translatedPages : this.originalPages;
-
-        // 检查是否已存在
-        const wasExisting = targetCache.has(cacheKey);
-
-        // 验证缓存内容类型
-        if (cacheType === 'translated' && imageData) {
-            // 简单验证：翻译图像通常包含特定的base64前缀或格式
-            console.log(`🔍 [${timestamp}] 验证翻译图像数据: 页面${pageIndex + 1}, 数据长度: ${imageData.length}字符`);
-        }
 
         targetCache.set(cacheKey, imageData);
 
@@ -801,10 +694,6 @@ class RealtimeTranslationManager {
 
         this._limitCacheSize();
         this._saveCacheToStorage();
-
-        const action = wasExisting ? '更新' : '新增';
-        const cacheTypeName = cacheType === 'translated' ? '前端翻译缓存（内存base64）' : '前端原始缓存（内存base64）';
-        console.log(`💾 [${timestamp}] ${action}${cacheTypeName}: 页面${pageIndex + 1} (键: ${cacheKey}, 大小: ${targetCache.size})`);
     }
     
     /**
@@ -822,9 +711,8 @@ class RealtimeTranslationManager {
             }
             
             return {};
-            
+
         } catch (error) {
-            console.error('检查翻译状态失败:', error);
             return {};
         }
     }
@@ -837,9 +725,8 @@ class RealtimeTranslationManager {
             const response = await fetch('/api/realtime-translation/status');
             const status = await response.json();
             return status;
-            
+
         } catch (error) {
-            console.error('获取翻译状态失败:', error);
             return null;
         }
     }
@@ -860,14 +747,12 @@ class RealtimeTranslationManager {
             const result = await response.json();
             
             if (result.success) {
-                console.log('自动翻译请求成功:', result.message);
                 return true;
             }
-            
+
             return false;
-            
+
         } catch (error) {
-            console.error('自动翻译失败:', error);
             return false;
         }
     }
@@ -877,7 +762,6 @@ class RealtimeTranslationManager {
      */
     setAutoTranslate(enabled) {
         this.autoTranslateEnabled = enabled;
-        console.log('自动翻译设置:', enabled ? '启用' : '禁用');
     }
     
     /**
@@ -965,7 +849,6 @@ class RealtimeTranslationManager {
             for (const pageIndex of pagesToCheck) {
                 // 确保页面索引在有效范围内
                 if (pageIndex < 0 || pageIndex >= totalPages) {
-                    console.debug(`跳过无效页面索引: ${pageIndex + 1} (总页数: ${totalPages})`);
                     continue;
                 }
 
@@ -974,21 +857,14 @@ class RealtimeTranslationManager {
                 // 如果本地缓存中没有，检查服务器
                 if (!this.translatedPages.has(translationCacheKey)) {
                     try {
-                        const result = await this.getTranslatedPage(this.currentManga, pageIndex);
-
-                        // 如果返回错误（如页面不存在），记录但继续检查其他页面
-                        if (result === null) {
-                            console.debug(`页面${pageIndex + 1}检查失败，但继续检查其他页面`);
-                        }
+                        await this.getTranslatedPage(this.currentManga, pageIndex);
                     } catch (error) {
-                        console.debug(`页面${pageIndex + 1}检查出错:`, error);
                         // 继续检查其他页面，不中断
                     }
                 }
             }
         } catch (error) {
             // 静默处理错误，避免干扰正常使用
-            console.debug('检查翻译状态失败:', error);
         }
     }
 
@@ -1020,7 +896,7 @@ class RealtimeTranslationManager {
         let totalAccess = 0;
         let cacheHits = 0;
 
-        for (const [key, metadata] of this.cacheMetadata.entries()) {
+        for (const [, metadata] of this.cacheMetadata.entries()) {
             if (metadata.accessCount) {
                 totalAccess += metadata.accessCount;
                 cacheHits += metadata.accessCount;
@@ -1033,7 +909,7 @@ class RealtimeTranslationManager {
 
         // 最近访问的页面
         const recentEntries = [...this.cacheMetadata.entries()]
-            .filter(([key, metadata]) => metadata.lastAccess)
+            .filter(([, metadata]) => metadata.lastAccess)
             .sort(([, a], [, b]) => b.lastAccess - a.lastAccess)
             .slice(0, 10);
 
@@ -1086,7 +962,6 @@ class RealtimeTranslationManager {
         }
 
         this._saveCacheToStorage();
-        console.log(`清空${type}缓存: ${clearedCount} 项`);
 
         return clearedCount;
     }
@@ -1095,8 +970,6 @@ class RealtimeTranslationManager {
      * 智能预加载页面缓存（与前端预加载策略协调）
      */
     async preloadPages(mangaPath, currentPage, mode = 'single') {
-        const timestamp = new Date().toLocaleTimeString();
-
         // 预加载配置（与前端保持一致）
         const preloadConfig = {
             immediate: { single: 1, double: 2 },
@@ -1105,8 +978,6 @@ class RealtimeTranslationManager {
 
         const immediateRange = preloadConfig.immediate[mode];
         const progressiveRange = preloadConfig.progressive[mode];
-
-        console.log(`🔄 [${timestamp}] 实时翻译模块: 智能预加载开始 (模式: ${mode})`);
 
         try {
             // 第一阶段：立即预加载相邻页面的翻译
@@ -1119,7 +990,6 @@ class RealtimeTranslationManager {
             }
 
             if (immediatePages.length > 0) {
-                console.log(`⚡ [${timestamp}] 实时翻译模块: 立即预加载 ${immediatePages.map(p => p + 1).join(', ')}`);
                 await this.requestTranslation(mangaPath, immediatePages, 6); // 中高优先级
             }
 
@@ -1144,13 +1014,12 @@ class RealtimeTranslationManager {
                 }
 
                 if (progressivePages.length > 0) {
-                    console.log(`🔮 [${timestamp}] 实时翻译模块: 渐进式预加载 ${progressivePages.map(p => p + 1).join(', ')}`);
                     await this.requestTranslation(mangaPath, progressivePages, 2); // 低优先级
                 }
             }, 2000); // 延迟2秒
 
         } catch (error) {
-            console.warn(`⚠️ [${timestamp}] 实时翻译模块: 预加载失败:`, error);
+            // 静默处理预加载失败
         }
     }
 
@@ -1169,8 +1038,6 @@ class RealtimeTranslationManager {
         this.cacheMetadata.clear();
 
         this.isServiceRunning = false;
-
-        console.log('实时翻译管理器已销毁');
     }
 }
 
