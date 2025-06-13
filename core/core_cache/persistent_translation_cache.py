@@ -18,7 +18,7 @@ from PIL import Image
 import numpy as np
 from datetime import datetime
 
-from core.cache_key_generator import get_cache_key_generator
+from core.core_cache.cache_key_generator import get_cache_key_generator
 from utils import manga_logger as log
 
 

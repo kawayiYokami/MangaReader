@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 from dataclasses import dataclass
 from enum import Enum
 
-from core.ocr_manager import OCRResult
+from core.ocr.ocr_manager import OCRResult
 from core.config import config
 from utils import manga_logger as log
 
@@ -71,7 +71,7 @@ class MangaTextReplacer:
     def __init__(self):
         """初始化漫画文本替换器"""
         self.font_cache = {}  # 字体缓存
-        self.font_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'font')
+        self.font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'font')
         log.info("MangaTextReplacer初始化完成")
 
     def _get_default_font_path(self) -> str:

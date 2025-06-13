@@ -1,5 +1,25 @@
 // 漫画浏览功能模块
 window.MangaBrowserMethods = {
+// ==================== 主题切换 ====================
+    async onThemeChange(theme) {
+        // 1. 立即应用主题到UI (所有环境都需要)
+        window.themeManager.setTheme(theme);
+
+        // 2. 检查是否为桌面版
+        if (this.runningInDesktopApp) {
+            // 3. 只有桌面版才向服务器发送保存请求
+            try {
+                const response = await axios.put('/api/settings/themeMode', {
+                    key: 'ThemeMode',
+                    value: theme.charAt(0).toUpperCase() + theme.slice(1)
+                });
+            } catch (error) {
+                ElMessage.error('保存主题设置失败');
+            }
+        } else {
+            // 网页版不执行任何操作，仅依赖localStorage
+        }
+    },
     // ==================== 漫画浏览功能 ====================
 
     async loadInitialData() {

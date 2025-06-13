@@ -3,6 +3,9 @@
 {% include 'components/layout/html-head.html' %}
 
 <body>
+    <script>
+        window.initialTheme = "{{ initial_theme | default('auto') }}";
+    </script>
     <div id="app">
         {% include 'components/layout/app-container.html' %}
 
@@ -36,7 +39,7 @@
         }
 
         // 等待所有模块加载完成
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // 开发模式下的调试信息
             if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
                 log('info', '🚀 DOMContentLoaded事件触发');
@@ -96,4 +99,5 @@
         });
     </script>
 </body>
+
 </html>

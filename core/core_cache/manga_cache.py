@@ -3,7 +3,7 @@ import json
 import sqlite3
 from typing import Any, List, Optional, Dict, Tuple # Added Dict, Tuple, sqlite3
 from utils import manga_logger as log
-from core.cache_interface import CacheInterface
+from core.core_cache.cache_interface import CacheInterface
 
 # Cache directory and database file name
 CACHE_DIR = "app/config"

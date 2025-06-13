@@ -15,7 +15,7 @@ import os
 import math
 
 # 导入核心业务逻辑
-from core.cache_factory import get_cache_factory_instance
+from core.core_cache.cache_factory import get_cache_factory_instance
 from core.harmonization_map_manager import get_harmonization_map_manager_instance
 
 log = logging.getLogger(__name__)
@@ -994,7 +994,7 @@ async def clear_cache(cache_type: str):
 
         # 如果清空成功，广播事件
         if result.get("success", False):
-            from core.cache_factory import broadcast_cache_event
+            from core.core_cache.cache_factory import broadcast_cache_event
             await broadcast_cache_event("cleared", cache_type, {"message": result.get("message", "")})
 
         return result

@@ -8,8 +8,8 @@ from typing import List, Tuple, Optional, Dict, Any
 from PySide6.QtCore import QObject, Signal, QThread
 from utils import manga_logger as log
 from core.config import config
-from core.cache_factory import get_cache_factory_instance # Added
-from core.cache_interface import CacheInterface # Added
+from core.core_cache.cache_factory import get_cache_factory_instance # Added
+from core.core_cache.cache_interface import CacheInterface # Added
 from core.data_models import OCRResult # Import OCRResult from data_models
 from OnnxOCR.onnxocr.onnx_paddleocr import ONNXPaddleOcr
 
@@ -454,46 +454,6 @@ class OCRManager(QObject):
     def _on_ocr_progress(self, progress_msg: str):
         """OCR进度回调"""
         self.ocr_progress.emit(progress_msg)
-    
-    def save_ocr_result_image(self, image_data: np.ndarray, ocr_results: List[OCRResult], 
-                             output_path: str) -> bool:
-        """
-        保存带有OCR结果标注的图像
-        
-        Args:
-            image_data: 原始图像数据
-            ocr_results: OCR识别结果
-            output_path: 输出图像路径
-            
-        Returns:
-            是否保存成功
-        """
-        try:
-            from PIL import Image
-            from onnxocr.utils import draw_ocr
-            
-            # 转换图像格式 BGR -> RGB
-            image_rgb = image_data[:, :, ::-1]
-            
-            # 提取文本框、文本和置信度
-            boxes = [result.bbox for result in ocr_results]
-            texts = [result.text for result in ocr_results]
-            scores = [result.confidence for result in ocr_results]
-            
-            # 绘制OCR结果
-            result_image = draw_ocr(image_rgb, boxes, texts, scores)
-            
-            # 转换为PIL图像并保存
-            pil_image = Image.fromarray(result_image)
-            pil_image.save(output_path)
-            
-            log.info(f"OCR结果图像已保存: {output_path}")
-            return True
-            
-        except Exception as e:
-            error_msg = f"保存OCR结果图像时发生错误: {str(e)}"
-            log.error(error_msg)
-            return False
     
     def get_text_only(self, ocr_results: List[OCRResult]) -> str:
         """

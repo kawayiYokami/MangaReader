@@ -299,7 +299,7 @@ window.UtilsMethods = {
                     console.log(`[fetchAvailableFonts] 当前字体无效或未设置, 设置为默认字体: ${defaultFont}`);
                     window.AppData.translationSettings.font_name = defaultFont; // 使用修正后的键名
                     // 异步更新后端设置 - 使用 snake_case
-                    this.updateSetting('font_name', defaultFont).then(() => {
+                    this.updateSetting('fontName', defaultFont).then(() => {
                          console.log(`[fetchAvailableFonts] 后端字体设置已更新为: ${defaultFont}`);
                     });
                 } else {
@@ -337,7 +337,7 @@ window.UtilsMethods = {
 
     onTranslationEngineChange(value) {
         // 使用后端的 snake_case 命名
-        this.updateSetting('translator_type', value);
+        this.updateSetting('translatorType', value);
     },
 
     onZhipuApiKeyChange(value) {
@@ -357,7 +357,7 @@ window.UtilsMethods = {
 
     onFontChange(value) {
         // 使用 snake_case
-        this.updateSetting('font_name', value);
+        this.updateSetting('fontName', value);
     },
 
     // ==================== 系统设置相关方法 ====================

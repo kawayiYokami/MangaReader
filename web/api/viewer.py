@@ -14,7 +14,7 @@ from pydantic import BaseModel
 import uuid
 
 from web.manga_viewer_manager import get_viewer_manager, cleanup_session, get_active_sessions
-from core.translation_factory import get_translation_factory
+from core.translation.translation_factory import get_translation_factory
 from core.config import config
 from utils import manga_logger as log
 

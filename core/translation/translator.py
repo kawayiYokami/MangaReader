@@ -6,8 +6,8 @@ import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional 
 from utils import manga_logger as log 
-from core.cache_factory import get_cache_factory_instance 
-from core.cache_interface import CacheInterface 
+from core.core_cache.cache_factory import get_cache_factory_instance 
+from core.core_cache.cache_interface import CacheInterface 
 
 # 导入deep_translator库
 from deep_translator import GoogleTranslator

@@ -10,10 +10,10 @@ import time
 from typing import Optional, Dict, Any, Tuple
 from enum import Enum
 
-from core.cache_key_generator import get_cache_key_generator
-from core.realtime_translator import get_realtime_translator
-from core.manga_model import MangaLoader
-from core.persistent_translation_cache import get_persistent_translation_cache
+from core.core_cache.cache_key_generator import get_cache_key_generator
+from core.translation.realtime_translator import get_realtime_translator
+from core.manga.manga_model import MangaLoader
+from core.core_cache.persistent_translation_cache import get_persistent_translation_cache
 from core.config import config
 from utils import manga_logger as log
 

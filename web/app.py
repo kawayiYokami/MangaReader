@@ -90,10 +90,17 @@ async def shutdown_event():
 
     log.info("Web应用已关闭")
 
+from core.config import config
+
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """主页"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    theme_value = config.themeMode.value
+    if hasattr(theme_value, 'value'):  # 如果是枚举类型
+        initial_theme = theme_value.value
+    else:  # 如果是字符串
+        initial_theme = str(theme_value).lower()
+    return templates.TemplateResponse("index.html", {"request": request, "initial_theme": initial_theme})
 
 @app.get("/viewer.html", response_class=HTMLResponse)
 async def manga_viewer():

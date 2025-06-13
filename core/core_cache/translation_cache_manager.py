@@ -5,7 +5,7 @@ import sqlite3
 import hashlib # Added for key generation
 from typing import Any, Optional, Dict, List # Added List
 from utils import manga_logger as log
-from core.cache_interface import CacheInterface
+from core.core_cache.cache_interface import CacheInterface
 
 # Cache directory and database file name
 CACHE_DIR = "app/config"

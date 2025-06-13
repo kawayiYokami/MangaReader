@@ -15,9 +15,9 @@ from pathlib import Path
 from functools import wraps
 
 # 导入核心业务逻辑
-from core.image_translator import ImageTranslator
-from core.ocr_manager import OCRManager
-from core.translator import TranslatorFactory
+from core.translation.image_translator import ImageTranslator
+from core.ocr.ocr_manager import OCRManager
+from core.translation.translator import TranslatorFactory
 from core.config import config
 from web.core_interface import CoreInterface, get_core_interface
 from utils import manga_logger as log
@@ -326,7 +326,7 @@ def _execute_translation_task(task_id, temp_file_path, target_lang, translator_e
             task["status"] = "cancelled"
             return
 
-        from core.image_translator import get_image_translator, set_current_translation_process
+        from core.translation.image_translator import get_image_translator, set_current_translation_process
         import threading
         import os
 
@@ -471,7 +471,7 @@ async def cancel_task(task_id: str):
 
     # 同时调用原来的取消方法
     try:
-        from core.image_translator import kill_current_translation
+        from core.translation.image_translator import kill_current_translation
         kill_current_translation()
     except Exception as e:
         log.warning(f"调用原取消方法失败: {e}")
@@ -509,7 +509,7 @@ async def translate_manga(
 
         try:
             # 获取全局图片翻译器实例
-            from core.image_translator import get_image_translator, set_current_translation_process
+            from core.translation.image_translator import get_image_translator, set_current_translation_process
             import threading
             import os
 
@@ -608,7 +608,7 @@ async def clear_translation_history():
     """清空翻译历史"""
     try:
         # 清空翻译缓存
-        from core.cache_factory import get_cache_factory_instance
+        from core.core_cache.cache_factory import get_cache_factory_instance
         translation_cache = get_cache_factory_instance().get_manager("translation")
         translation_cache.clear()
         
@@ -718,7 +718,7 @@ async def compress_lossless(
 ):
     """无损压缩漫画文件为WebP格式"""
     try:
-        from core.image_compressor import get_image_compressor
+        from core.image.image_compressor import get_image_compressor
         from fastapi.responses import FileResponse
 
         # 调试信息：记录请求参数
@@ -789,7 +789,7 @@ async def compress_lossless(
 async def get_compression_status():
     """获取压缩状态"""
     try:
-        from core.image_compressor import get_image_compressor
+        from core.image.image_compressor import get_image_compressor
 
         compressor = get_image_compressor()
         status = compressor.get_compression_status()
@@ -808,7 +808,7 @@ async def get_compression_status():
 async def cancel_compression():
     """取消压缩操作"""
     try:
-        from core.image_compressor import get_image_compressor
+        from core.image.image_compressor import get_image_compressor
 
         compressor = get_image_compressor()
         compressor.cancel_compression()
@@ -826,7 +826,7 @@ async def cancel_compression():
 async def cancel_translation():
     """取消翻译操作 - 直接杀掉翻译实例"""
     try:
-        from core.image_translator import kill_current_translation, get_current_translation_process
+        from core.translation.image_translator import kill_current_translation, get_current_translation_process
 
         # 获取当前翻译进程信息
         current_process = get_current_translation_process()
@@ -861,7 +861,7 @@ async def cancel_translation():
 async def get_translation_status():
     """获取翻译状态"""
     try:
-        from core.image_translator import get_current_translation_process
+        from core.translation.image_translator import get_current_translation_process
 
         current_process = get_current_translation_process()
         is_translating = current_process is not None

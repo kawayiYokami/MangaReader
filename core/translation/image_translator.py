@@ -6,9 +6,9 @@ import threading
 from typing import Optional, Dict, Any, Union, List
 from pathlib import Path
 
-from core.ocr_manager import OCRManager, OCRResult
-from core.translator import TranslatorFactory, ZhipuTranslator, GoogleDeepTranslator
-from core.manga_text_replacer import MangaTextReplacer
+from core.ocr.ocr_manager import OCRManager, OCRResult
+from core.translation.translator import TranslatorFactory, ZhipuTranslator, GoogleDeepTranslator
+from core.manga.manga_text_replacer import MangaTextReplacer
 from core.config import config
 from utils import manga_logger as log
 from core.harmonization_map_manager import get_harmonization_map_manager_instance

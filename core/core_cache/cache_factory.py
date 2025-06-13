@@ -1,11 +1,11 @@
 # core/cache_factory.py
 from typing import Literal, Union, Dict, Any
 import asyncio
-from core.cache_interface import CacheInterface
-from core.manga_cache import MangaListCacheManager
-from core.ocr_cache_manager import OcrCacheManager
-from core.translation_cache_manager import TranslationCacheManager
-from core.persistent_translation_cache import get_persistent_translation_cache
+from core.core_cache.cache_interface import CacheInterface
+from core.core_cache.manga_cache import MangaListCacheManager
+from core.core_cache.ocr_cache_manager import OcrCacheManager
+from core.core_cache.translation_cache_manager import TranslationCacheManager
+from core.core_cache.persistent_translation_cache import get_persistent_translation_cache
 # DangerousWordCacheManager import removed
 
 # Define a type for cache types for better type hinting
@@ -106,7 +106,7 @@ class CacheManagerFactory:
 
 # 全局工厂实例 (可选，但方便访问)
 # cache_factory = CacheManagerFactory()
-# 使用时: from core.cache_factory import cache_factory
+# 使用时: from core.core_cache.cache_factory import cache_factory
 # manager = cache_factory.get_manager("ocr")
 
 # 或者，每次需要时创建工厂实例：

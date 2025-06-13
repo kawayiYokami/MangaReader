@@ -2,12 +2,12 @@
 
 import os
 from PySide6.QtCore import QObject, Signal  # 导入 PySide6 的信号
-from core.manga_model import MangaInfo, MangaLoader
+from core.manga.manga_model import MangaInfo, MangaLoader
 from core.config import config
 from utils import manga_logger as log
-from core.translator import TranslatorFactory
-from core.cache_factory import get_cache_factory_instance # Added
-from core.cache_interface import CacheInterface # Added
+from core.translation.translator import TranslatorFactory
+from core.core_cache.cache_factory import get_cache_factory_instance # Added
+from core.core_cache.cache_interface import CacheInterface # Added
 
 
 class MangaManager(QObject):
@@ -327,7 +327,7 @@ class MangaManager(QObject):
         Args:
             force_reanalyze: 是否强制重新分析（即使已有分析结果）
         """
-        from core.manga_model import MangaLoader
+        from core.manga.manga_model import MangaLoader
         import os
 
         # 筛选需要分析的ZIP漫画（排除文件夹）

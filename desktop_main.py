@@ -38,7 +38,7 @@ def import_dependencies():
         from web.app import app as fastapi_app
         from utils import manga_logger as log
         from web.core_interface import get_core_interface
-        from core.manga_manager import MangaManager # 直接导入 MangaManager
+        from core.manga.manga_manager import MangaManager # 直接导入 MangaManager
 
         print("✅ 成功导入完整Web应用、核心接口及漫画管理器")
         app = fastapi_app
@@ -388,7 +388,7 @@ class MangaTranslatorDesktop:
             log.info(f"窗口创建后的实例: {self.window}")
 
             log.info("🎉 启动PyWebView事件循环...")
-            webview.start(debug=False) # 启用调试模式
+            webview.start(debug=True) # 启用调试模式
 
             log.info("👋 桌面应用程序已关闭")
             return True

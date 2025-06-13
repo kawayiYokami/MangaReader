@@ -10,16 +10,27 @@ class ThemeManager {
     }
 
     init() {
-        // 从localStorage读取保存的主题设置
-        const savedTheme = localStorage.getItem('manga-translator-theme');
-        if (savedTheme) {
-            this.currentTheme = savedTheme;
+        // 优先使用后端注入的初始主题
+        let themeToApply = window.initialTheme;
+
+        // 如果后端没有注入，再从localStorage读取
+        if (!themeToApply) {
+            themeToApply = localStorage.getItem('manga-translator-theme');
         }
         
-        // 应用主题
-        this.applyTheme();
+        // 如果依然没有，则设置一个最终默认值
+        if (!themeToApply) {
+            themeToApply = 'auto';
+        }
         
-        // 监听系统主题变化
+        this.currentTheme = themeToApply;
+        
+        // 确保桌面端的localStorage与config文件同步
+        if (!!window.pywebview) {
+             localStorage.setItem('manga-translator-theme', this.currentTheme);
+        }
+
+        this.applyTheme();
         this.watchSystemTheme();
     }
 
@@ -151,7 +162,10 @@ class ThemeManager {
 }
 
 // 创建全局主题管理器实例
-window.themeManager = new ThemeManager();
+// 延迟初始化，确保 window.initialTheme 已被定义
+document.addEventListener('DOMContentLoaded', () => {
+    window.themeManager = new ThemeManager();
+});
 
 // 导出给其他模块使用
 if (typeof module !== 'undefined' && module.exports) {

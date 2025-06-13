@@ -120,7 +120,7 @@ def main():
     # 检查核心模块是否可用
     try:
         from core.config import config
-        from core.manga_manager import MangaManager
+        from core.manga.manga_manager import MangaManager
         print("✅ 核心业务逻辑模块加载成功")
     except ImportError as e:
         print(f"❌ 无法导入核心模块: {e}")

@@ -14,8 +14,8 @@ from enum import Enum
 from pathlib import Path
 import base64
 
-from core.translation_factory import get_translation_factory, PageStatus
-from core.cache_key_generator import get_cache_key_generator
+from core.translation.translation_factory import get_translation_factory, PageStatus
+from core.core_cache.cache_key_generator import get_cache_key_generator
 from core.config import config
 from web.core_interface import get_core_interface
 from utils import manga_logger as log

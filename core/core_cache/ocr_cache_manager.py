@@ -4,8 +4,8 @@ import json
 import os
 from typing import Any, List, Optional, Tuple, Dict
 
-from core.cache_interface import CacheInterface
-from core.data_models import OCRResult # Corrected import path
+from core.core_cache.cache_interface import CacheInterface
+from core.data_models import OCRResult 
 from utils import manga_logger as log
 
 CACHE_DIR = "app/config"
@@ -208,7 +208,7 @@ class OcrCacheManager(CacheInterface):
         except TypeError as e: # Error during to_dict() or json.dumps
             log.error(f"序列化 OCR 数据失败 (键: {key}): {e}")
         except OSError as e: # Should be caught by _get_file_metadata, but as a safeguard
-            log.error(f"设置缓存时文件操作失败 (文件: {file_path}): {e}")
+            log.error(f"设置缓存时文件操作失败 (文件: {input_image_path}): {e}")
 
 
     def delete(self, key: str) -> None:

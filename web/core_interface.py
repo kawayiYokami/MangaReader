@@ -25,11 +25,11 @@ import hashlib
 import json
 
 # 导入core模块
-from core.manga_manager import MangaManager
-from core.manga_model import MangaInfo, MangaLoader
-from core.thumbnail_cache import ThumbnailCache
+from core.manga.manga_manager import MangaManager
+from core.manga.manga_model import MangaInfo, MangaLoader
+from core.core_cache.thumbnail_cache import ThumbnailCache
 from core.config import config
-from core.cache_factory import get_cache_factory_instance
+from core.core_cache.cache_factory import get_cache_factory_instance
 from utils import manga_logger as log
 
 
@@ -117,7 +117,7 @@ class CoreInterface:
                                 manga_objects = []
                                 for manga_data in cached_manga:
                                     try:
-                                        from core.manga_model import MangaInfo
+                                        from core.manga.manga_model import MangaInfo
                                         file_path = manga_data.get("file_path")
                                         if file_path and os.path.exists(file_path):
                                             manga = MangaInfo(file_path)
@@ -563,7 +563,7 @@ class CoreInterface:
         """从指定路径添加漫画到缓存"""
         try:
             import os
-            from core.manga_model import MangaLoader
+            from core.manga.manga_model import MangaLoader
 
             if not os.path.exists(path):
                 return WebScanResult(
@@ -635,7 +635,7 @@ class CoreInterface:
         """扫描指定目录中的所有漫画文件"""
         try:
             import os
-            from core.manga_model import MangaLoader
+            from core.manga.manga_model import MangaLoader
 
             if not os.path.exists(directory_path):
                 return WebScanResult(
@@ -754,7 +754,7 @@ class CoreInterface:
             包含压缩结果的字典
         """
         try:
-            from core.image_compressor import ImageCompressor
+            from core.image.image_compressor import ImageCompressor
             import tempfile
             import shutil
             from datetime import datetime

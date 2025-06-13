@@ -51,7 +51,7 @@ async def get_all_settings():
         
         # 主题设置
         settings.append(SettingItem(
-            key="themeMode",
+            key="ThemeMode",
             name="主题模式",
             description="应用程序的主题模式",
             value=config.themeMode.value.value if hasattr(config.themeMode.value, 'value') else str(config.themeMode.value),
@@ -313,42 +313,42 @@ async def get_setting(setting_key: str):
 @router.put("/{setting_key}")
 async def update_setting(setting_key: str, request: SettingUpdateRequest):
     """更新单个设置项"""
+    log.info(f"[Debug] 收到更新设置请求: key={setting_key}, value={request.value}")
     try:
         if not hasattr(config, setting_key):
+            log.error(f"[Debug] 更新失败: 设置项 {setting_key} 不存在")
             raise HTTPException(status_code=404, detail=f"设置项 {setting_key} 不存在")
         
-        # 获取配置项
         config_item = getattr(config, setting_key)
-        
-        # 根据设置类型进行值转换和验证
         new_value = request.value
         
-        # 特殊处理枚举类型
-        if setting_key == "themeMode":
+        if setting_key == "ThemeMode":
+            log.info(f"[Debug] 正在处理主题模式更新，新值为: {new_value}")
             if new_value == "Light":
-                new_value = Theme.LIGHT
+                config_item.value = Theme.LIGHT
             elif new_value == "Dark":
-                new_value = Theme.DARK
+                config_item.value = Theme.DARK
             elif new_value == "Auto":
-                new_value = Theme.AUTO
+                config_item.value = Theme.AUTO
             else:
+                log.error(f"[Debug] 无效的主题模式: {new_value}")
                 raise HTTPException(status_code=400, detail="无效的主题模式")
                 
         elif setting_key == "readingOrder":
             if new_value == "从右到左":
-                new_value = ReadingOrder.RIGHT_TO_LEFT
+                config_item.value = ReadingOrder.RIGHT_TO_LEFT
             elif new_value == "从左到右":
-                new_value = ReadingOrder.LEFT_TO_RIGHT
+                config_item.value = ReadingOrder.LEFT_TO_RIGHT
             else:
                 raise HTTPException(status_code=400, detail="无效的阅读方向")
                 
         elif setting_key == "displayMode":
             if new_value == "单页显示":
-                new_value = DisplayMode.SINGLE.value
+                config_item.value = DisplayMode.SINGLE.value
             elif new_value == "双页显示":
-                new_value = DisplayMode.DOUBLE.value
+                config_item.value = DisplayMode.DOUBLE.value
             elif new_value == "自适应":
-                new_value = DisplayMode.ADAPTIVE.value
+                config_item.value = DisplayMode.ADAPTIVE.value
             else:
                 raise HTTPException(status_code=400, detail="无效的显示模式")
         
@@ -368,15 +368,11 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
         elif setting_key == "google_api_key":
             config_item.value = new_value
         elif setting_key == "fontName":
-            # 验证字体名称是否存在于可用字体列表中（可选，但推荐）
-            # 简化处理：直接设置，前端会负责校验和显示
             config_item.value = new_value
         elif setting_key == "log_level":
-            # 验证日志等级
             valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
             if new_value in valid_levels:
                 config_item.value = new_value
-                # 动态更新日志等级
                 from utils.manga_logger import MangaLogger
                 manga_logger = MangaLogger.get_instance()
                 manga_logger.set_level(new_value)
@@ -384,23 +380,28 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
             else:
                 raise HTTPException(status_code=400, detail="无效的日志等级")
         else:
-            # 对于其他通用设置，直接更新
             config_item.value = new_value
         
-        # 保存配置
+        log.info(f"[Debug] 准备保存配置, key={setting_key}, new_value_to_save={config_item.value}")
         config.save()
+        log.info(f"[Debug] 配置已保存。")
         
+        # 在返回之前，再次获取值以确认
+        final_value = config_item.value
+        if hasattr(final_value, 'value'):
+            final_value = final_value.value
+
         return {
             "success": True,
             "message": f"设置 {setting_key} 已更新",
             "key": setting_key,
-            "value": new_value
+            "value": final_value
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"更新设置 {setting_key} 失败: {e}")
+        log.error(f"更新设置 {setting_key} 失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/reset")
