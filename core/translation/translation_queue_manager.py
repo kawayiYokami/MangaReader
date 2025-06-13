@@ -34,7 +34,7 @@ class TranslationQueueManager:
             db_path: 数据库路径
         """
         self.config = config or QueueConfig()
-        self.db_path = db_path or "data/translation_queue.db"
+        self.db_path = db_path or "app/config/translation_queue.db"
         
         # 队列存储
         self._queue: List[TranslationTask] = []
