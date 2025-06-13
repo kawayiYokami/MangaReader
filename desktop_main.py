@@ -40,7 +40,7 @@ def import_dependencies():
         from web.core_interface import get_core_interface
         from core.manga.manga_manager import MangaManager # 直接导入 MangaManager
 
-        print("✅ 成功导入完整Web应用、核心接口及漫画管理器")
+        print("[SUCCESS] 成功导入完整Web应用、核心接口及漫画管理器")
         app = fastapi_app
         log_module = log
         app_type = "full"
@@ -49,14 +49,14 @@ def import_dependencies():
         # 获取漫画管理器实例 - 通常核心接口会持有它
         if hasattr(core_interface_instance, 'manga_manager'):
              manga_manager_instance = core_interface_instance.manga_manager
-             log.info("✅ 成功从核心接口获取漫画管理器实例")
+             log.info("[SUCCESS] 成功从核心接口获取漫画管理器实例")
         else:
-             log.error("❌ 核心接口未能提供漫画管理器实例！")
+             log.error("[ERROR] 核心接口未能提供漫画管理器实例！")
 
 
         return app, log_module, app_type, core_interface_instance, manga_manager_instance
     except ImportError as e:
-        print(f"⚠️ 无法导入完整Web应用、核心接口或漫画管理器: {e}")
+        print(f"[WARNING] 无法导入完整Web应用、核心接口或漫画管理器: {e}")
         # 尝试获取日志模块以便后续使用
         try:
             from utils import manga_logger as log
@@ -70,21 +70,21 @@ def import_dependencies():
 
     # 方案2: 尝试创建简化版Web应用 (如果完整版失败)
     # (简化版代码省略)
-    print("⚠️ 简化版Web应用模式（或导入失败）")
+    print("[WARNING] 简化版Web应用模式（或导入失败）")
     return None, log_module, "simple", None, None
 
 # 导入依赖
 app, log, app_type, core_interface, manga_manager = import_dependencies() # 使用全局变量
 
 if app is None and app_type != "simple":
-     log.error("❌ 无法加载Web应用！")
+     log.error("[ERROR] 无法加载Web应用！")
      sys.exit(1)
 
 if app_type == "full":
     if core_interface is None:
-        log.warning("⚠️ 无法获取核心接口实例，部分后端功能可能受限")
+        log.warning("[WARNING] 无法获取核心接口实例，部分后端功能可能受限")
     if manga_manager is None:
-         log.warning("⚠️ 无法获取漫画管理器实例，目录设置/扫描功能将不可用")
+         log.warning("[WARNING] 无法获取漫画管理器实例，目录设置/扫描功能将不可用")
 
 
 # ----- 后端逻辑实现 (供API或全局函数调用) -----
@@ -110,18 +110,18 @@ def _dispatch_feedback_event(success, message, added=0, failed=0):
 
             // 如果是成功的扫描操作，触发漫画列表刷新
             if ({json.dumps(success)} && ({added} > 0 || "{message}".includes("扫描") || "{message}".includes("设置目录"))) {{
-                console.log("🔄 扫描操作成功，触发漫画列表刷新");
+                console.log(" 扫描操作成功，触发漫画列表刷新");
                 // 延迟500ms后刷新，确保后端数据已更新
                 setTimeout(() => {{
                     // 尝试多种方式触发刷新
                     if (window.Vue && window.Vue.loadMangaData) {{
                         window.Vue.loadMangaData();
-                        console.log("✅ 漫画列表已刷新 (Vue实例)");
+                        console.log("[SUCCESS] 漫画列表已刷新 (Vue实例)");
                     }} else if (window.app && window.app.loadMangaData) {{
                         window.app.loadMangaData();
-                        console.log("✅ 漫画列表已刷新 (app实例)");
+                        console.log("[SUCCESS] 漫画列表已刷新 (app实例)");
                     }} else {{
-                        console.warn("⚠️ 未找到Vue实例或loadMangaData方法，尝试事件触发");
+                        console.warn("[WARNING] 未找到Vue实例或loadMangaData方法，尝试事件触发");
                         // 尝试通过事件触发刷新
                         const refreshEvent = new CustomEvent("refreshMangaList");
                         window.dispatchEvent(refreshEvent);
@@ -315,12 +315,12 @@ class MangaTranslatorDesktop:
         self.api = DesktopApi() # 创建简单的 API 实例
 
         self.setup_logging()
-        log.info("🚀 漫画翻译工具桌面版初始化中...")
+        log.info(" 漫画翻译工具桌面版初始化中...")
         if app_type == "full":
-            if not self.core_interface: log.warning("⚠️ 核心接口未加载")
-            if not self.manga_manager: log.warning("⚠️ 漫画管理器未加载，目录功能不可用")
+            if not self.core_interface: log.warning("[WARNING] 核心接口未加载")
+            if not self.manga_manager: log.warning("[WARNING] 漫画管理器未加载，目录功能不可用")
         elif app_type != "full":
-             log.warning("⚠️ 运行在简化模式或应用导入失败，桌面功能不可用")
+             log.warning("[WARNING] 运行在简化模式或应用导入失败，桌面功能不可用")
 
     def setup_logging(self):
         # (日志配置保持不变)
@@ -330,29 +330,29 @@ class MangaTranslatorDesktop:
     def start_web_server(self):
         # (Web服务器启动逻辑保持不变)
         try:
-            log.info(f"🌐 启动Web服务器: http://{self.host}:{self.port}")
+            log.info(f" 启动Web服务器: http://{self.host}:{self.port}")
             import uvicorn
             uvicorn.run(self.app, host=self.host, port=self.port, log_level="warning", access_log=False)
         except Exception as e:
-            log.error(f"❌ Web服务器启动失败: {e}", exc_info=True); raise
+            log.error(f"[ERROR] Web服务器启动失败: {e}", exc_info=True); raise
 
     def wait_for_server(self, timeout=10):
         # (等待服务器逻辑保持不变)
         import requests
         start_time = time.time(); url = f"http://{self.host}:{self.port}"
-        log.info("⏳ 等待Web服务器启动...")
+        log.info(" 等待Web服务器启动...")
         while time.time() - start_time < timeout:
             try:
-                if requests.get(url, timeout=1).status_code == 200: log.info("✅ Web服务器已就绪"); return True
+                if requests.get(url, timeout=1).status_code == 200: log.info("[SUCCESS] Web服务器已就绪"); return True
             except requests.exceptions.RequestException: pass
             time.sleep(0.5)
-        log.error("❌ Web服务器启动超时"); return False
+        log.error("[ERROR] Web服务器启动超时"); return False
 
     def create_desktop_window(self):
-        log.info("🪟 创建桌面窗口...")
+        log.info(" 创建桌面窗口...")
         try:
             window_config = {
-                'title': '🎌 漫画翻译工具',
+                'title': ' 漫画翻译工具',
                 'url': f"http://{self.host}:{self.port}",
                 'width': 1200, 'height': 800, 'min_size': (800, 600),
                 'resizable': True, 'fullscreen': False, 'minimized': False,
@@ -364,14 +364,14 @@ class MangaTranslatorDesktop:
             self.window = webview.create_window(**window_config)
 
             if self.window:
-                 log.info(f"✅ 桌面窗口创建成功，包含JavaScript API，窗口对象: {self.window}")
+                 log.info(f"[SUCCESS] 桌面窗口创建成功，包含JavaScript API，窗口对象: {self.window}")
             else:
-                 log.error("❌ 窗口对象创建失败！")
+                 log.error("[ERROR] 窗口对象创建失败！")
                  raise Exception("创建PyWebView窗口失败")
 
             return self.window
         except Exception as e:
-            log.error(f"❌ 创建桌面窗口失败: {e}", exc_info=True)
+            log.error(f"[ERROR] 创建桌面窗口失败: {e}", exc_info=True)
             raise
 
     def run(self):
@@ -388,21 +388,21 @@ class MangaTranslatorDesktop:
             self.create_desktop_window()
             log.info(f"窗口创建后的实例: {self.window}")
 
-            log.info("🎉 启动PyWebView事件循环...")
+            log.info(" 启动PyWebView事件循环...")
             webview.start(debug=False) # 启用调试模式
 
-            log.info("👋 桌面应用程序已关闭")
+            log.info(" 桌面应用程序已关闭")
             return True
         except KeyboardInterrupt:
-            log.info("👋 用户中断，正在关闭..."); return True
+            log.info(" 用户中断，正在关闭..."); return True
         except Exception as e:
-            log.error(f"❌ 桌面应用程序运行失败: {e}", exc_info=True); return False
+            log.error(f"[ERROR] 桌面应用程序运行失败: {e}", exc_info=True); return False
         finally:
              log.info("清理全局实例")
              desktop_app_instance = None
 
 def main():
-    print("🎌 漫画翻译工具 - PyWebView桌面版")
+    print(" 漫画翻译工具 - PyWebView桌面版")
     print("=" * 50)
     try:
         # 确保 MangaManager 和 CoreInterface 实例在创建 MangaTranslatorDesktop 之前已准备好
@@ -415,10 +415,10 @@ def main():
 
         desktop_app = MangaTranslatorDesktop()
         success = desktop_app.run()
-        print("✅ Application exited." if success else "❌ Application exited abnormally.")
+        print("[SUCCESS] Application exited." if success else "[ERROR] Application exited abnormally.")
         sys.exit(0 if success else 1)
     except Exception as e:
-        print(f"❌ 应用程序启动失败: {e}")
+        print(f"[ERROR] 应用程序启动失败: {e}")
         if 'log' in globals() and log: log.error(f"应用程序启动失败: {e}", exc_info=True)
         else: print(f"错误: 应用程序启动失败: {e}\n{traceback.format_exc()}")
         sys.exit(1)
