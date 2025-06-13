@@ -1,0 +1,239 @@
+<!-- 缓存管理页面 - 极简设计 -->
+<div class="cache-management-minimal">
+    <!-- 缓存概览 -->
+    <div class="cache-overview">
+        <h2>缓存概览</h2>
+        <div class="cache-list">
+            <div
+                v-for="cacheType in cacheTypes"
+                :key="cacheType.key"
+                class="cache-item"
+                :class="{ 'active': selectedCacheType === cacheType.key }"
+                @click="selectCacheType(cacheType.key)">
+
+                <div class="cache-basic-info">
+                    <span class="cache-icon material-symbols-rounded" style="vertical-align: middle;" v-text="cacheType.icon"></span>
+                    <span class="cache-name" v-text="cacheType.name"></span>
+                </div>
+
+                <div class="cache-stats">
+                    <span class="stat-text" v-text="getCacheTypeStats(cacheType.key).entries + ' 条'"></span>
+                    <span class="stat-divider">|</span>
+                    <span class="stat-text" v-text="getCacheTypeStats(cacheType.key).size"></span>
+                </div>
+
+                <div class="cache-actions" v-if="selectedCacheType === cacheType.key">
+                    <el-button
+                        size="small"
+                        type="danger"
+                        text
+                        @click.stop="clearSingleCache(cacheType.key)"
+                        :loading="loadingStates[cacheType.key]?.clearing">
+                        清空
+                    </el-button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 缓存详情 -->
+    <div v-if="selectedCacheType" class="cache-detail">
+        <!-- Material Design Card Style Header -->
+        <div class="md-card-header">
+            <div class="md-card-title-container">
+                <h3 class="md-card-title" v-text="getSelectedCacheName()"></h3>
+                <!-- Optional: Add subtitle or icon here if needed -->
+            </div>
+            <div class="md-card-actions">
+                <el-button
+                    size="small"
+                    type="primary"
+                    @click="showAddHarmonizationDialog"
+                    v-if="selectedCacheType === 'harmonization_map'">
+                    添加映射
+                </el-button>
+
+                <!-- 漫画列表特有按钮 -->
+                <template v-if="selectedCacheType === 'manga_list'">
+                    <el-button
+                        size="small"
+                        type="success"
+                        @click="showBatchCompressionDialog">
+                        <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">compress</span>
+                        批量压缩
+                    </el-button>
+                    <el-button
+                        size="small"
+                        type="warning"
+                        @click="showAutoFilterDialog">
+                        <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">filter_alt</span>
+                        自动过滤
+                    </el-button>
+                    <!-- “可能非漫画”筛选开关 -->
+                    <el-switch
+                        v-model="showOnlyUnlikelyManga"
+                        @change="onFilterChange"
+                        active-text="仅显示可能非漫画"
+                        style="margin-left: 1rem;">
+                    </el-switch>
+                </template>
+
+                <!-- 翻译缓存敏感内容筛选开关 -->
+                <template v-if="selectedCacheType === 'translation'">
+                    <el-switch
+                        v-model="showOnlySensitive"
+                        @change="onFilterChange"
+                        active-text="仅显示敏感内容"
+                        style="margin-left: 1rem;">
+                    </el-switch>
+                </template>
+
+                <!-- 通用清除筛选按钮 -->
+                <el-button
+                    v-if="cacheSearchQuery"
+                    size="small"
+                    type="info"
+                    @click="clearFilter">
+                    <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">clear</span>
+                    清除筛选
+                </el-button>
+
+
+            </div>
+        </div>
+
+        <!-- 搜索 -->
+        <div class="search-bar">
+            <el-input
+                v-model="cacheSearchQuery"
+                placeholder="搜索..."
+                prefix-icon="Search"
+                clearable
+                @change="onFilterChange">
+            </el-input>
+        </div>
+
+        <!-- 条目列表 (使用自定义表格) -->
+        <div class="entries-container" v-loading="isLoadingEntries">
+            <table class="custom-cache-table">
+                <thead>
+                    <tr class="cache-table-header-row">
+                        <th class="cache-table-header-cell">键</th>
+                        <th class="cache-table-header-cell">内容</th>
+                        <!-- 漫画列表特有的列 -->
+                        <template v-if="selectedCacheType === 'manga_list'">
+                            <th class="cache-table-header-cell">方差值</th>
+                            <th class="cache-table-header-cell">可能是漫画</th>
+                            <th class="cache-table-header-cell">页数</th>
+                            <th class="cache-table-header-cell">文件大小</th>
+                            <th class="cache-table-header-cell">标签数</th>
+                        </template>
+                        <!-- 翻译缓存特有的列 -->
+                        <template v-if="selectedCacheType === 'translation'">
+                            <th class="cache-table-header-cell">敏感内容</th>
+                        </template>
+
+                        <th class="cache-table-header-cell action-cell">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-if="filteredCacheEntries.length === 0 && !isLoadingEntries">
+                        <td :colspan="getTableColspan()" class="no-data-cell">
+                            <!-- 可以放入一个空状态组件或文本 -->
+                            没有找到匹配的缓存条目。
+                        </td>
+                    </tr>
+                    <tr v-for="entry in filteredCacheEntries" :key="entry.key" class="cache-table-row">
+                        <td class="cache-table-cell key-cell">
+                            <span class="cache-key" v-text="getDisplayKey(entry.key)" :title="entry.key"></span>
+                        </td>
+                        <td class="cache-table-cell content-cell">
+                            <div class="content-with-tags">
+                                <span class="cache-content" v-text="entry.value_preview" :title="entry.value_preview"></span>
+                                <el-tag
+                                    v-if="selectedCacheType === 'translation' && entry.is_sensitive"
+                                    type="warning"
+                                    size="small"
+                                    class="sensitive-tag">
+                                    敏感
+                                </el-tag>
+                            </div>
+                        </td>
+                        <!-- 漫画列表特有的列 -->
+                        <template v-if="selectedCacheType === 'manga_list'">
+                            <td class="cache-table-cell variance-cell">
+                                <span v-if="entry.dimension_variance === 'N/A'"
+                                      class="text-muted">不适用</span>
+                                <span v-else-if="typeof entry.dimension_variance === 'number'"
+                                      :class="getVarianceClass(entry.dimension_variance)"
+                                      v-text="entry.dimension_variance.toFixed(3)">
+                                </span>
+                                <span v-else-if="entry.dimension_variance === null || entry.dimension_variance === undefined"
+                                      class="text-muted">未分析</span>
+                                <span v-else class="text-muted" v-text="entry.dimension_variance"></span>
+                            </td>
+                            <td class="cache-table-cell manga-status-cell">
+                                <el-tag
+                                    :type="entry.is_likely_manga ? 'success' : 'warning'"
+                                    size="small"
+                                    v-text="entry.is_likely_manga ? '是' : '否'">
+                                </el-tag>
+                            </td>
+                            <td class="cache-table-cell pages-cell">
+                                <span v-text="entry.total_pages || 0"></span>
+                            </td>
+                            <td class="cache-table-cell size-cell">
+                                <span v-text="formatFileSize(entry.file_size || 0)"></span>
+                            </td>
+                            <td class="cache-table-cell tags-cell">
+                                <span v-text="entry.tags_count || 0"></span>
+                            </td>
+                        </template>
+                        <!-- 翻译缓存特有的列 -->
+                        <template v-if="selectedCacheType === 'translation'">
+                            <td class="cache-table-cell">
+                                <el-tag
+                                    :type="entry.is_sensitive ? 'warning' : 'success'"
+                                    size="small"
+                                    v-text="entry.is_sensitive ? '是' : '否'">
+                                </el-tag>
+                            </td>
+                        </template>
+
+                        <td class="cache-table-cell action-cell">
+                            <!-- 对大多数类型，显示"编辑"按钮 -->
+                            <el-button
+                                v-if="selectedCacheType !== 'persistent_translation'"
+                                size="small"
+                                text
+                                @click="editCacheEntry(entry)">
+                                编辑
+                            </el-button>
+
+                            <!-- 仅当选择"持久化翻译"时，显示"删除"按钮 -->
+                            <el-button
+                                v-if="selectedCacheType === 'persistent_translation'"
+                                size="small"
+                                type="danger"
+                                text
+                                @click="deleteCacheEntry(entry)">
+                                删除
+                            </el-button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- 简化分页 (保持不变) -->
+            <div class="pagination" v-if="totalEntries > pageSize">
+                <el-pagination
+                    :current-page="currentPage"
+                    :page-size="pageSize"
+                    :total="totalEntries"
+                    layout="prev, pager, next"
+                    @current-change="onPageChange">
+                </el-pagination>
+            </div>
+        </div>
+    </div>
+</div>

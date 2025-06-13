@@ -1,0 +1,329 @@
+/* 全局变量和基础样式 */
+
+:root,
+html.theme-light {
+    /* 背景颜色 */
+    --color-bg-default: #ffffff;        /* 默认背景，用于卡片、模态框等 */
+    --color-bg-subtle: #f6f8fa;         /* 柔和背景，常用于页面背景或次要区域 */
+    --color-bg-elevated: #f1f3f4;        /* 提升背景，用于下拉菜单或悬停状态等元素 */
+    --bg-tertiary: var(--color-bg-elevated); /* 第三背景，提升背景的别名 */
+
+    /* 文本颜色 */
+    --color-text-default: #24292f;       /* 默认文本颜色 */
+    --color-text-default-rgb: 36, 41, 47; /* 默认文本颜色的RGB值，用于透明度 */
+    --color-text-secondary: #656d76;    /* 次要文本颜色，用于不太重要的信息 */
+    --color-text-muted: #8c959f;         /* 柔和文本颜色，用于提示或禁用状态 */
+
+    /* 边框颜色 */
+    --color-border-default: #d0d7de;     /* 默认边框颜色 */
+    --color-border-subtle: #e1e4e8;      /* 柔和边框颜色，用于分隔线或不太显眼的边框 */
+
+    /* 强调色（主品牌色） */
+    --color-accent-default: #0969da;     /* 默认强调色（例如，主按钮、链接） */
+    --color-accent-default-rgb: 9, 105, 218; /* 强调色的RGB值 */
+    --color-accent-hover: #0550ae;       /* 悬停时的强调色 */
+    --color-accent-active: #044294;      /* 激活/按下时的强调色 */
+
+    /* 状态颜色 */
+    --color-state-success: #1a7f37;     /* 成功状态颜色（例如，验证、成功消息） */
+    --color-state-success-rgb: 26, 127, 55; /* 成功颜色的RGB值 */
+    --color-state-warning: #9a6700;     /* 警告状态颜色 */
+    --color-state-warning-rgb: 154, 103, 0; /* 警告颜色的RGB值 */
+    --color-state-error: #cf222e;       /* 错误/危险状态颜色 */
+    --color-state-error-rgb: 207, 34, 46; /* 错误颜色的RGB值 */
+
+    /* Element UI 颜色别名 */
+    --el-color-primary: var(--color-accent-default); /* Element UI 主色映射到强调色 */
+    --el-color-success: var(--color-state-success); /* Element UI 成功色 */
+    --el-color-warning: var(--color-state-warning); /* Element UI 警告色 */
+    --el-color-danger: var(--color-state-error);   /* Element UI 危险/错误色 */
+    --el-color-info: var(--color-text-secondary); /* Element UI 信息色映射到次要文本色 */
+
+    /* 尺寸和间距 */
+    --border-radius: 16px; /* 元素的标准边框圆角 */
+    --spacing-xs: 4px;     /* 超小间距单位 */
+    --spacing-sm: 8px;     /* 小间距单位 */
+    --spacing-md: 16px;    /* 中间距单位 */
+    --spacing-lg: 24px;    /* 大间距单位 */
+    --spacing-xl: 32px;    /* 超大间距单位 */
+
+    /* 排版 */
+    --font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Noto Sans", Helvetica, Arial, sans-serif; /* 默认字体栈 */
+
+    /* Material 3 字重 */
+    --m3-font-weight-regular: 400;
+    --m3-font-weight-medium: 500;
+    --m3-font-weight-bold: 700;
+
+    /* Material 3 字间距 */
+    --m3-letter-spacing-none: 0px;
+    --m3-letter-spacing-tight: +0.1px;
+    --m3-letter-spacing-normal: +0.15px;
+    --m3-letter-spacing-wide: +0.25px;
+    --m3-letter-spacing-wider: +0.4px;
+    --m3-letter-spacing-widest: +0.5px;
+
+    /* Material 3 字体规范 - Display */
+    --m3-font-display-large-size: 57px;
+    --m3-font-display-large-weight: var(--m3-font-weight-regular);
+    --m3-font-display-large-line-height: 64px;
+    --m3-font-display-large-letter-spacing: var(--m3-letter-spacing-none);
+
+    --m3-font-display-medium-size: 45px;
+    --m3-font-display-medium-weight: var(--m3-font-weight-regular);
+    --m3-font-display-medium-line-height: 52px;
+    --m3-font-display-medium-letter-spacing: var(--m3-letter-spacing-none);
+
+    --m3-font-display-small-size: 36px;
+    --m3-font-display-small-weight: var(--m3-font-weight-regular);
+    --m3-font-display-small-line-height: 44px;
+    --m3-font-display-small-letter-spacing: var(--m3-letter-spacing-none);
+
+    /* Material 3 字体规范 - Headline */
+    --m3-font-headline-large-size: 32px;
+    --m3-font-headline-large-weight: var(--m3-font-weight-regular);
+    --m3-font-headline-large-line-height: 40px;
+    --m3-font-headline-large-letter-spacing: var(--m3-letter-spacing-none);
+
+    --m3-font-headline-medium-size: 28px;
+    --m3-font-headline-medium-weight: var(--m3-font-weight-regular);
+    --m3-font-headline-medium-line-height: 36px;
+    --m3-font-headline-medium-letter-spacing: var(--m3-letter-spacing-none);
+
+    --m3-font-headline-small-size: 24px;
+    --m3-font-headline-small-weight: var(--m3-font-weight-regular);
+    --m3-font-headline-small-line-height: 32px;
+    --m3-font-headline-small-letter-spacing: var(--m3-letter-spacing-none);
+
+    /* Material 3 字体规范 - Title */
+    --m3-font-title-large-size: 22px;
+    --m3-font-title-large-weight: var(--m3-font-weight-medium);
+    --m3-font-title-large-line-height: 28px;
+    --m3-font-title-large-letter-spacing: var(--m3-letter-spacing-tight);
+
+    --m3-font-title-medium-size: 16px;
+    --m3-font-title-medium-weight: var(--m3-font-weight-medium);
+    --m3-font-title-medium-line-height: 24px;
+    --m3-font-title-medium-letter-spacing: var(--m3-letter-spacing-normal);
+
+    --m3-font-title-small-size: 14px;
+    --m3-font-title-small-weight: var(--m3-font-weight-medium);
+    --m3-font-title-small-line-height: 20px;
+    --m3-font-title-small-letter-spacing: var(--m3-letter-spacing-tight);
+
+    /* Material 3 字体规范 - Label */
+    --m3-font-label-large-size: 14px;
+    --m3-font-label-large-weight: var(--m3-font-weight-medium);
+    --m3-font-label-large-line-height: 20px;
+    --m3-font-label-large-letter-spacing: var(--m3-letter-spacing-tight);
+
+    --m3-font-label-medium-size: 12px;
+    --m3-font-label-medium-weight: var(--m3-font-weight-medium);
+    --m3-font-label-medium-line-height: 16px;
+    --m3-font-label-medium-letter-spacing: var(--m3-letter-spacing-widest);
+
+    --m3-font-label-small-size: 11px;
+    --m3-font-label-small-weight: var(--m3-font-weight-medium);
+    --m3-font-label-small-line-height: 16px;
+    --m3-font-label-small-letter-spacing: var(--m3-letter-spacing-widest);
+
+    /* Material 3 字体规范 - Body */
+    --m3-font-body-large-size: 16px;
+    --m3-font-body-large-weight: var(--m3-font-weight-regular);
+    --m3-font-body-large-line-height: 24px;
+    --m3-font-body-large-letter-spacing: var(--m3-letter-spacing-widest);
+
+    --m3-font-body-medium-size: 14px;
+    --m3-font-body-medium-weight: var(--m3-font-weight-regular);
+    --m3-font-body-medium-line-height: 20px;
+    --m3-font-body-medium-letter-spacing: var(--m3-letter-spacing-wide);
+
+    --m3-font-body-small-size: 12px;
+    --m3-font-body-small-weight: var(--m3-font-weight-regular);
+    --m3-font-body-small-line-height: 16px;
+    --m3-font-body-small-letter-spacing: var(--m3-letter-spacing-wider);
+
+    /* 过渡效果 */
+    --transition-fast: 0.1s cubic-bezier(0.1, 0.9, 0.2, 1);
+    --transition-normal: 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+    --transition-slow: 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+    --transition: var(--transition-normal); /* 默认过渡效果 */
+
+    /* 缓动函数 */
+    --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+    --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+
+/* 暗色主题变量 */
+html.theme-dark {
+    /* 背景颜色 */
+    --color-bg-default: #252525;     /* 暗色默认背景 */
+    --color-bg-subtle: #181818;      /* 暗色柔和背景 */
+    --color-bg-elevated: #2f2f2f;    /* 暗色提升背景 */
+    --bg-tertiary: #000000;         /* 暗色第三背景 */
+
+    /* 文本颜色 */
+    --color-text-default: #EAEAEA;     /* 暗色主题默认文本 */
+    --color-text-default-rgb: 224, 224, 224;
+    --color-text-secondary: #BDBDBD;   /* 暗色主题次要文本 */
+    --color-text-muted: #9E9E9E;       /* 暗色主题柔和文本 */
+
+    /* 边框颜色 */
+    --color-border-default: #3A3A3A;   /* 暗色主题默认边框 */
+    --color-border-subtle: #2A2A2A;    /* 暗色主题柔和边框 */
+
+    /* 强调色 */
+    --color-accent-default: #42A5F5;  /* 暗色主题强调色（通常更亮） */
+    --color-accent-default-rgb: 66, 165, 245;
+    --color-accent-hover: #64B5F6;   /* 暗色主题强调色悬停 */
+    --color-accent-active: #1E88E5;  /* 暗色主题强调色激活 */
+
+    /* 状态颜色 */
+    --color-state-success: #81C784; /* 暗色主题成功色 */
+    --color-state-success-rgb: 129, 199, 132;
+    --color-state-warning: #FFB74D; /* 暗色主题警告色 */
+    --color-state-warning-rgb: 255, 183, 77;
+    --color-state-error: #E57373;   /* 暗色主题错误色 */
+    --color-state-error-rgb: 229, 115, 115;
+
+    /* Element UI 颜色别名（暗色） */
+    --el-color-primary: var(--color-accent-default);
+    --el-color-success: var(--color-state-success);
+    --el-color-warning: var(--color-state-warning);
+    --el-color-danger: var(--color-state-error);
+    --el-color-info: var(--color-text-secondary);
+}
+
+/* 自动暗色主题 (Prefers Color Scheme) */
+@media (prefers-color-scheme: dark) {
+    html:not(.theme-light):not(.theme-dark),
+    html.theme-auto {
+        /* 背景颜色 */
+        --color-bg-default: #121212;     /* 自动暗色默认背景 */
+        --color-bg-subtle: #1E1E1E;      /* 自动暗色柔和背景 */
+        --color-bg-elevated: #272727;    /* 自动暗色提升背景 */
+        --bg-tertiary: #2E2E2E;         /* 自动暗色第三背景 */
+
+        /* 文本颜色 */
+        --color-text-default: #EAEAEA;     /* 自动暗色默认文本 */
+        --color-text-default-rgb: 224, 224, 224;
+        --color-text-secondary: #BDBDBD;   /* 自动暗色次要文本 */
+        --color-text-muted: #9E9E9E;       /* 自动暗色柔和文本 */
+
+        /* 边框颜色 */
+        --color-border-default: #3A3A3A;   /* 自动暗色默认边框 */
+        --color-border-subtle: #2A2A2A;    /* 自动暗色柔和边框 */
+
+        /* 强调色 */
+        --color-accent-default: #42A5F5;  /* 自动暗色强调色 */
+        --color-accent-default-rgb: 66, 165, 245;
+        --color-accent-hover: #64B5F6;   /* 自动暗色强调色悬停 */
+        --color-accent-active: #1E88E5;  /* 自动暗色强调色激活 */
+
+        /* 状态颜色 */
+        --color-state-success: #81C784; /* 自动暗色成功色 */
+        --color-state-success-rgb: 129, 199, 132;
+        --color-state-warning: #FFB74D; /* 自动暗色警告色 */
+        --color-state-warning-rgb: 255, 183, 77;
+        --color-state-error: #E57373;   /* 自动暗色错误色 */
+        --color-state-error-rgb: 229, 115, 115;
+
+        /* Element UI 颜色别名（自动暗色） */
+        --el-color-primary: var(--color-accent-default);
+        --el-color-success: var(--color-state-success);
+        --el-color-warning: var(--color-state-warning);
+        --el-color-danger: var(--color-state-error);
+        --el-color-info: var(--color-text-secondary);
+    }
+}
+
+/* 全局重置和 Body 样式 */
+* {
+    box-sizing: border-box; /* 全局使用 border-box 盒模型 */
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-family);
+    /* 默认应用 Material 3 Body Medium 字体规范 */
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-body-medium-weight);
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
+    background: var(--color-bg-subtle); /* Body 使用柔和背景 */
+    color: var(--color-text-default); /* 使用默认文本颜色 */
+/* 尝试优化字体渲染清晰度 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color var(--transition), color var(--transition); /* 平滑的主题过渡 */
+    overflow-x: hidden; /* 防止水平滚动 */
+}
+
+/* 标题样式（应用 Material 3 字体规范） */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text-default);
+  margin-top: 1em; /* 标题的标准上边距 */
+  margin-bottom: 0.6em; /* 标题的标准下边距 */
+}
+
+h1 {
+  font-size: var(--m3-font-headline-large-size);
+  font-weight: var(--m3-font-headline-large-weight);
+  line-height: var(--m3-font-headline-large-line-height);
+  letter-spacing: var(--m3-font-headline-large-letter-spacing);
+}
+h2 {
+  font-size: var(--m3-font-headline-medium-size);
+  font-weight: var(--m3-font-headline-medium-weight);
+  line-height: var(--m3-font-headline-medium-line-height);
+  letter-spacing: var(--m3-font-headline-medium-letter-spacing);
+}
+h3 {
+  font-size: var(--m3-font-title-large-size);
+  font-weight: var(--m3-font-title-large-weight);
+  line-height: var(--m3-font-title-large-line-height);
+  letter-spacing: var(--m3-font-title-large-letter-spacing);
+}
+h4 {
+  font-size: var(--m3-font-title-medium-size);
+  font-weight: var(--m3-font-title-medium-weight);
+  line-height: var(--m3-font-title-medium-line-height);
+  letter-spacing: var(--m3-font-title-medium-letter-spacing);
+}
+h5 {
+  font-size: var(--m3-font-title-small-size);
+  font-weight: var(--m3-font-title-small-weight);
+  line-height: var(--m3-font-title-small-line-height);
+  letter-spacing: var(--m3-font-title-small-letter-spacing);
+}
+h6 {
+  font-size: var(--m3-font-label-medium-size);
+  font-weight: var(--m3-font-label-medium-weight);
+  line-height: var(--m3-font-label-medium-line-height);
+  letter-spacing: var(--m3-font-label-medium-letter-spacing);
+  text-transform: uppercase; /* Label 通常为大写 */
+}
+
+/* 基础工具类 (已移除) */
+
+/* 全局滚动条样式 */
+::-webkit-scrollbar {
+    width: 6px; /* 更细的滚动条 */
+    height: 6px; /* 同时应用于水平滚动条 */
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-bg-subtle); /* 柔和的滚动条轨道 */
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border-default); /* 默认滚动条滑块颜色 */
+    border-radius: var(--border-radius); /* 圆角滑块 */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted); /* 悬停时更深的滑块颜色 */
+}

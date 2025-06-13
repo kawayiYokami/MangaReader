@@ -1,0 +1,24 @@
+<!-- 翻译文件上传组件 -->
+<div class="file-selection">
+    <div class="upload-area upload-area-themed"
+         @click="triggerTranslationFileSelect"
+         @dragover.prevent="handleTranslationDragOver"
+         @dragleave.prevent="handleTranslationDragLeave"
+         @drop.prevent="handleTranslationDrop"
+         :class="{ dragover: translationDragOver }">
+
+        <el-icon size="48">
+            <upload-filled />
+        </el-icon>
+
+        <h3>拖拽文件到此处，或点击选择文件</h3>
+        <p>支持 ZIP、CBZ、CBR 格式的漫画文件</p>
+
+        <input ref="translationFileInput"
+               type="file"
+               multiple
+               accept=".zip,.cbz,.cbr"
+               @change="handleTranslationFileSelect"
+               style="display: none;">
+    </div>
+</div>

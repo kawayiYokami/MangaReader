@@ -1,95 +1,92 @@
-# Manga Reader
+# Manga Manager & Reader - 漫画管理器与阅读器
 
-一个现代化、功能丰富的漫画阅读器，旨在提供流畅且个性化的阅读体验。
+[
+![Python-Version](https://img.shields.io/badge/python-3.11+-blue.svg)
+](https://www.python.org/) [
+![License](https://img.shields.io/badge/license-GPL--3.0-brightgreen.svg)
+](LICENSE)
 
-## ✨ 功能特性
+一款专为漫画收藏爱好者设计的本地管理器与阅读器。它能自动扫描、解析和组织您的漫画收藏，通过强大的元数据和标签系统提供极致的浏览体验，并集成了可选的翻译功能。
 
-- **直观的用户界面**: 基于 `PySide6` 和 `qfluentwidgets` 构建，提供美观且响应迅速的界面。
-- **灵活的阅读模式**: 支持单页、双页自适应显示，以及从左到右或从右到左的阅读顺序。
-- **智能配置管理**: 通过 `QConfig` 系统，轻松管理阅读偏好、UI 设置和应用程序状态。
-- **漫画管理**: 方便地浏览、搜索和管理本地漫画文件。
-- **日志系统**: 集成日志功能，便于问题排查和应用监控。
+## ✨ 核心功能
+
+### 📚 智能漫画库管理
+- **自动化元数据解析**: 无需手动整理！仅通过文件名，即可自动解析出 `作者`, `作品系列`, `汉化组`, `会场(例如C97)` 等信息，并生成分类标签。
+- **高级自动过滤**: 通过 **页面尺寸方差分析**，智能识别并过滤掉非漫画内容的图片（如封面、插图、特典），确保阅读内容连贯。
+- **强大的标签系统**:
+  - **分类标签**: 所有标签按 `作者`, `作品`, `汉化` 等类别清晰展示。
+  - **快速过滤**: 只需点击标签，即可在海量收藏中快速筛选出您想看的内容。
+- **全平台支持**: 提供独立的 **Web UI** 和打包好的 **桌面应用**，满足不同使用场景。
+- **持久化缓存**: 为漫画封面、图片和元数据建立缓存，实现秒速加载和浏览。
+
+### 📖 沉浸式阅读体验
+- **灵活的阅读模式**: 支持从右到左、从左到右的阅读顺序，以及单页、双页显示模式。
+- **现代化UI**: 界面支持亮色、暗色及自动（跟随系统）三种主题。
+- **跨设备同步**: （需部署在可访问的网络）通过Web服务，可在不同设备上继续阅读。
+
+### 🌐 强大的辅助功能
+- **多引擎翻译**:
+  - **智谱AI**: 对接 `glm-4-flash` 等多种先进模型。
+  - **谷歌翻译**: 经典、快速的翻译选项。
+  - (*需要用户在设置中提供自己的API Key*)
+- **OCR文本识别**: 可精准识别漫画中的多语言文本。
+- **自定义字体渲染**: 用户可选择任意字体回填翻译文本，达到最佳显示效果。
+- **批量图像压缩**: 支持将处理后的图片保存为 `WEBP` 格式，有效减小存储体积。
 
 ## 🚀 快速开始
 
-### 📦 安装
+### 环境要求
 
-python 3.11
+*   **Python**: `>=3.11,<3.12`
+*   **Git**
+*   **uv** (推荐的Python包管理器)
 
-1. **克隆仓库**:
-   ```bash
-   git clone https://github.com/your-username/manga.git
-   cd manga
-   ```
+### 安装
 
-2. **安装依赖 (推荐使用 uv)**:
-   `uv` 是一个快速的 Python 包管理和虚拟环境工具，推荐用于安装项目依赖。
+1.  **克隆项目仓库**: `git clone https://github.com/kawayiYokami/MangaReader.git && cd MangaReader`
+2.  **创建并激活虚拟环境**: `uv venv --python 3.11` 然后激活 (`source .venv/bin/activate` 或 `.\.venv\Scripts\activate.bat`)
+3.  **安装依赖**: `uv pip sync requirements.txt`
 
-   a. **安装 uv** (如果尚未安装):
-      ```bash
-      pip install uv
-      ```
+### 运行程序
 
-   b. **创建虚拟环境**:
-      ```bash
-      uv venv
-      ```
+您可以选择以下任一方式运行本应用：
 
-   c. **安装项目依赖**:
-      ```bash
-      uv pip install -r requirements.txt
-      ```
+#### 方式一：运行Web UI (推荐)
 
-   如果您更倾向于使用 `pip`，请确保您的 Python 环境已安装 `pip`，并运行：
-   ```bash
-   pip install -r requirements.txt
-   ```
-   如果您遇到依赖问题，可以尝试重新生成 `requirements.txt` 文件：
-   ```bash
-   pip install pipreqs
-   pipreqs --force --encoding=utf8 .
-   pip install -r requirements.txt
-   ```
-
-### 🏃 运行
-
-安装完所有依赖后，您可以通过以下命令启动应用程序：
-
+功能全面，适合绝大多数用户。
 ```bash
-python main.py
+python web_main.py
+```
+启动后，请在浏览器中访问 `http://127.0.0.1:8000`。
+
+**命令行参数**:
+- `--host <地址>`: 服务器主机 (默认: 127.0.0.1)
+- `--port <端口>`: 服务器端口 (默认: 8000)
+- `--auto-port`: 自动选择可用端口
+- `--kill-port`: 自动杀死占用端口的进程
+- `--debug`: 启用调试模式
+
+#### 方式二：运行桌面应用
+
+打包了Web UI，提供更原生的文件操作体验。
+```bash
+python desktop_main.py
 ```
 
-## 🛠️ 项目结构
+## 📋 使用流程
 
-```
-manga/
-├── core/                     # 核心业务逻辑和数据模型
-│   ├── config.py             # 应用程序配置管理 (基于 QConfig)
-│   ├── manga_cache.py        # 漫画数据缓存
-│   ├── manga_manager.py      # 漫画文件管理和解析
-│   ├── manga_model.py        # 漫画数据模型
-│   └── translator.py         # 翻译相关功能
-├── download/                 # 下载模块 (待实现或扩展)
-├── main.py                   # 应用程序入口点
-├── requirements.txt          # 项目依赖列表
-├── ui/                       # 用户界面相关文件
-│   └── new_interface/        # 新版 UI 模块
-│       ├── control_panel.py  # 控制面板组件
-│       ├── manga_browser.py  # 漫画浏览界面
-│       ├── manga_list.py     # 漫画列表显示
-│       ├── manga_viewer.py   # 漫画阅读器核心组件
-│       └── tag_filter.py     # 标签过滤组件
-├── utils/                    # 工具函数和辅助模块
-│   ├── color_utils.py        # 颜色处理工具
-│   └── manga_logger.py       # 自定义日志工具
-└── views/                    # 视图接口定义
-    ├── manga_browser_interface.py
-    └── settings_interface.py
-```
+1.  **启动应用**。
+2.  **设置漫画目录**:
+    - **桌面版**: 点击 `选择目录` 按钮，选择您存放漫画的根文件夹。
+    - **Web版**: 进入 `设置` 页面，输入漫画根文件夹的 **绝对路径** 并保存。
+3.  **自动扫描**: 程序会自动扫描目录下的所有漫画文件和文件夹，并解析元数据。
+4.  **浏览与筛选**: 在主页，使用顶部的搜索框或点击下方的分类标签来筛选您的漫画。
+5.  **阅读**: 点击任意漫画封面即可进入阅读界面。
+6.  **(可选)配置翻译**: 如果需要翻译功能，请进入 `设置` 页面，填入翻译服务提供商的 `API Key`。
 
-## ⚙️ 配置
-
-应用程序的默认配置定义在 <mcfile name="config.py" path="core/config.py"></mcfile> 文件中。您可以在此文件中调整默认的阅读顺序、显示模式等设置。例如，默认设置为双页、从左到右阅读。
+## 🙏 致谢
+本项目的 OCR 功能依赖于优秀的 [OnnxOCR](https://github.com/jingsongliujing/OnnxOCR) 项目。
+如果您觉得它对您有帮助，请给原作者 [jingsonglijunjing/OnnxOCR](https://github.com/jingsongliujing/OnnxOCR) 点个 Star ⭐ 支持一下！
 
 ## 📜 许可证
 本项目采用 [GNU General Public License v3.0](LICENSE) 授权。

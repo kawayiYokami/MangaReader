@@ -1,0 +1,131 @@
+<!-- 漫画翻译页面 -->
+<div class="translation-interface">
+    <div class="translation-layout">
+        <!-- 左侧控制面板 -->
+        <div class="translation-control">
+            <el-card>
+                <template #header>
+                    <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">folder_open</span> 文件选择</span>
+                </template>
+
+                <!-- 文件选择区域 -->
+                {% include 'components/widgets/file-upload.html' %}
+            </el-card>
+
+            <el-card style="margin-top: 16px;">
+                <template #header>
+                    <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">settings</span> 翻译设置</span>
+                </template>
+
+                <!-- 翻译参数设置 -->
+                <div class="translation-params">
+                    <el-form label-width="80px" size="default">
+                        <el-form-item label="源语言">
+                            <el-select v-model="translationSettings.sourceLang" style="width: 100%">
+                                <el-option label="自动检测" value="auto"></el-option>
+                                <el-option label="日语" value="ja"></el-option>
+                                <el-option label="英语" value="en"></el-option>
+                                <el-option label="韩语" value="ko"></el-option>
+                            </el-select>
+                        </el-form-item>
+
+                        <el-form-item label="目标语言">
+                            <el-select v-model="translationSettings.targetLang" style="width: 100%">
+                                <el-option label="简体中文" value="zh-CN"></el-option>
+                                <el-option label="繁体中文" value="zh-TW"></el-option>
+                                <el-option label="英语" value="en"></el-option>
+                                <el-option label="日语" value="ja"></el-option>
+                            </el-select>
+                        </el-form-item>
+
+                        <el-form-item label="翻译引擎">
+                            <el-select v-model="translationSettings.engine" style="width: 100%">
+                                <el-option label="智谱AI" value="智谱"></el-option>
+                                <el-option label="Google翻译" value="Google"></el-option>
+                            </el-select>
+                        </el-form-item>
+
+                        <el-form-item label="输出质量">
+                            <el-slider
+                                v-model="translationSettings.webpQuality"
+                                :min="50"
+                                :max="100"
+                                :step="5"
+                                show-input
+                                style="width: 100%;">
+                            </el-slider>
+                            <div style="font-size: 12px; margin-top: 4px;">
+                                输出图片的WebP质量 (50-100)
+                            </div>
+                        </el-form-item>
+                    </el-form>
+                </div>
+            </el-card>
+
+            <el-card style="margin-top: 16px;">
+                <template #header>
+                    <div style="text-align: center;"><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">play_arrow</span> 操作</div>
+                </template>
+
+                <!-- 操作按钮 -->
+                <div style="padding: 0;">
+                    <div style="margin-bottom: 8px;">
+                        <el-button
+                            type="primary"
+                            @click="startTranslation"
+                            :disabled="translationTasks.length === 0 || taskIsProcessing"
+                            :loading="taskIsProcessing"
+                            style="width: 100%; height: 40px; display: block; margin: 0 auto;">
+                            <span style="display: inline-flex; align-items: center; gap: 6px;" v-if="taskIsProcessing"><span class="material-symbols-rounded">autorenew</span> <span>翻译中...</span></span>
+                            <span style="display: inline-flex; align-items: center; gap: 6px;" v-else><span class="material-symbols-rounded">translate</span> <span>开始翻译</span></span>
+                        </el-button>
+                    </div>
+
+                    <div style="margin-bottom: 8px;">
+                        <el-button
+                            type="warning"
+                            @click="stopTranslation"
+                            :disabled="false"
+                            style="width: 100%; height: 40px; display: block; margin: 0 auto;">
+                            <span style="display: inline-flex; align-items: center; gap: 6px;"><span class="material-symbols-rounded">stop</span> <span>停止翻译</span></span>
+                        </el-button>
+                    </div>
+
+                    <div style="margin-bottom: 0;">
+                        <el-button
+                            @click="clearTranslationTasks"
+                            :disabled="translationTasks.length === 0"
+                            style="width: 100%; height: 40px; display: block; margin: 0 auto;">
+                            <span style="display: inline-flex; align-items: center; gap: 6px;"><span class="material-symbols-rounded">delete</span> <span>清空任务</span></span>
+                        </el-button>
+                    </div>
+                </div>
+
+                <!-- 提示信息 -->
+                <div class="notice-box">
+                    <div class="notice-title"><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">lightbulb</span> 翻译说明</div>
+                    <ul class="notice-list">
+                        <li>文件处理完全在浏览器中进行</li>
+                        <li>翻译完成后自动下载结果文件</li>
+                        <li>支持OCR识别和AI翻译</li>
+                        <li>输出为WebP格式压缩包</li>
+                    </ul>
+                </div>
+            </el-card>
+        </div>
+
+        <!-- 右侧任务列表 -->
+        <div class="translation-tasks">
+            <el-card>
+                <template #header>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">list_alt</span> 翻译任务</span>
+                        <span class="task-count"><span v-text="translationTasks.length"></span> 个任务</span>
+                    </div>
+                </template>
+
+                {% include 'components/widgets/task-list.html' %}
+            </el-card>
+        </div>
+    </div>
+</div>

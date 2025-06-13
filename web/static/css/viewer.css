@@ -1,0 +1,585 @@
+/* 禁用所有动画和过渡 */
+* {
+    transition: none !important;
+    animation: none !important;
+}
+/* 漫画查看器样式 */
+
+/* 全局样式重置 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--color-bg-default);
+    color: var(--color-text-default);
+}
+
+#app {
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    background: var(--color-bg-default);
+}
+
+/* 左侧边栏 */
+.left-sidebar {
+    width: 120px;
+    height: 100vh;
+    background: var(--color-bg-subtle);
+    backdrop-filter: blur(10px);
+    border-right: 1px solid var(--color-border-default);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 10px;
+    z-index: 1000;
+    gap: 20px;
+
+}
+
+/* 漫画标题区域 */
+.manga-title-section {
+    width: 100%;
+    text-align: center;
+    border-bottom: 1px solid var(--color-border-default);
+    padding-bottom: 15px;
+}
+
+.manga-title-vertical {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-default);
+    text-align: center;
+    max-height: 200px;
+    overflow-y: hidden;
+    margin: 0 auto;
+}
+
+/* 显示模式区域 */
+.display-mode-section {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+/* 翻译开关区域 */
+.translation-section {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+/* 页面导航区域 */
+.page-navigation {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    justify-content: center;
+}
+
+.page-info-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+/* 全屏按钮区域 */
+.fullscreen-section {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid var(--color-border-default);
+    padding-top: 15px;
+}
+
+.nav-btn {
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 50% !important;
+    font-size: 18px !important;
+    font-weight: bold !important;
+    background: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-border-default) !important;
+    color: var(--color-text-default) !important;
+    transition: all 0.2s ease !important;
+}
+
+.nav-btn:hover {
+    background: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-default) !important;
+    transform: scale(1.05);
+}
+
+/* 页码显示区域 - 参考PDF阅读器设计 */
+.page-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-default);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 60px;
+}
+
+.page-display:hover {
+    background: var(--color-bg-subtle);
+    border-color: var(--color-border-subtle);
+}
+
+.current-page {
+    font-size: 13px;
+    color: var(--color-text-default);
+    font-weight: bold;
+    min-width: 20px;
+    text-align: center;
+}
+
+.page-divider {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin: 0 2px;
+}
+
+.total-pages {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    font-weight: normal;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* 页码输入框 */
+.page-input-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    margin-bottom: 8px;
+    min-width: 60px;
+}
+
+.page-input {
+    width: 40px !important;
+}
+
+.page-input .el-input__wrapper {
+    background: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-accent-default) !important;
+    border-radius: 4px !important;
+    box-shadow: 0 0 0 1px var(--color-accent-default) inset !important;
+}
+
+.page-input .el-input__inner {
+    color: var(--color-text-default) !important;
+    text-align: center !important;
+    font-size: 13px !important;
+    font-weight: bold !important;
+    padding: 0 4px !important;
+}
+
+/* 圆形进度条 */
+.progress-circle {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.progress-svg {
+    transform: rotate(-90deg);
+}
+
+.progress-bg {
+    fill: none;
+    stroke: var(--color-border-subtle);
+    stroke-width: 3;
+}
+
+.progress-fill {
+    fill: none;
+    stroke: var(--color-accent-default);
+    stroke-width: 3;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s ease;
+}
+
+.progress-text {
+    position: absolute;
+    font-size: 10px;
+    color: var(--color-text-secondary);
+    font-weight: bold;
+}
+
+/* 主要内容区域 */
+.viewer-content {
+    height: 100%;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-default);
+    position: relative;
+    overflow: auto;
+}
+
+/* 加载状态 */
+.loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: var(--color-text-default);
+}
+
+/* 图片容器 */
+.image-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    /* 确保容器不会超出父元素 */
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* 漫画图片 */
+.manga-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); /* Keep hardcoded shadow for now */
+}
+
+/* 单页模式 */
+.single-page {
+    max-width: calc(100%); /* 留出一些边距 */
+    
+    width: 100%;
+    height: 100%;
+}
+
+/* 双页模式 */
+.double-page-container {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    max-width: calc(100%); /* 留出边距 */
+    max-height: calc(100%); /* 留出边距 */
+}
+
+.double-page {
+    width: 50%;
+    max-width: 50%;
+    max-height: 100%;
+    height: 100%;
+    flex-shrink: 0;
+}
+
+/* 错误状态 */
+.error-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: var(--color-text-default);
+}
+
+/* 模式切换按钮 */
+.mode-btn {
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 50% !important;
+    font-size: 11px !important;
+    font-weight: bold !important;
+    background: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-border-default) !important;
+    color: var(--color-text-default) !important;
+    transition: all 0.2s ease !important;
+}
+
+.mode-btn:hover {
+    background: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-default) !important;
+    transform: scale(1.05);
+}
+
+/* 翻译按钮 */
+.translation-btn {
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 50% !important;
+    font-size: 14px !important;
+    font-weight: bold !important;
+    background: var(--color-bg-elevated) !important;
+    border: 1px solid var(--color-border-default) !important;
+    color: var(--color-text-default) !important;
+    transition: all 0.2s ease !important;
+}
+
+.translation-btn:hover {
+    background: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-default) !important;
+    transform: scale(1.05);
+}
+
+/* 翻译按钮激活状态 */
+.translation-active {
+    background: var(--color-accent-default) !important;
+    border-color: var(--color-accent-hover) !important;
+    color: var(--color-text-default) !important;
+    box-shadow: 0 0 8px rgba(var(--color-accent-default), 0.5) !important; /* Use rgba with variable */
+}
+
+.translation-active:hover {
+    background: rgba(var(--color-accent-default), 0.4) !important; /* Use rgba with variable */
+    border-color: rgba(var(--color-accent-default), 0.8) !important; /* Use rgba with variable */
+}
+
+
+
+/* 返回按钮 */
+.back-button-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.back-btn {
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 50% !important;
+    font-size: 18px !important;
+    font-weight: bold !important;
+    background: rgba(var(--color-text-default), 0.1) !important; /* Use rgba with variable */
+    border: 1px solid rgba(var(--color-text-default), 0.2) !important; /* Use rgba with variable */
+    color: var(--color-text-default) !important;
+    transition: all 0.2s ease !important;
+}
+
+.back-btn:hover {
+    background: rgba(var(--color-text-default), 0.2) !important; /* Use rgba with variable */
+    border-color: rgba(var(--color-text-default), 0.3) !important; /* Use rgba with variable */
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); /* Keep hardcoded shadow for now */
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+    .left-sidebar {
+        width: 100px;
+    }
+
+    .manga-title-vertical {
+        font-size: 11px;
+        max-height: 100px;
+    }
+
+    .mode-btn {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 10px !important;
+    }
+
+    .translation-btn {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 12px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .left-sidebar {
+        width: 80px;
+        padding: 15px 5px;
+        gap: 15px;
+    }
+
+    .nav-btn {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 14px !important;
+    }
+
+    .manga-title-vertical {
+        font-size: 10px;
+        max-height: 80px;
+    }
+
+    .mode-btn {
+        width: 35px !important;
+        height: 35px !important;
+        font-size: 9px !important;
+    }
+
+    .translation-btn {
+        width: 35px !important;
+        height: 35px !important;
+        font-size: 11px !important;
+    }
+
+    .page-info-vertical {
+        font-size: 10px;
+        padding: 6px 2px;
+    }
+
+    .progress-circle svg {
+        width: 50px;
+        height: 50px;
+    }
+
+    .progress-text {
+        font-size: 9px;
+    }
+}
+
+@media (max-width: 480px) {
+    .left-sidebar {
+        width: 60px;
+        padding: 10px 2px;
+        gap: 10px;
+    }
+
+    .manga-title-section {
+        display: none;
+    }
+
+    .nav-btn {
+        width: 35px !important;
+        height: 35px !important;
+        font-size: 12px !important;
+    }
+
+    .mode-btn {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 8px !important;
+    }
+
+    .translation-btn {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 10px !important;
+    }
+
+    .double-page-container {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
+
+/* 进度滑动条 */
+.progress-slider-section {
+    width: 100%;
+    padding: 15px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.progress-slider-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+}
+
+/* 自定义页面滑块样式 */
+.page-slider-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+.page-slider-track {
+    width: 2px;
+    height: 100%;
+    background-color: var(--color-border-default);
+    position: relative;
+    border-radius: 1px;
+}
+
+.page-slider-thumb {
+    position: absolute;
+    width: 10px;
+    height: 30px;
+    background-color: var(--color-accent-default);
+    border-radius: 5px;
+    cursor: grab;
+    transform: translateX(-4px); /* (track_width - thumb_width) / 2 */
+    transition: background-color 0.2s ease, height 0.2s ease;
+}
+
+.page-slider-thumb:hover {
+    background-color: var(--color-accent-hover);
+}
+
+.page-slider-thumb.dragging {
+    cursor: grabbing;
+}
+
+
+/* 关键帧动画 */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(var(--color-accent-default), 0.7); /* Use rgba with variable */
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(var(--color-accent-default), 0); /* Use rgba with variable */
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(var(--color-accent-default), 0); /* Use rgba with variable */
+    }
+}
+
+
+/* 谷歌风格的自定义滚动条 */
+.viewer-content::-webkit-scrollbar {
+    width: 12px;  /* 增加轨道宽度以容纳内边距 */
+    height: 12px;
+}
+
+.viewer-content::-webkit-scrollbar-track {
+    background: transparent; /* 轨道背景透明 */
+}
+
+.viewer-content::-webkit-scrollbar-thumb {
+    background-color: rgba(180, 180, 180, 0.4); /* 半透明的滑块 */
+    border-radius: 6px; /* 圆角 */
+    border: 3px solid transparent; /* 创建内边距效果 */
+    background-clip: content-box; /* 让边框透明 */
+    transition: background-color 0.2s ease-in-out;
+}
+
+.viewer-content::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(180, 180, 180, 0.7); /* 悬停时更不透明 */
+}

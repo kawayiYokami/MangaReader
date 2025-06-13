@@ -1,0 +1,175 @@
+<!-- 设置页面 - 重新设计 -->
+<div class="settings-page">
+<!-- 调试卡片 (仅桌面应用可见) -->
+    <el-card v-if="runningInDesktopApp" style="margin-bottom: var(--spacing-lg);">
+        <template #header>
+            <div class="card-header">
+                <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">bug_report</span> 调试</span>
+            </div>
+        </template>
+        <el-button type="primary" @click="reloadApp">
+            <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">refresh</span> 刷新应用界面
+        </el-button>
+        <p class="setting-description" style="margin-top: 8px;">强制重新加载整个应用程序界面，用于开发调试。</p>
+    </el-card>
+    <el-card>
+        <template #header>
+            <div class="card-header"> <!-- Use a div for potentially more complex headers later -->
+                <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">palette</span> 外观设置</span>
+            </div>
+        </template>
+
+        <el-form label-position="top">
+            <el-form-item>
+                <!-- Use slot for label to include description -->
+                <template #label>
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                        <span>应用主题</span>
+                        <p class="theme-setting-description">选择应用的外观主题，支持浅色、深色或跟随系统设置。</p>
+                    </div>
+                </template>
+
+                <!-- Radio buttons for theme selection -->
+                <el-radio-group v-model="currentTheme" @change="onThemeChange" style="margin-top: 8px;">
+                    <el-radio value="light">
+                        <span style="display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-rounded">light_mode</span> <span>浅色</span></span>
+                    </el-radio>
+                    <el-radio value="dark">
+                        <span style="display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-rounded">dark_mode</span> <span>深色</span></span>
+                    </el-radio>
+                    <el-radio value="auto">
+                        <span style="display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-rounded">brightness_auto</span> <span>跟随系统</span></span>
+                    </el-radio>
+                </el-radio-group>
+            </el-form-item>
+
+            <!-- Add other settings form items here in the future -->
+
+        </el-form>
+    </el-card>
+
+    <!-- Add other setting cards here in the future -->
+
+    <el-card v-if="isLocalAccess" style="margin-top: var(--spacing-lg);"> <!-- Removed mt-4 and added explicit margin-top -->
+        <template #header>
+            <div class="card-header">
+                <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">language</span> 翻译与文本设置</span>
+            </div>
+        </template>
+
+        <el-form label-position="top">
+            <!-- 翻译接口 -->
+            <el-form-item>
+                <template #label>
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                        <span>翻译接口</span>
+                        <p class="setting-description">选择使用的翻译服务提供商。</p>
+                    </div>
+                </template>
+                <el-select v-model="translationSettings.translator_type" placeholder="选择翻译引擎" @change="onTranslationEngineChange" :disabled="!isLocalAccess">
+                    <el-option label="Google" value="Google"></el-option>
+                    <el-option label="智谱" value="智谱"></el-option>
+                </el-select>
+            </el-form-item>
+
+            <!-- 智谱AI设置 -->
+            <div v-if="translationSettings.translator_type === '智谱'">
+                <el-form-item>
+                    <template #label>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span>智谱AI API密钥</span>
+                            <p class="setting-description">请输入智谱AI翻译服务的API密钥。</p>
+                        </div>
+                    </template>
+                    <el-input v-model="translationSettings.zhipuApiKey" type="password" show-password placeholder="请输入智谱AI API密钥" @change="onZhipuApiKeyChange" :disabled="!isLocalAccess"></el-input>
+                </el-form-item>
+                <el-form-item>
+                    <template #label>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span>智谱AI模型</span>
+                            <p class="setting-description">选择智谱AI翻译使用的模型。</p>
+                        </div>
+                    </template>
+                    <el-select v-model="translationSettings.zhipuModel" placeholder="选择智谱AI模型" @change="onZhipuModelChange" :disabled="!isLocalAccess">
+                        <el-option label="glm-4-flash" value="glm-4-flash"></el-option>
+                        <el-option label="glm-4" value="glm-4"></el-option>
+                        <el-option label="glm-3-turbo" value="glm-3-turbo"></el-option>
+                        <el-option label="glm-4-flash-250414" value="glm-4-flash-250414"></el-option>
+                    </el-select>
+                </el-form-item>
+            </div>
+
+            <!-- Google设置 -->
+            <div v-if="translationSettings.translator_type === 'Google'">
+                <el-form-item>
+                    <template #label>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span>Google API密钥 (可选)</span>
+                            <p class="setting-description">请输入Google翻译服务的API密钥（可选）。</p>
+                        </div>
+                    </template>
+                    <el-input v-model="translationSettings.googleApiKey" type="password" show-password placeholder="请输入Google API密钥 (可选)" @change="onGoogleApiKeyChange" :disabled="!isLocalAccess"></el-input>
+                </el-form-item>
+            </div>
+
+            <!-- 文本替换字体 -->
+            <el-form-item>
+                <template #label>
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                        <span>文本替换字体</span>
+                        <p class="setting-description">选择用于翻译后文本替换的字体。</p>
+                    </div>
+                </template>
+                {% raw %}
+                <!-- 使用v-if确保在字体加载后渲染 -->
+                <el-select
+                    v-if="availableFonts && availableFonts.length > 0"
+                    v-model="translationSettings.font_name"
+                    placeholder="选择字体"
+                    @change="onFontChange"
+                    :disabled="!isLocalAccess">
+                    <el-option
+                        v-for="font in availableFonts"
+                        :key="font.file_name"
+                        :label="font.display_name"
+                        :value="font.file_name">
+                    </el-option>
+                </el-select>
+                <!-- 可选：字体加载时的占位符 -->
+                <div v-else>
+                     <el-input placeholder="正在加载字体列表..." :disabled="true"></el-input>
+                </div>
+                {% endraw %}
+            </el-form-item>
+        </el-form>
+    </el-card>
+
+    <!-- 系统设置卡片 -->
+    <el-card v-if="isLocalAccess" style="margin-top: var(--spacing-lg);">
+        <template #header>
+            <div class="card-header">
+                <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">settings</span> 系统设置</span>
+            </div>
+        </template>
+
+        <el-form label-position="top">
+            <!-- 日志等级设置 -->
+            <el-form-item>
+                <template #label>
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                        <span>日志等级</span>
+                        <p class="setting-description">设置应用程序的日志记录详细程度。DEBUG显示所有信息，ERROR只显示错误信息。</p>
+                    </div>
+                </template>
+                <el-select v-model="systemSettings.logLevel" placeholder="选择日志等级" @change="onLogLevelChange" :disabled="!isLocalAccess">
+                    <el-option label="调试 (DEBUG) - 显示所有详细信息" value="DEBUG"></el-option>
+                    <el-option label="信息 (INFO) - 显示一般操作信息" value="INFO"></el-option>
+                    <el-option label="警告 (WARNING) - 只显示警告和错误" value="WARNING"></el-option>
+                    <el-option label="错误 (ERROR) - 只显示错误信息" value="ERROR"></el-option>
+                    <el-option label="严重 (CRITICAL) - 只显示严重错误" value="CRITICAL"></el-option>
+                </el-select>
+            </el-form-item>
+        </el-form>
+    </el-card>
+</div>
+

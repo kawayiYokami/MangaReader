@@ -1,0 +1,140 @@
+/* 杂项组件样式 */
+
+/* 未使用的设置界面容器 .settings-interface 规则已移除 */
+
+.theme-setting-description {
+    /* 设置项下方的描述文本 */
+    font-size: var(--m3-font-body-small-size);
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height);
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
+    color: var(--color-text-secondary);
+    margin-top: var(--spacing-xs); /* 描述上方的小间距 */
+}
+
+/* 通知框 */
+.notice-box {
+    padding: var(--spacing-md); /* 使用一致的内边距 */
+    margin-top: var(--spacing-md); /* 通知框上方的间距 */
+    border-radius: var(--border-radius);
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border-default);
+}
+
+.notice-box .notice-title {
+    /* 通知框标题 */
+    font-size: var(--m3-font-label-medium-size); /* 调整后的尺寸 */
+    font-weight: var(--m3-font-label-medium-weight);
+    line-height: var(--m3-font-label-medium-line-height);
+    letter-spacing: var(--m3-font-label-medium-letter-spacing);
+    text-align: center;
+    color: var(--color-text-default);
+    margin-bottom: var(--spacing-sm);
+}
+
+.notice-box .notice-list {
+    /* 通知框内的列表 */
+    font-size: var(--m3-font-body-small-size); /* 列表使用小号正文 */
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height);
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
+    color: var(--color-text-secondary);
+    margin: 0 0 0 var(--spacing-md); /* 项目符号的左外边距 */
+    padding: 0;
+    list-style-position: outside;
+}
+
+.notice-box .notice-list li {
+    margin-bottom: var(--spacing-xs); /* 列表项之间的间距 */
+}
+.notice-box .notice-list li:last-child {
+    margin-bottom: 0;
+}
+
+
+/* 未使用的状态指示器 (.status-indicator, .status-healthy) 相关规则已移除 */
+
+
+/* 之前已移除的 .dialog-footer-new 相关样式 */
+
+.sensitive-actions { /* 可能包含敏感操作的区域 */
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: rgba(var(--color-state-warning-rgb), 0.1); /* 细微的警告背景 */
+    border: 1px solid rgba(var(--color-state-warning-rgb), 0.3); /* 细微的警告边框 */
+    border-radius: var(--border-radius);
+    /* border-left: 3px solid var(--color-state-warning); /* 可选的左边框 */
+}
+
+
+/* 漫画查看器覆盖层 */
+.manga-viewer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--color-bg-default); /* 查看器背景 */
+    z-index: 9999; /* 高 z-index */
+    display: flex;
+    flex-direction: column;
+}
+
+.viewer-close-btn {
+    /* 查看器关闭按钮 */
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    /* 背景基于主题 */
+    background: rgba(var(--color-text-default-rgb), 0.1);
+    color: var(--color-text-default);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10000; /* 在 iframe 之上 */
+    transition: all var(--transition);
+    backdrop-filter: blur(4px);
+    font-size: 18px;
+    border: 1px solid var(--color-border-default);
+}
+
+.viewer-close-btn:hover {
+    background: rgba(var(--color-text-default-rgb), 0.2);
+    transform: scale(1.1);
+}
+
+/* 调整深色主题下的关闭按钮 */
+html.theme-dark .viewer-close-btn {
+    background: rgba(var(--color-bg-elevated-rgb, 47, 47, 47), 0.8); /* 假设深色模式使用抬高背景 */
+    color: var(--color-text-default);
+    border-color: var(--color-border-subtle);
+}
+
+html.theme-dark .viewer-close-btn:hover {
+    background: rgba(var(--color-bg-elevated-rgb, 47, 47, 47), 0.9);
+}
+
+
+.manga-viewer-iframe {
+    /* 漫画查看器的 iframe */
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: var(--color-bg-default); /* 与覆盖层背景匹配 */
+}
+
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .viewer-close-btn {
+        top: 12px;
+        right: 12px;
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+    }
+}

@@ -1,0 +1,69 @@
+<!-- 压缩前警告对话框组件 -->
+<el-dialog
+    v-model="compressionWarningDialog.visible"
+    title="批量压缩警告"
+    width="500px"
+    :close-on-click-modal="false"
+    append-to-body
+    custom-class="modern-dialog dialog-theme-base">
+
+    <div class="compression-warning">
+        <el-alert
+            title="重要提醒"
+            type="warning"
+            show-icon
+            :closable="false">
+            <template #default>
+                <div style="margin-top: 10px;">
+                    <p><strong>为了避免压缩非漫画文件，建议您先执行以下操作：</strong></p>
+                    <ol style="margin: 10px 0; padding-left: 20px;">
+                        <li>使用"自动过滤"功能清理非漫画文件</li>
+                        <li>检查漫画库中的文件类型和质量</li>
+                        <li>确认所有文件都是需要压缩的漫画</li>
+                    </ol>
+                </div>
+            </template>
+        </el-alert>
+
+        <div style="margin-top: 20px;">
+            <el-alert
+                title="压缩操作说明"
+                type="info"
+                show-icon
+                :closable="false">
+                <template #default>
+                    <div style="margin-top: 8px;">
+                        <p>• 压缩过程将直接替换原文件</p>
+                        <p>• 自动跳过 .webp 格式文件</p>
+                        <p>• 压缩前会进行文件完整性验证</p>
+                        <p>• 建议在压缩前备份重要文件</p>
+                    </div>
+                </template>
+            </el-alert>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <el-checkbox v-model="compressionWarningDialog.dontShowAgain">
+                不再显示此警告
+            </el-checkbox>
+        </div>
+    </div>
+
+    <template #footer>
+        <div class="dialog-footer modern-dialog-footer">
+            <div class="footer-left">
+                <el-button @click="openAutoFilterFirst" type="info" plain>
+                    <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">filter_alt</span>
+                    先执行自动过滤
+                </el-button>
+            </div>
+            <div class="footer-right">
+                <el-button @click="cancelCompressionWarning" size="large">取消</el-button>
+                <el-button type="primary" @click="proceedWithCompression" size="large">
+                    <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">compress</span>
+                    继续压缩
+                </el-button>
+            </div>
+        </div>
+    </template>
+</el-dialog>

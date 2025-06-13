@@ -1,0 +1,104 @@
+<!-- 漫画浏览页面 -->
+<div class="manga-browser">
+    <!-- 搜索和过滤 -->
+    <el-card>
+        <div class="manga-filters">
+            <!-- 顶部操作栏 -->
+            <div class="filter-header">
+                <!-- 搜索框 -->
+                <el-input
+                    v-model="searchQuery"
+                    placeholder="搜索漫画标题..."
+                    prefix-icon="Search"
+                    clearable
+                    style="flex: 1; margin-right: 16px;">
+                </el-input>
+
+                <!-- Web版本只读提示按钮 (仅 Web 版显示) -->
+                <el-tooltip content="Web版本不支持添加漫画功能" placement="bottom" v-if="!runningInDesktopApp">
+                    <el-button type="primary" disabled>
+                        <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">public</span> Web版本 (只读模式)
+                    </el-button>
+                </el-tooltip>
+
+                <!-- 桌面版：选择目录按钮 -->
+                <el-button
+                    v-if="runningInDesktopApp"
+                    type="primary"
+                    @click="selectDirectory"
+                    style="margin-left: 8px;">
+                    <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">folder_open</span> 选择目录
+                </el-button>
+                <!-- 桌面版：选择文件按钮 -->
+                <el-button
+                    v-if="runningInDesktopApp"
+                    type="success"  {# 使用不同颜色区分 #}
+                    @click="selectFile"
+                    style="margin-left: 8px;">
+                    <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">description</span> 选择文件
+                </el-button>
+
+                <!-- 清除过滤按钮 -->
+                <el-button
+                    v-if="selectedTags.length > 0"
+                    size="default"
+                    type="info"
+                    text
+                    @click="clearTagFilters"
+                    style="margin-left: 8px;">
+                    清除 (<span v-text="selectedTags.length"></span>)
+                </el-button>
+            </div>
+
+            <!-- 标签分类过滤 -->
+            <div v-if="Object.keys(tagsByCategory).length > 0" class="tag-category-filters">
+                <!-- 标签分类选择器 -->
+                <el-tabs v-model="activeTagCategory" type="card" class="tag-category-tabs">
+                    <el-tab-pane
+                        v-for="(tags, category) in tagsByCategory"
+                        :key="category"
+                        :label="`${category} (${tags.length})`"
+                        :name="category">
+
+                        <div class="tag-list">
+                            <el-tag
+                                v-for="tag in tags.slice(0, tagCategoryShowAll[category] ? tags.length : 20)"
+                                :key="tag.full"
+                                :type="selectedTags.includes(tag.full) ? 'primary' : undefined"
+                                :effect="selectedTags.includes(tag.full) ? 'dark' : 'plain'"
+                                @click="toggleTag(tag.full)"
+                                class="filter-tag">
+                                <span v-text="tag.display"></span>
+                            </el-tag>
+
+                            <!-- 显示更多按钮 -->
+                            <el-button
+                                v-if="tags.length > 20"
+                                size="small"
+                                type="info"
+                                text
+                                @click="toggleShowAllTags(category)"
+                                class="show-more-btn">
+                                <span v-text="tagCategoryShowAll[category] ? '收起' : `显示全部 ${tags.length} 个`"></span>
+                            </el-button>
+                        </div>
+                    </el-tab-pane>
+                </el-tabs>
+            </div>
+        </div>
+    </el-card>
+
+    <!-- 空状态 -->
+    {% include 'components/shared/empty-state.html' %}
+
+    <!-- 加载状态 -->
+    {% include 'components/shared/loading-state.html' %}
+
+    <!-- 漫画列表 -->
+    <div v-else-if="filteredMangaList.length > 0" class="manga-grid">
+        {% include 'components/widgets/manga-card.html' %}
+    </div>
+
+    <!-- 无结果状态 -->
+    {% include 'components/shared/no-results-state.html' %}
+</div>

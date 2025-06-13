@@ -1,0 +1,67 @@
+/*
+ * 自定义标题栏样式
+ */
+
+.title-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background-color: #2c2c2c;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    z-index: 10000;
+    -webkit-user-select: none; /* 防止文本被选中 */
+    user-select: none;
+}
+
+/* 可拖拽区域 */
+.title-bar-draggable {
+    -webkit-app-region: drag;
+    flex-grow: 1;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.title-bar-text {
+    color: #e0e0e0;
+    font-size: 13px;
+    margin-left: 8px;
+    pointer-events: none; /* 确保文字不干扰拖拽 */
+}
+
+/* 窗口控制按钮区域 */
+.window-controls {
+    display: flex;
+    -webkit-app-region: no-drag; /* 按钮不可拖拽 */
+}
+
+.window-control-btn {
+    width: 40px;
+    height: 32px;
+    border: none;
+    background-color: transparent;
+    color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.window-control-btn:hover {
+    background-color: #4a4a4a;
+}
+
+.window-control-btn.close:hover {
+    background-color: #e81123;
+    color: white;
+}
+
+.window-control-btn .material-symbols-rounded {
+    font-size: 18px;
+}

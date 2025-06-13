@@ -1,0 +1,252 @@
+<!-- 自动过滤对话框组件 - Material Design风格 -->
+<el-dialog
+    v-model="autoFilterDialog.visible"
+    title="智能过滤漫画文件"
+    width="700px"
+    :close-on-click-modal="false"
+    append-to-body
+    custom-class="modern-dialog material-dialog dialog-theme-base">
+
+    <div class="material-auto-filter">
+        <!-- 步骤指示器 -->
+        <div class="filter-steps">
+            <el-steps :active="autoFilterDialog.currentStep" finish-status="success" align-center>
+                <el-step title="选择方法" icon="settings"></el-step>
+                <el-step title="预览结果" icon="preview"></el-step>
+                <el-step title="应用过滤" icon="check"></el-step>
+            </el-steps>
+        </div>
+
+        <!-- 步骤1：选择过滤方法 -->
+        <div v-if="autoFilterDialog.currentStep === 0" class="filter-step step-method">
+            <div class="step-header">
+                <h3>选择过滤方法</h3>
+                <p class="step-description">选择最适合您漫画库的过滤策略</p>
+            </div>
+
+            <div class="method-cards">
+                <div
+                    v-for="method in getFilterMethods()"
+                    :key="method.value"
+                    class="method-card"
+                    :class="{ active: autoFilterDialog.filterMethod === method.value }"
+                    @click="selectFilterMethod(method.value)">
+
+                    <div class="card-icon">
+                        <span class="material-symbols-rounded" v-text="method.icon"></span>
+                    </div>
+
+                    <div class="card-content">
+                        <h4 v-text="method.title"></h4>
+                        <p v-text="method.description"></p>
+
+                        <div class="card-features">
+                            <div v-for="feature in method.features" :key="feature" class="feature-item">
+                                <span class="material-symbols-rounded">check_circle</span>
+                                <span v-text="feature"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 阈值设置 -->
+            <div v-if="autoFilterDialog.filterMethod === 'dimension_analysis' || autoFilterDialog.filterMethod === 'hybrid'"
+                 class="threshold-section">
+                <div class="section-header">
+                    <h4>过滤敏感度</h4>
+                    <p>调整过滤的严格程度</p>
+                </div>
+
+                <div class="threshold-control">
+                    <el-slider
+                        v-model="autoFilterDialog.threshold"
+                        :min="0.05"
+                        :max="0.5"
+                        :step="0.05"
+                        show-stops
+                        :format-tooltip="formatThresholdTooltip"
+                        class="material-slider">
+                    </el-slider>
+
+                    <div class="threshold-labels">
+                        <span class="label-left">严格</span>
+                        <span class="label-center">推荐 (0.15-0.25)</span>
+                        <span class="label-right">宽松</span>
+                    </div>
+                </div>
+
+                <!-- 高级选项 -->
+                <div class="advanced-options">
+                    <el-collapse>
+                        <el-collapse-item title="高级选项" name="advanced">
+                            <div class="advanced-content">
+                                <el-checkbox
+                                    v-model="autoFilterDialog.forceReanalyze"
+                                    class="force-reanalyze-option">
+                                    强制重新分析所有漫画的尺寸数据
+                                </el-checkbox>
+                                <p class="option-description">
+                                    如果您发现缓存中的方差值不准确，可以启用此选项重新分析所有漫画。
+                                    <strong>注意：这会花费较长时间。</strong>
+                                </p>
+                            </div>
+                        </el-collapse-item>
+                    </el-collapse>
+                </div>
+            </div>
+        </div>
+
+        <!-- 步骤2：预览结果 -->
+        <div v-if="autoFilterDialog.currentStep === 1" class="filter-step step-preview">
+            <div class="step-header">
+                <h3>预览过滤结果</h3>
+                <p class="step-description">查看将要被移除的文件</p>
+            </div>
+
+            <!-- 预览加载状态 -->
+            <div v-if="autoFilterDialog.isPreviewing" class="preview-loading">
+                <el-skeleton :rows="3" animated />
+                <div class="loading-text">正在分析文件...</div>
+            </div>
+
+            <!-- 预览结果 -->
+            <div v-else-if="autoFilterDialog.previewResults" class="preview-results">
+                <!-- 统计卡片 -->
+                <div class="stats-cards">
+                    <div class="stat-card keep clickable" @click="showFilteredFilesList('keep')">
+                        <div class="stat-icon">
+                            <span class="material-symbols-rounded">folder</span>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" v-text="autoFilterDialog.previewResults.filtered_count"></div>
+                            <div class="stat-label">保留文件</div>
+                        </div>
+                        <div class="click-hint">
+                            <span class="material-symbols-rounded">visibility</span>
+                            <span>点击查看</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card remove clickable" @click="showFilteredFilesList('remove')">
+                        <div class="stat-icon">
+                            <span class="material-symbols-rounded">delete</span>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" v-text="autoFilterDialog.previewResults.removed_count"></div>
+                            <div class="stat-label">移除文件</div>
+                        </div>
+                        <div class="click-hint">
+                            <span class="material-symbols-rounded">visibility</span>
+                            <span>点击查看</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 被移除的文件列表 -->
+                <div v-if="autoFilterDialog.previewResults.removed_count > 0" class="removed-files-section">
+                    <div class="section-header">
+                        <h4>将被移除的文件</h4>
+                        <el-tag type="warning" size="small">
+                            <span v-text="autoFilterDialog.previewResults.removed_count"></span> 个文件
+                        </el-tag>
+                    </div>
+
+                    <div class="removed-files-container">
+                        <div v-for="removed in autoFilterDialog.previewResults.removed_manga"
+                             :key="removed.file_path"
+                             class="removed-file-card">
+                            <div class="file-info">
+                                <div class="file-icon">
+                                    <span class="material-symbols-rounded">description</span>
+                                </div>
+                                <div class="file-details">
+                                    <div class="file-name" v-text="removed.title || removed.file_path"></div>
+                                    <div class="file-reason" v-text="removed.reason"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 无文件被移除 -->
+                <div v-else class="no-removal">
+                    <div class="no-removal-icon">
+                        <span class="material-symbols-rounded">check_circle</span>
+                    </div>
+                    <h4>所有文件都通过了过滤</h4>
+                    <p>您的漫画库质量很好，没有需要移除的文件。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 步骤3：应用过滤 -->
+        <div v-if="autoFilterDialog.currentStep === 2" class="filter-step step-apply">
+            <div class="step-header">
+                <h3>应用过滤结果</h3>
+                <p class="step-description">正在处理文件...</p>
+            </div>
+
+            <!-- 进度显示 -->
+            <div v-if="autoFilterDialog.isProcessing" class="apply-progress">
+                <el-progress
+                    :percentage="autoFilterDialog.progress"
+                    :status="autoFilterDialog.status"
+                    stroke-width="8">
+                </el-progress>
+                <div class="progress-text" v-text="autoFilterDialog.progressText"></div>
+            </div>
+
+            <!-- 完成结果 -->
+            <div v-else-if="autoFilterDialog.filterResults" class="apply-results">
+                <div class="success-icon">
+                    <span class="material-symbols-rounded">check_circle</span>
+                </div>
+                <h4>过滤完成</h4>
+                <p>已成功移除 <strong v-text="autoFilterDialog.filterResults.removed_count"></strong> 个文件</p>
+            </div>
+        </div>
+    </div>
+
+    <template #footer>
+        <div class="dialog-footer material-dialog-footer">
+            <div class="footer-left">
+                <el-button
+                    v-if="autoFilterDialog.currentStep > 0 && autoFilterDialog.currentStep < 2"
+                    @click="previousStep"
+                    plain>
+                    <span class="material-symbols-rounded" style="margin-right: 4px;">arrow_back</span>
+                    上一步
+                </el-button>
+            </div>
+
+            <div class="footer-right">
+                <el-button @click="cancelAutoFilter" size="large">
+                    <span v-if="autoFilterDialog.currentStep === 2 && autoFilterDialog.filterResults">关闭</span>
+                    <span v-else>取消</span>
+                </el-button>
+
+                <el-button
+                    v-if="autoFilterDialog.currentStep === 0"
+                    type="primary"
+                    @click="nextStep"
+                    size="large"
+                    :disabled="!autoFilterDialog.filterMethod">
+                    下一步
+                    <span class="material-symbols-rounded" style="margin-left: 4px;">arrow_forward</span>
+                </el-button>
+
+                <el-button
+                    v-else-if="autoFilterDialog.currentStep === 1"
+                    type="primary"
+                    @click="nextStep"
+                    size="large"
+                    :disabled="!autoFilterDialog.previewResults"
+                    :loading="autoFilterDialog.isPreviewing">
+                    <span v-if="autoFilterDialog.isPreviewing">分析中...</span>
+                    <span v-else>应用过滤</span>
+                </el-button>
+            </div>
+        </div>
+    </template>
+</el-dialog>

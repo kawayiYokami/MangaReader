@@ -1,0 +1,917 @@
+/* 缓存管理界面样式 */
+
+.compression-description {
+    margin-top: 8px;
+    color: #666;
+}
+
+.naming-description {
+    margin-top: 8px;
+    color: #666;
+}
+
+.cache-management-minimal {
+    /* 整个缓存管理页面的容器 (极简布局) */
+    max-width: 1400px; /* 限制最大宽度 */
+    margin: 0 auto; /* 居中内容 */
+    padding: 0; /* 极简版本通常没有内边距 */
+}
+
+/* 缓存概览区域 (现在是列表视图) */
+.cache-overview {
+    margin-bottom: var(--spacing-lg); /* 概览下方的间距 */
+}
+.cache-overview h2 { /* 概览区域标题 */
+    margin: 0 0 var(--spacing-md) 0;
+    font-size: var(--m3-font-headline-small-size);
+    font-weight: var(--m3-font-headline-small-weight);
+    line-height: var(--m3-font-headline-small-line-height);
+    letter-spacing: var(--m3-font-headline-small-letter-spacing);
+    color: var(--color-text-default);
+}
+
+/* 未使用的 .cache-overview-card, .cache-card-header, .cache-title 规则已移除 */
+
+.cache-icon { /* 列表项中的图标 */
+    font-size: 24px; /* 与 material-symbols-rounded 匹配 */
+    margin-right: var(--spacing-sm);
+    color: var(--color-text-secondary); /* 图标使用次要颜色 */
+    width: 24px; /* 确保一致宽度 */
+    text-align: center;
+    vertical-align: middle; /* 确保垂直对齐 */
+}
+
+/* 未使用的 .stat-item, .stat-label, .stat-value 规则已移除 */
+
+.cache-stats { /* 列表项或卡片中的统计信息容器 */
+    margin-bottom: var(--spacing-md); /* 卡片布局可能需要 */
+}
+.stat-divider { /* 极简列表视图中使用的分隔符 */
+    color: var(--color-border-default);
+    margin: 0 var(--spacing-xs);
+}
+
+.cache-actions { /* 卡片/列表项中的操作按钮容器 */
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end; /* 操作按钮右对齐 */
+}
+
+/* 未使用的 .global-actions, .action-group, .system-info 规则已移除 */
+
+
+/* 缓存详情区域 (表格视图) */
+.cache-detail { /* 详细视图容器 */
+    background: var(--color-bg-default);
+    /* border: 1px solid var(--color-border-default); */ /* 边框可能由 el-table 提供 */
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    /* 可能继承 .el-card 样式 */
+}
+
+/* --- 移除旧的 .cache-detail-header 和 .detail-actions --- */
+/*
+.cache-detail-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    gap: var(--spacing-lg);
+}
+
+.detail-header h3 {
+    margin: 0;
+    font-size: var(--m3-font-title-large-size);
+    font-weight: var(--m3-font-title-large-weight);
+    line-height: var(--m3-font-title-large-line-height);
+    letter-spacing: var(--m3-font-title-large-letter-spacing);
+    color: var(--color-text-default);
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.detail-actions {
+    margin-left: auto;
+    flex-shrink: 0;
+    display: flex;
+    gap: var(--spacing-sm);
+}
+*/
+/* --- End of Removed Styles --- */
+
+
+/* --- Material Design Card Header Styles --- */
+.md-card-header {
+    display: flex;
+    justify-content: space-between; /* 标题在左，操作在右 */
+    align-items: center; /* 垂直居中 */
+    padding: var(--spacing-md) 0; /* 上下内边距，左右无（因为父级 .cache-detail 已有）*/
+    margin-bottom: var(--spacing-lg); /* 标题栏和下方内容的间距 */
+    /* 可选: 添加底部边框模拟卡片标题分割线 */
+    /* border-bottom: 1px solid var(--color-border-subtle); */
+    gap: var(--spacing-lg); /* 标题和按钮之间的间距 */
+}
+
+.md-card-title-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm); /* 图标和标题之间的间距 (如果添加图标) */
+    flex-grow: 1; /* 允许标题容器伸展 */
+    min-width: 0; /* 允许标题容器收缩 */
+}
+
+.md-card-title {
+    margin: 0; /* 移除 h3 默认外边距 */
+    font-size: var(--m3-font-title-large-size);
+    font-weight: var(--m3-font-title-large-weight);
+    line-height: var(--m3-font-title-large-line-height);
+    letter-spacing: var(--m3-font-title-large-letter-spacing);
+    color: var(--color-text-default);
+    /* 文本溢出处理 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.md-card-actions {
+    flex-shrink: 0; /* 防止操作按钮被压缩 */
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm); /* 按钮之间的间距 */
+}
+/* --- End of Material Design Card Header Styles --- */
+
+
+.search-bar { /* 表格上方的搜索输入框 */
+    margin-bottom: var(--spacing-md);
+}
+
+/* 未使用的 .cache-entries 规则已移除 */
+
+
+/* 表格单元格内特定内容的样式 - 调整 */
+.cache-key {
+    font-family: 'Courier New', monospace; /* Key 使用等宽字体 */
+    font-size: var(--m3-font-body-small-size);
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height); /* 继承单元格行高 */
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
+    color: var(--color-text-default);
+    /* word-break: break-all;  <- 移除，由单元格处理溢出 */
+    display: inline; /* 确保其不影响单元格的溢出处理 */
+}
+/* 未使用的 .cache-preview 选择器已移除 */
+.cache-content { /* 单元格中的预览/内容文本 - 调整 */
+    font-size: var(--m3-font-body-small-size);
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height); /* 继承单元格行高 */
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
+    color: var(--color-text-secondary);
+    /* word-break: break-word; <- 移除，由单元格处理溢出 */
+    display: inline; /* 确保其不影响单元格的溢出处理 */
+}
+.content-with-tags { /* 内容旁边带有标签的布局 (例如敏感标签) */
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    /* 让这个容器填满单元格，以便内部文本正确溢出 */
+    width: 100%;
+}
+.content-with-tags .cache-content {
+    flex-grow: 1; /* 让内容文本占据可用空间 */
+    min-width: 0; /* 允许内容收缩 */
+    /* 确保文本溢出在这里处理可能更可靠 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sensitive-tag { /* 特定标签样式 */
+    flex-shrink: 0; /* 防止标签收缩 */
+}
+
+/* 极简缓存列表视图 */
+.cache-list { /* 极简布局中使用 */
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+.cache-item { /* 极简布局中的列表项 */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    background: var(--color-bg-default);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all var(--transition);
+    border: 1px solid transparent; /* 用于 active 状态 */
+}
+.cache-item:hover {
+    background-color: var(--color-bg-elevated);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+.cache-item.active { /* 当前选中的列表项 */
+    background: rgba(var(--color-accent-default-rgb), 0.08);
+    box-shadow: 0 2px 6px rgba(var(--color-accent-default-rgb), 0.1);
+    border-color: rgba(var(--color-accent-default-rgb), 0.3);
+}
+
+.cache-basic-info { /* 列表项左侧 (图标 + 名称) */
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex: 1; /* 占据可用空间 */
+    min-width: 0; /* 允许收缩 */
+}
+.cache-name { /* 列表项中的名称 */
+    font-size: var(--m3-font-body-medium-size);
+    font-weight: var(--m3-font-weight-medium);
+    line-height: var(--m3-font-body-medium-line-height);
+    letter-spacing: var(--m3-font-body-medium-letter-spacing);
+    color: var(--color-text-default);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cache-item .cache-stats { /* 列表项中的统计信息 (重用 .cache-stats) */
+    margin-bottom: 0; /* 移除底部外边距 */
+    font-size: var(--m3-font-label-small-size);
+    gap: var(--spacing-sm);
+    flex-shrink: 0; /* 防止统计信息过度收缩 */
+    display: flex; /* 确保内部 span 水平排列 */
+    align-items: center; /* 垂直居中 */
+}
+.cache-item .cache-actions { /* 列表项中的操作按钮 */
+    margin-left: var(--spacing-md);
+    flex-shrink: 0;
+}
+
+
+/* 响应式调整 */
+@media (max-width: 1024px) {
+    /* 如果需要，调整概览卡片的网格布局 */
+    /* .cache-overview .el-col { margin-bottom: var(--spacing-md); } */
+
+    /* 全局操作区域已移除 */
+}
+
+@media (max-width: 768px) {
+    /* 概览卡片相关响应式代码已移除 */
+
+    /* --- Material Design Card Header Responsive --- */
+    .md-card-header {
+        flex-direction: column; /* 堆叠 */
+        align-items: flex-start; /* 左对齐 */
+        gap: var(--spacing-sm); /* 减小间距 */
+    }
+    .md-card-actions {
+        width: 100%; /* 操作按钮占满宽度 */
+        justify-content: flex-end; /* 按钮右对齐 */
+    }
+    /* --- End of Material Design Card Header Responsive --- */
+
+
+    /* 移除旧的 .cache-detail-header 响应式规则 */
+    /*
+    .cache-detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+    .detail-actions {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-start;
+    }
+    */
+
+    .cache-item { /* 调整移动端的极简列表项 */
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+    .cache-item .cache-stats,
+    .cache-item .cache-actions {
+        align-self: flex-end; /* 将统计信息/操作按钮右对齐 */
+        margin-left: 0;
+    }
+}
+/* ============================== */
+/* Custom Cache Table Styles      */
+/* ============================== */
+
+.custom-cache-table {
+    width: 100%;
+    border-collapse: collapse; /* 合并边框 */
+    border-spacing: 0;
+    background-color: var(--color-bg-default); /* 使用主题背景色 */
+    border-radius: var(--border-radius); /* 添加圆角 */
+    overflow: hidden; /* 裁剪内部边框的圆角 */
+    margin-bottom: var(--spacing-md); /* 与分页保持距离 */
+    table-layout: fixed; /* 新增：启用固定布局以控制列宽 */
+}
+
+.custom-cache-table th,
+.custom-cache-table td {
+    padding: var(--spacing-md); /* 统一单元格内边距 */
+    text-align: left;
+    vertical-align: middle; /* 垂直居中 */
+    border-bottom: 1px solid var(--color-border-subtle); /* 单元格底部细边框 */
+    transition: background-color var(--transition-fast); /* 添加过渡效果 */
+}
+
+/* 表头样式 */
+.custom-cache-table .cache-table-header-row th {
+    background-color: var(--color-bg-subtle); /* 使用柔和的背景色 */
+    color: var(--color-text-secondary); /* 使用次要文本颜色 */
+    font-size: var(--m3-font-label-large-size); /* Material 3 Label Large */
+    font-weight: var(--m3-font-weight-medium);
+    line-height: var(--m3-font-label-large-line-height);
+    letter-spacing: var(--m3-font-label-large-letter-spacing);
+    border-bottom: 1px solid var(--color-border-default); /* 表头底部较强边框 */
+    /* 给表头也应用溢出处理，以防万一 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 表格行样式 */
+.custom-cache-table .cache-table-row:last-child td {
+    border-bottom: none; /* 最后一行移除底部边框 */
+}
+
+.custom-cache-table .cache-table-row:hover td {
+    background-color: var(--color-bg-elevated); /* 悬停时使用抬高背景色 */
+}
+
+/* 特定单元格样式 - 调整 */
+.custom-cache-table .key-cell {
+    width: 20%; /* 设置 Key 列宽度 */
+    /* 直接在单元格应用溢出处理 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+}
+.custom-cache-table .content-cell {
+    width: 30%; /* 内容列宽度 */
+    /* 移除直接在 content-cell 上的溢出处理，让内部的 .content-with-tags 处理 */
+}
+.custom-cache-table .action-cell {
+    width: 80px; /* 保留 Action 列固定宽度 */
+    text-align: center;
+}
+
+/* 漫画列表特有的列样式 */
+.custom-cache-table .variance-cell {
+    width: 8%;
+    text-align: center;
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.custom-cache-table .manga-status-cell {
+    width: 8%;
+    text-align: center;
+}
+
+.custom-cache-table .pages-cell {
+    width: 6%;
+    text-align: center;
+}
+
+.custom-cache-table .size-cell {
+    width: 8%;
+    text-align: center;
+}
+
+.custom-cache-table .tags-cell {
+    width: 6%;
+    text-align: center;
+}
+
+/* 方差值颜色样式 */
+.variance-low {
+    color: #67c23a;
+    font-weight: 600;
+}
+
+.variance-medium {
+    color: #e6a23c;
+    font-weight: 600;
+}
+
+.variance-high {
+    color: #f56c6c;
+    font-weight: 600;
+}
+
+/* 文本样式 */
+.text-muted {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+/* 移除之前的溢出处理规则 (原 260-267 行) */
+
+/* 无数据单元格 */
+.custom-cache-table .no-data-cell {
+    text-align: center;
+    padding: var(--spacing-xl) var(--spacing-md);
+    color: var(--color-text-muted);
+    font-size: var(--m3-font-body-medium-size);
+}
+
+
+/* ======================================= */
+/* Material Design Dialog Styles           */
+/* ======================================= */
+
+.md-dialog-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.32); /* Scrim */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-index-dialog); /* 确保在顶层 */
+    transition: opacity var(--transition-medium) ease-out;
+}
+
+/* 进入/离开动画 (可选) */
+/* .md-dialog-enter-from, .md-dialog-leave-to { opacity: 0; }
+.md-dialog-enter-active, .md-dialog-leave-active { transition: opacity 0.2s ease; } */
+
+.md-dialog {
+    background-color: var(--color-bg-surface-container-high); /* MD3 Surface Container High */
+    border-radius: 28px; /* MD3 Dialog Radius */
+    box-shadow: var(--shadow-elevation-3); /* MD3 Elevation 3 */
+    width: calc(100% - 56px); /* 左右边距 28px */
+    max-width: 560px; /* MD3 Max Width */
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100% - 56px); /* 上下边距 28px */
+    overflow: hidden; /* 防止内容溢出圆角 */
+    color: var(--color-text-default);
+}
+
+.md-dialog-header {
+    padding: var(--spacing-lg); /* 24px */
+    padding-bottom: 0; /* 头部下方无额外内边距 */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0; /* 防止头部收缩 */
+}
+
+.md-dialog-title {
+    font-size: var(--m3-font-headline-small-size); /* 24px */
+    font-weight: var(--m3-font-headline-small-weight);
+    line-height: var(--m3-font-headline-small-line-height); /* 32px */
+    letter-spacing: var(--m3-font-headline-small-letter-spacing);
+    margin: 0;
+    color: var(--color-text-default);
+}
+
+.md-icon-button {
+    background: none;
+    border: none;
+    padding: 8px; /* 40px touch target */
+    margin: -8px; /* Offset padding */
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    transition: background-color var(--transition-fast);
+    display: inline-flex; /* 确保图标居中 */
+    align-items: center;
+    justify-content: center;
+}
+.md-icon-button:hover {
+    background-color: rgba(var(--color-text-secondary-rgb), 0.08);
+}
+.md-icon-button .material-symbols-rounded {
+    font-size: 24px;
+}
+
+.md-dialog-content {
+    padding: var(--spacing-lg); /* 24px */
+    overflow-y: auto; /* 内容过多时滚动 */
+    flex-grow: 1; /* 占据可用空间 */
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg); /* 表单项之间的间距 */
+}
+
+.md-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs); /* 标签和输入框间距 */
+}
+
+.md-form-field label {
+    font-size: var(--m3-font-body-small-size); /* 12px */
+    font-weight: var(--m3-font-weight-medium);
+    line-height: var(--m3-font-body-small-line-height); /* 16px */
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
+    color: var(--color-text-secondary);
+    padding: 0 var(--spacing-sm); /* 左右内边距 */
+}
+
+.md-form-field textarea {
+    font-family: inherit;
+    font-size: var(--m3-font-body-large-size); /* 16px */
+    line-height: var(--m3-font-body-large-line-height); /* 24px */
+    letter-spacing: var(--m3-font-body-large-letter-spacing);
+    color: var(--color-text-default);
+    background-color: var(--color-bg-surface-container-lowest); /* MD3 Surface Container Lowest */
+    border: 1px solid var(--color-border-outline); /* MD3 Outline */
+    border-radius: var(--border-radius-sm); /* 4px */
+    padding: var(--spacing-md) var(--spacing-sm); /* 16px padding */
+    resize: vertical; /* 允许垂直调整大小 */
+    min-height: calc(3 * var(--m3-font-body-large-line-height) + 2 * var(--spacing-md)); /* 约 3 行高 */
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.md-form-field textarea:focus {
+    outline: none;
+    border-color: var(--color-accent-default); /* MD3 Primary */
+    box-shadow: 0 0 0 1px var(--color-accent-default);
+}
+.md-form-field textarea:disabled {
+    background-color: var(--color-bg-disabled);
+    color: var(--color-text-disabled);
+    border-color: var(--color-border-disabled);
+    cursor: not-allowed;
+}
+
+.md-dialog-danger-zone {
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border-subtle);
+    display: flex;
+    justify-content: flex-start; /* 或 flex-end */
+}
+
+.md-dialog-actions {
+    padding: var(--spacing-md) var(--spacing-lg); /* 16px 24px */
+    display: flex;
+    justify-content: flex-end; /* 按钮右对齐 */
+    gap: var(--spacing-sm); /* 按钮间距 8px */
+    flex-shrink: 0; /* 防止操作区收缩 */
+}
+
+/* Material Design Buttons */
+.md-button {
+    font-family: inherit;
+    font-size: var(--m3-font-label-large-size); /* 14px */
+    font-weight: var(--m3-font-weight-medium);
+    line-height: 20px; /* 固定值 */
+    letter-spacing: var(--m3-font-label-large-letter-spacing);
+    border: none;
+    border-radius: 20px; /* M3 Button Radius */
+    padding: 10px 24px; /* M3 Height 40px */
+    cursor: pointer;
+    transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs); /* 图标和文本间距 */
+    min-width: 64px; /* M3 Minimum Width */
+    text-transform: none; /* 取消大写 */
+}
+.md-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.38; /* M3 Disabled Opacity */
+}
+.md-button .material-symbols-rounded {
+    font-size: 18px;
+    vertical-align: middle;
+}
+
+/* Filled Button */
+.md-button-filled {
+    background-color: var(--color-accent-default); /* Primary */
+    color: var(--color-bg-default); /* On Primary */
+}
+.md-button-filled:hover {
+    box-shadow: var(--shadow-elevation-1);
+    background-color: var(--color-accent-hover); /* Blend hover state */
+}
+.md-button-filled:focus {
+    outline: none;
+    background-color: var(--color-accent-focus); /* Blend focus state */
+}
+.md-button-filled:active {
+    background-color: var(--color-accent-active); /* Blend active state */
+}
+.md-button-filled:disabled {
+    background-color: var(--color-bg-disabled);
+    color: var(--color-text-disabled);
+    box-shadow: none;
+}
+
+/* Text Button */
+.md-button-text {
+    background-color: transparent;
+    color: var(--color-accent-default); /* Primary */
+    padding: 10px 12px; /* Text button has less horizontal padding */
+}
+.md-button-text:hover {
+    background-color: rgba(var(--color-accent-default-rgb), 0.08); /* Primary Hover */
+}
+.md-button-text:focus {
+    outline: none;
+    background-color: rgba(var(--color-accent-default-rgb), 0.12); /* Primary Focus */
+}
+.md-button-text:active {
+    background-color: rgba(var(--color-accent-default-rgb), 0.16); /* Primary Active */
+}
+.md-button-text:disabled {
+    color: var(--color-text-disabled);
+    background-color: transparent;
+}
+
+/* Danger Text Button */
+.md-button-danger {
+    color: var(--color-semantic-danger); /* Error */
+}
+.md-button-danger:hover {
+    background-color: rgba(var(--color-semantic-danger-rgb), 0.08); /* Error Hover */
+}
+.md-button-danger:focus {
+    background-color: rgba(var(--color-semantic-danger-rgb), 0.12); /* Error Focus */
+}
+.md-button-danger:active {
+    background-color: rgba(var(--color-semantic-danger-rgb), 0.16); /* Error Active */
+}
+.md-button-danger:disabled {
+    color: var(--color-text-disabled);
+}
+
+
+/* Responsive Dialog */
+@media (max-width: 600px) {
+    .md-dialog {
+        width: calc(100% - 32px); /* 减小边距 */
+        max-width: none;
+        max-height: calc(100% - 32px);
+        border-radius: 16px; /* 可选：减小圆角 */
+    }
+    .md-dialog-header,
+    .md-dialog-content,
+    .md-dialog-actions {
+        padding: var(--spacing-md); /* 统一使用较小内边距 */
+    }
+    .md-dialog-actions {
+        gap: var(--spacing-xs);
+    }
+    .md-button {
+        padding: 10px 16px; /* 可选：减小按钮内边距 */
+    }
+}
+
+/* ==================== 智能过滤功能样式 ==================== */
+
+/* 统计卡片样式 */
+.stats-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    border-radius: 12px;
+    background: var(--el-bg-color-page);
+    border: 1px solid var(--el-border-color-light);
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.stat-card.clickable {
+    cursor: pointer;
+}
+
+.stat-card.clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: var(--el-border-color);
+}
+
+.stat-card.keep {
+    border-left: 4px solid var(--el-color-success);
+}
+
+.stat-card.remove {
+    border-left: 4px solid var(--el-color-warning);
+}
+
+.stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-right: 16px;
+}
+
+.stat-card.keep .stat-icon {
+    background: var(--el-color-success-light-9);
+    color: var(--el-color-success);
+}
+
+.stat-card.remove .stat-icon {
+    background: var(--el-color-warning-light-9);
+    color: var(--el-color-warning);
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+}
+
+.click-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--el-text-color-placeholder);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.stat-card.clickable:hover .click-hint {
+    opacity: 1;
+}
+
+.click-hint .material-symbols-rounded {
+    font-size: 16px;
+}
+
+/* 文件列表对话框样式 */
+.material-files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.search-section {
+    margin-bottom: 16px;
+}
+
+.search-input {
+    width: 100%;
+}
+
+.list-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--el-bg-color-page);
+    border-radius: 8px;
+    border: 1px solid var(--el-border-color-light);
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+}
+
+.stat-item .material-symbols-rounded {
+    font-size: 18px;
+    color: var(--el-text-color-secondary);
+}
+
+.files-list-container {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--el-text-color-secondary);
+}
+
+.empty-icon {
+    margin-bottom: 16px;
+}
+
+.empty-icon .material-symbols-rounded {
+    font-size: 48px;
+    color: var(--el-text-color-placeholder);
+}
+
+.files-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.file-card {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--el-bg-color-page);
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.file-card:hover {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+}
+
+.file-card.removed {
+    border-left: 3px solid var(--el-color-warning);
+}
+
+.file-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 12px;
+    background: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
+}
+
+.file-card.removed .file-icon {
+    background: var(--el-color-warning-light-9);
+    color: var(--el-color-warning);
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--el-text-color-primary);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-path {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-reason {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--el-color-warning);
+    margin-top: 4px;
+}
+
+.file-reason .material-symbols-rounded {
+    font-size: 14px;
+}
+
+.file-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pagination-section {
+    margin-top: 16px;
+    display: flex;
+    justify-content: center;
+}

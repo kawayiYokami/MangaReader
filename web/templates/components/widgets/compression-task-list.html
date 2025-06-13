@@ -1,0 +1,96 @@
+<!-- 压缩任务列表组件 -->
+<!-- 空状态 -->
+<el-empty
+    v-if="compressionTasks.length === 0"
+    description="暂无压缩任务"
+    :image-size="120">
+    <el-button type="primary" @click="triggerCompressionFileSelect">
+        选择文件开始压缩
+    </el-button>
+</el-empty>
+
+<!-- 任务列表 -->
+<div v-else class="task-list" style="max-height: 600px; overflow-y: auto;">
+    <div
+        v-for="(task, index) in compressionTasks"
+        :key="task.id"
+        class="task-item"
+        :class="{
+            'task-processing': task.status === 'processing',
+            'task-completed': task.status === 'completed',
+            'task-error': task.status === 'error'
+        }">
+        <!-- Removed inline style from task-item div -->
+
+        <div class="task-info">
+            <div class="task-name" :title="task.fileName">
+                <!-- Removed inline style from task-name div -->
+                <span v-text="task.fileName"></span>
+            </div>
+            <div class="task-details">
+                <!-- Removed inline style from task-details div -->
+                <span class="task-status" v-text="getCompressionTaskStatusText(task.status)"></span>
+            </div>
+        </div>
+
+        <div class="task-progress" v-if="task.status === 'processing'">
+             <!-- Removed inline style margin from task-progress div, handled by task-item padding/margins -->
+            <el-progress
+                :percentage="task.progress"
+                :show-text="false"
+                :stroke-width="6">
+            </el-progress>
+            <div class="progress-detail" style="margin-top: 4px;">
+                 <!-- Removed inline style color, added progress-detail class -->
+                <span v-text="task.currentStep"></span>
+                <span style="float: right;" v-text="task.progress + '%'"></span> <!-- Keep float for layout -->
+            </div>
+        </div>
+
+        <div class="task-actions" style="margin-top: 12px;">
+             <!-- Removed inline style display/justify/align from task-actions, handled by task-item flex -->
+            <div class="task-status">
+                <el-tag
+                    v-if="task.status === 'completed'"
+                    type="success"
+                    size="small">
+                    <span class="material-symbols-rounded" style="font-size: 1em; vertical-align: text-bottom;">check_circle</span> 完成
+                </el-tag>
+                <el-tag
+                    v-else-if="task.status === 'error'"
+                    type="danger"
+                    size="small">
+                    <span class="material-symbols-rounded" style="font-size: 1em; vertical-align: text-bottom;">cancel</span> 失败
+                </el-tag>
+                <el-tag
+                    v-else-if="task.status === 'processing'"
+                    type="warning"
+                    size="small">
+                    <span class="material-symbols-rounded" style="font-size: 1em; vertical-align: text-bottom;">autorenew</span> 处理中
+                </el-tag>
+                <el-tag
+                    v-else
+                    type="info"
+                    size="small">
+                    <span class="material-symbols-rounded" style="font-size: 1em; vertical-align: text-bottom;">pause</span> 等待
+                </el-tag>
+            </div>
+
+            <div class="task-buttons">
+                <el-button
+                    v-if="task.status === 'completed'"
+                    size="small"
+                    type="primary"
+                    @click="downloadCompressionTask(task)">
+                    <span class="material-symbols-rounded" style="font-size: 1.1em; vertical-align: middle;">download</span> 下载
+                </el-button>
+                <el-button
+                    size="small"
+                    type="danger"
+                    @click="removeCompressionTask(index)">
+                    <span class="material-symbols-rounded" style="font-size: 1.1em; vertical-align: middle;">delete</span> 移除
+                </el-button>
+            </div>
+        </div>
+    </div>
+</div>

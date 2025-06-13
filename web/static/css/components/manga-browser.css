@@ -1,0 +1,346 @@
+/* 漫画浏览器特定样式 */
+
+/* 漫画浏览器主容器 (对应 web/templates/components/pages/manga-browser.html) */
+/* 空规则 .manga-browser {} 已移除 */
+
+/* 漫画过滤器容器 (对应 web/templates/components/pages/manga-browser.html) */
+.manga-filters {
+     /* 内边距通常由 .content-area 处理，此处可省略 */
+    /* padding: 0; */
+    margin-bottom: var(--spacing-md);
+}
+
+/* 标签分类过滤器 (标签页形式) (对应 web/templates/components/pages/manga-browser.html) */
+.tag-category-filters {
+    /* 标签页过滤界面容器 */
+    margin-top: var(--spacing-sm); /* 标签页上方添加一些空间 */
+}
+
+/* 过滤器头部区域 (包含搜索框、按钮等) (对应 web/templates/components/pages/manga-browser.html) */
+.filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    gap: var(--spacing-md);
+}
+
+/* 标签过滤器内 Element Tabs 的特定样式覆盖 */
+.tag-category-filters .el-tabs--card > .el-tabs__header {
+    border-bottom: none !important; /* 移除默认底部边框 */
+    margin-bottom: 0; /* 移除 margin，使标签页与内容视觉连接 */
+}
+
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__nav {
+    border: none !important; /* 移除导航容器边框 */
+}
+
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__item {
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    border: none !important; /* 移除单个标签项边框 */
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    margin-right: 2px; /* 标签页之间的小间隙 */
+    transition: all 0.3s ease;
+    position: relative; /* 底部边框伪元素或实际边框需要 */
+    padding: 0 var(--spacing-md); /* 水平内边距 */
+    height: 40px;
+    line-height: 40px;
+}
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__item:last-child {
+     margin-right: 0;
+}
+
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
+    background-color: var(--color-bg-default) !important; /* 激活标签页使用默认背景 */
+    color: var(--color-text-default) !important;
+    font-weight: var(--m3-font-weight-medium);
+    /* 使用边框或伪元素作为激活指示器 */
+    border-bottom: 2px solid var(--color-accent-default) !important;
+    position: relative;
+    z-index: 1;
+}
+
+.tag-category-filters .el-tabs--card > .el-tabs__header .el-tabs__item:not(.is-active):hover {
+    background-color: var(--color-bg-elevated);
+    color: var(--color-text-default);
+}
+
+.tag-category-filters .el-tabs__content {
+    padding: var(--spacing-md);
+    background-color: var(--color-bg-default); /* 匹配激活标签页背景 */
+    border: none !important; /* 移除内容边框 */
+    border-radius: 0 0 var(--border-radius) var(--border-radius); /* 底部圆角 */
+    position: relative;
+    z-index: 0;
+    margin-top: -1px !important; /* 与标签页头部略微重叠 */
+}
+
+/* 标签页内的标签列表 (对应 web/templates/components/pages/manga-browser.html) */
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    align-items: center;
+    min-height: 40px; /* 确保最小高度 */
+}
+
+/* 过滤器标签 (el-tag 的样式由 element-overrides 控制，此处可添加特定交互) (对应 web/templates/components/pages/manga-browser.html) */
+.filter-tag {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin: 0; /* 由 gap 处理间距 */
+}
+
+.filter-tag:hover {
+    transform: translateY(-1px); /* 轻微上移效果 */
+    /* 可使用 element-overrides 的 box-shadow 或在此定义 */
+    /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); */
+}
+
+/* "显示更多" 按钮 (对应 web/templates/components/pages/manga-browser.html) */
+.show-more-btn {
+    margin-left: var(--spacing-sm);
+    /* 应用 Material 3 Label Medium 字体规范 */
+    font-size: var(--m3-font-label-medium-size) !important;
+    font-weight: var(--m3-font-label-medium-weight) !important;
+    line-height: var(--m3-font-label-medium-line-height) !important;
+    letter-spacing: var(--m3-font-label-medium-letter-spacing) !important;
+}
+
+/* 漫画网格布局 (对应 web/templates/components/pages/manga-browser.html) */
+.manga-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* 响应式列 */
+    gap: 20px; /* 卡片间距 */
+    padding: var(--spacing-md) 0; /* 网格垂直内边距 */
+}
+
+/* 漫画卡片 - 优化版本 */
+.manga-card {
+    position: relative;
+    background: var(--color-bg-default);
+    border: 1px solid transparent;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    /* 强制硬件加速 */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: transform, opacity;
+}
+
+.manga-card:hover {
+    border-color: var(--color-accent-default);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px) translateZ(0);
+}
+
+/* 封面图片 - 优化版本，移除不必要的容器 */
+.cover-image {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4; /* 直接在图片上设置宽高比 */
+    object-fit: cover;
+    background: var(--color-bg-subtle); /* 加载时的占位背景 */
+    transition: transform 0.2s ease;
+    /* 强制硬件加速 */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+.manga-card:hover .cover-image {
+    transform: scale(1.02) translateZ(0);
+}
+
+/* 封面占位符 (对应 web/templates/components/widgets/manga-card.html) */
+.cover-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-subtle);
+}
+
+/* 占位符图标 (对应 web/templates/components/widgets/manga-card.html) */
+.placeholder-icon {
+    font-size: 48px;
+    color: var(--color-text-muted);
+    opacity: 0.5;
+}
+
+/* 封面加载状态 (对应 web/templates/components/widgets/manga-card.html) */
+.cover-loading {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+}
+
+/* 加载旋转图标 (对应 web/templates/components/widgets/manga-card.html) */
+.loading-spinner {
+    font-size: 24px; /* 根据需要调整大小 */
+    animation: spin 1.5s linear infinite;
+}
+
+/* 加载文本 (对应 web/templates/components/widgets/manga-card.html) */
+.loading-text {
+    margin-top: var(--spacing-sm);
+    opacity: 0.7;
+    /* 应用 Material 3 Body Small 字体规范 */
+    font-size: var(--m3-font-body-small-size);
+    font-weight: var(--m3-font-body-small-weight);
+    line-height: var(--m3-font-body-small-line-height);
+    letter-spacing: var(--m3-font-body-small-letter-spacing);
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* 页数角标 (对应 web/templates/components/widgets/manga-card.html) */
+.page-count {
+    position: absolute;
+    bottom: var(--spacing-xs); /* 定位右下角 */
+    right: var(--spacing-xs);
+    background: rgba(0, 0, 0, 0.7); /* 半透明背景 */
+    color: white;
+    padding: 2px 6px; /* 小内边距 */
+    border-radius: 3px; /* 小圆角 */
+    /* 应用 Material 3 Label Small 字体规范 */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
+    backdrop-filter: blur(2px); /* 轻微模糊效果 */
+    z-index: 1; /* 确保在封面图片之上 */
+}
+
+/* 漫画标题 - 优化版本，直接使用h3标签 */
+.manga-card > h3 {
+    padding: 10px 10px 4px 10px;
+    margin: 0; /* 重置h3默认margin */
+    color: var(--color-text-default);
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 漫画标签 (悬停时出现) (对应 web/templates/components/widgets/manga-card.html) */
+.manga-tags {
+    padding: 0px 10px 10px 10px; /* 标签下方内边距 */
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center; /* 居中标签 */
+    gap: 4px;
+    min-height: 22px; /* 隐藏时也保留空间 */
+    opacity: 0; /* 默认隐藏 */
+    transition: opacity 0.15s ease;
+    will-change: opacity;
+    position: absolute; /* 绝对定位以实现悬停效果 */
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-bg-default); /* 确保背景与卡片匹配 */
+    border-top: 1px solid var(--color-border-subtle); /* 柔和分隔线 */
+    border-radius: 0 0 var(--border-radius) var(--border-radius); /* 匹配卡片圆角 */
+    transform: translateY(100%); /* 初始状态在卡片下方 */
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 2; /* 在封面之上 */
+}
+
+.manga-card:hover .manga-tags {
+    opacity: 1;
+    transform: translateY(0); /* 从底部滑入 */
+}
+
+/* 悬停区域内的单个标签样式 (对应 web/templates/components/widgets/manga-card.html) */
+.manga-tags .tag {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-default);
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    /* 应用 Material 3 Label Small 字体规范 */
+    font-size: var(--m3-font-label-small-size);
+    font-weight: var(--m3-font-label-small-weight);
+    line-height: var(--m3-font-label-small-line-height);
+    letter-spacing: var(--m3-font-label-small-letter-spacing);
+}
+
+/* 特殊标签样式 (例如，“更多标签”) (对应 web/templates/components/widgets/manga-card.html) */
+.manga-tags .more-tag {
+    background: var(--color-accent-default);
+    color: white;
+    border-color: var(--color-accent-default);
+}
+
+/* 可点击标题/标签样式 */
+.clickable-title { /* (对应 web/templates/components/widgets/manga-card.html) */
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+.clickable-title:hover {
+    color: var(--color-accent-default);
+}
+
+.clickable-tag { /* 应用于点击时可过滤的标签 (对应 web/templates/components/widgets/manga-card.html) */
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.clickable-tag:hover {
+    background: var(--color-accent-default) !important;
+    color: white !important;
+    border-color: var(--color-accent-default) !important;
+    transform: translateY(-1px); /* 上移效果 */
+    /* 可选的悬停阴影 */
+    /* box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); */
+}
+
+
+/* 漫画浏览器响应式调整 */
+@media (max-width: 768px) {
+    /* .manga-toolbar 已移除 */
+
+    .manga-grid {
+        /* 如果需要，为小屏幕调整列 */
+        /* grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); */
+        gap: var(--spacing-md); /* 减小间距 */
+    }
+
+    /* 空规则 .manga-card {} 已移除 */
+
+    /* 如果需要，调整角标/覆盖层字体大小或内边距 */
+    .page-count {
+        padding: 1px 5px;
+        font-size: 10px; /* 示例：更小的字体 */
+    }
+
+    /* 在移动端隐藏悬停标签？或始终可见？ */
+    .manga-tags {
+        /* 示例：在移动端始终可见 */
+         position: static;
+         opacity: 1;
+         transform: none;
+         border-top: 1px solid var(--color-border-subtle);
+         padding: 8px 10px;
+         min-height: 0;
+         background: transparent; /* 移除绝对定位背景 */
+         border-radius: 0;
+    }
+}

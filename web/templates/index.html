@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+{% include 'components/layout/html-head.html' %}
+
+<body>
+    <script>
+        window.initialTheme = "{{ initial_theme | default('auto') }}";
+    </script>
+    <div id="app">
+        {% include 'components/layout/app-container.html' %}
+
+        {% include 'components/layout/hidden-elements.html' %}
+
+        {% include 'components/dialogs/edit-dialog.html' %}
+        {% include 'components/dialogs/harmonization-dialog.html' %}
+        {% include 'components/dialogs/batch-compression-dialog.html' %}
+        {% include 'components/dialogs/auto-filter-dialog.html' %}
+        {% include 'components/dialogs/compression-warning-dialog.html' %}
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        const { ElMessage, ElMessageBox, ElLoading } = ElementPlus;
+
+        // 统一日志函数
+        function log(level, message) {
+            if (window.jsLog) {
+                window.jsLog(level, message);
+            } else {
+                console.log(`[${level.toUpperCase()}] ${message}`);
+            }
+        }
+
+        // 基础调试信息（仅在开发模式下显示）
+        if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+            log('info', '🚀 HTML页面开始加载JavaScript...');
+            log('info', '🔍 Vue存在: ' + !!window.Vue);
+            log('info', '🔍 ElementPlus存在: ' + !!window.ElementPlus);
+        }
+
+        // 等待所有模块加载完成
+        document.addEventListener('DOMContentLoaded', function () {
+            // 开发模式下的调试信息
+            if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+                log('info', '🚀 DOMContentLoaded事件触发');
+                log('info', '🔍 window.AppData存在: ' + !!window.AppData);
+                log('info', '🔍 window.AppLifecycle存在: ' + !!window.AppLifecycle);
+                log('info', '🔍 window.MangaBrowserMethods存在: ' + !!window.MangaBrowserMethods);
+            }
+
+            // 检查必要的模块是否已加载
+            if (!window.AppData) {
+                log('error', '❌ AppData模块未加载');
+                return;
+            }
+
+            try {
+                const app = createApp({
+                    data() {
+                        return window.AppData;
+                    },
+                    computed: window.AppComputed || {},
+                    mounted() {
+                        if (window.AppLifecycle && window.AppLifecycle.mounted) {
+                            window.AppLifecycle.mounted.call(this);
+                        }
+                    },
+                    beforeUnmount() {
+                        if (window.AppLifecycle && window.AppLifecycle.beforeUnmount) {
+                            window.AppLifecycle.beforeUnmount.call(this);
+                        }
+                    },
+                    methods: {
+                        // 合并所有功能模块的方法
+                        ...(window.UtilsMethods || {}),
+                        ...(window.MangaBrowserMethods || {}),
+                        ...(window.CacheManagementMethods || {}),
+                        ...(window.TranslationMethods || {}),
+                        ...(window.CompressionMethods || {}),
+
+                        // 所有方法已通过模块导入，无需重复定义
+                    }
+                });
+
+                app.use(ElementPlus);
+
+                // 注册Element Plus图标
+                if (window.ElementPlusIconsVue) {
+                    const { Delete, UploadFilled, Loading } = window.ElementPlusIconsVue;
+                    app.component('Delete', Delete);
+                    app.component('UploadFilled', UploadFilled);
+                    app.component('Loading', Loading);
+                }
+
+                app.mount('#app');
+            } catch (error) {
+                console.error('Vue应用启动失败:', error);
+            }
+        });
+    </script>
+</body>
+
+</html>

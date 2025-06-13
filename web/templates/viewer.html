@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="theme-dark" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫画查看器</title>
+    
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    
+    <!-- 自定义样式 -->
+    <link rel="stylesheet" href="/static/css/modern-theme.css">
+    <link rel="stylesheet" href="/static/css/viewer.css">
+
+</head>
+<body>
+    <div id="app">
+        <!-- 左侧控制栏 -->
+        <div class="left-sidebar">
+
+            <!-- 漫画标题 -->
+            <div class="manga-title-section">
+                <div class="manga-title-vertical">{{ mangaInfo.title || '加载中...' }}</div>
+            </div>
+
+            <!-- 显示模式切换 -->
+            <div class="display-mode-section">
+                <el-button
+                    @click="toggleDisplayMode"
+                    type="primary"
+                    text
+                    class="mode-btn">
+                    {{ displayModeText }}
+                </el-button>
+            </div>
+
+            <!-- 翻译开关 -->
+            <div class="translation-section">
+                <el-button
+                    @click="toggleTranslation"
+                    type="primary"
+                    text
+                    :class="['translation-btn', { 'translation-active': translationEnabled }]">
+                    {{ translationEnabled ? '译' : '原' }}
+                </el-button>
+            </div>
+
+            <!-- 页面导航 -->
+            <div class="page-navigation">
+                <el-button
+                    @click="previousPage"
+                    :disabled="!canPrevious"
+                    type="primary"
+                    class="nav-btn">
+                    ↑
+                </el-button>
+
+                <div class="page-info-section">
+                    <!-- 页码显示和输入 -->
+                    <div class="page-display" @click="showPageInput = true" v-if="!showPageInput">
+                        <div class="current-page">{{ currentPage + 1 }}</div>
+                        <div class="page-divider">/</div>
+                        <div class="total-pages">{{ mangaInfo.total_pages || 0 }}</div>
+                    </div>
+
+                    <!-- 页码输入框（点击时显示） -->
+                    <div class="page-input-wrapper" v-if="showPageInput">
+                        <el-input
+                            v-model="pageInputText"
+                            size="small"
+                            @blur="onPageInputBlur"
+                            @keyup.enter="onPageInputEnter"
+                            @keyup.escape="cancelPageInput"
+                            ref="pageInputRef"
+                            class="page-input">
+                        </el-input>
+                        <div class="page-divider">/</div>
+                        <div class="total-pages">{{ mangaInfo.total_pages || 0 }}</div>
+                    </div>
+
+                    <!-- 圆形进度条 -->
+                    <div class="progress-circle">
+                        <svg width="60" height="60" class="progress-svg">
+                            <circle cx="30" cy="30" r="25" class="progress-bg"></circle>
+                            <circle cx="30" cy="30" r="25" class="progress-fill"
+                                    :stroke-dasharray="progressCircumference"
+                                    :stroke-dashoffset="progressOffset"></circle>
+                        </svg>
+                        <div class="progress-text">{{ Math.round(progressPercentage) }}%</div>
+                    </div>
+
+                    <!-- 极简滑动条 -->
+                    <div class="progress-slider-section">
+                        <div class="progress-slider-wrapper">
+                            <div class="page-slider-container" @click="onTrackClick" ref="sliderContainer">
+                                <div class="page-slider-track">
+                                    <div class="page-slider-thumb" 
+                                         :style="thumbStyle"
+                                         @mousedown.stop="onThumbMouseDown">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <el-button
+                    @click="nextPage"
+                    :disabled="!canNext"
+                    type="primary"
+                    class="nav-btn">
+                    ↓
+                </el-button>
+            </div>
+
+            <!-- 全屏按钮 -->
+            <div class="fullscreen-section">
+                <el-button @click="toggleFullscreen" type="primary" text class="nav-btn">
+                    {{ isFullscreen ? '⊡' : '⊞' }}
+                </el-button>
+            </div>
+        </div>
+
+        <!-- 主要内容区域 -->
+        <div class="viewer-content" ref="viewerContent">
+            <!-- 图片显示区域 (移除了 v-else-if，并添加了 v-if) -->
+            <div v-if="currentImageUrls.length > 0" class="image-container" @click="onImageClick">
+                <!-- 加载状态 (移除了外部的 loading-container) -->
+                <div v-if="isLoading" class="loading-container-inner" v-loading="true" element-loading-text="加载中..."></div>
+
+                <!-- 单页模式 -->
+                <img
+                    v-if="actualDisplayMode === 'single' && !isLoading"
+                    :src="currentImageUrls[0]"
+                    :alt="`第 ${currentPage + 1} 页`"
+                    class="manga-image single-page"
+                    loading="eager"
+                    decoding="sync"
+                    @load="onImageLoad"
+                    @error="onImageError"
+                    ref="mangaImage">
+
+                <!-- 双页模式 -->
+                <div v-else-if="actualDisplayMode === 'double' && !isLoading" class="double-page-container">
+                    <img
+                        v-for="(imageUrl, index) in currentImageUrls"
+                        :key="currentPage + index"
+                        :src="imageUrl"
+                        :alt="`第 ${currentPage + index + 1} 页`"
+                        class="manga-image double-page"
+                        loading="eager"
+                        decoding="sync"
+                        @load="onImageLoad"
+                        @error="onImageError">
+                </div>
+            </div>
+             <!-- 添加一个空的div作为占位符，以防没有任何图片URL时出现空白 -->
+            <div v-else class="image-container-placeholder"></div>
+        </div>
+    </div>
+
+    <!-- Vue 3 和 Element Plus -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    
+    <!-- 简化的查看器管理器 -->
+    <script src="/static/js/viewer_manager_simple.js"></script>
+
+    <!-- 主应用程序入口 -->
+    <script type="module" src="/static/js/viewer/core.js"></script>
+
+</body>
+</html>

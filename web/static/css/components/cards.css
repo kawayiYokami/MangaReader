@@ -1,0 +1,8 @@
+/* 通用卡片组件样式 (此文件内容已根据模板使用情况移除) */
+/* 设置页面中描述性文本的样式 */
+.setting-description {
+    color: var(--text-color-secondary);
+    font-size: var(--font-size-sm); /* 使用较小的字号 */
+    margin-top: 4px; /* 与上方元素的间距 */
+    line-height: 1.4; /* 改善可读性 */
+}

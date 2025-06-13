@@ -1,0 +1,33 @@
+/* Modern Theme - Main Entry Point */
+
+/* Import Base Styles (Variables, Resets, Body, Headings, Scrollbar) */
+@import url("components/base.css");
+
+/* Import Layout Styles (App Container, Sidebar, Content Area) */
+@import url("components/layout.css");
+
+/* Import Element Plus Component Overrides */
+@import url("components/element-overrides.css");
+
+/* Import General Card Styles (Welcome, Feature) */
+@import url("components/cards.css");
+
+/* Import Manga Browser Styles */
+@import url("components/manga-browser.css");
+
+/* Import Shared Task List Styles */
+@import url("components/tasks.css");
+
+/* Import Cache Management Styles */
+@import url("components/cache-management.css");
+
+/* Import Processing Interface Styles (Translation, Compression, etc.) */
+@import url("components/processing-interfaces.css");
+
+/* Import Miscellaneous Component Styles */
+@import url("components/misc-components.css");
+
+/* Import Dialog Theme System */
+@import url("components/dialog-theme-system.css");
+
+/* Add other specific component imports below if new ones are created */
