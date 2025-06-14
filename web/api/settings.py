@@ -8,9 +8,11 @@
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
-from enum import Enum
+# from enum import Enum # Enum 已在 core.config 中导入和使用，此处可能不需要直接用
 import os
 from fontTools.ttLib import TTFont
+import sys # 新增导入
+from pathlib import Path # 新增导入
 
 # 导入核心业务逻辑
 from core.config import config, ReadingOrder, DisplayMode, Theme
@@ -18,8 +20,24 @@ from utils import manga_logger as log
 
 router = APIRouter()
 
-# 字体目录，根据实际部署情况调整
-FONT_DIR = "font"
+# --- 修改开始: 动态定义 FONT_DIR ---
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    # 打包后运行 (PyInstaller)
+    # sys._MEIPASS 是 PyInstaller 创建的包含所有解压后资源的临时文件夹路径
+    # 假设 PyInstaller 命令将项目根目录下的 font/ 文件夹内容
+    # 复制到了 _MEIPASS/font/ (即 _MEIPASS 的根下一级)
+    FONT_DIR = (Path(sys._MEIPASS) / "font").resolve()
+else:
+    # 开发环境运行
+    # __file__ 在这里是 .../web/api/settings.py
+    # Path(__file__).resolve().parent -> .../web/api/
+    # .parent -> .../web/
+    # .parent -> .../ (项目根目录 e:/github/manga)
+    project_root = Path(__file__).resolve().parent.parent.parent
+    FONT_DIR = (project_root / "font").resolve()
+
+log.info(f"字体目录 (FONT_DIR) 设置为: {FONT_DIR}")
+# --- 修改结束 ---
 
 # 数据模型
 class SettingItem(BaseModel):
@@ -175,7 +193,7 @@ async def get_all_settings():
             name="字体名称",
             description="翻译文本使用的字体名称",
             value=config.font_name.value,
-            type="string"
+            type="string" # 这个值是从 available-fonts 的 file_name 中选取的
         ))
 
         return {"settings": settings}
@@ -192,98 +210,80 @@ def _get_preferred_font_name(font: TTFont) -> str:
     names = font['name'].names
     best_name = ""
 
-    # 定义名称查找优先级 (NameID, PlatformID, LanguageID)
-    # Language IDs: 2052 (zh-CN), 1028 (zh-TW), 25 (zh-Hans Mac), 19 (zh-Hant Mac), 0/1033 (en)
-    # Name IDs: 4 (Full Name), 16 (Typographic Family Name), 1 (Family Name)
     priorities = [
-        # 中文 Windows (优先全名/首选名)
-        (4, 3, 2052), (16, 3, 2052),
-        (4, 3, 1028), (16, 3, 1028),
-        # 中文 Mac (优先全名/首选名)
-        (4, 1, 25), (16, 1, 25),
-        (4, 1, 19), (16, 1, 19),
-        # 英文/通用 (全名优先)
-        (4, 3, 1033), (4, 1, 0), (4, 0, 0), # Windows English, Mac Roman, Any Unicode
+        (4, 3, 2052), (16, 3, 2052), (4, 3, 1028), (16, 3, 1028),
+        (4, 1, 25), (16, 1, 25), (4, 1, 19), (16, 1, 19),
+        (4, 3, 1033), (4, 1, 0), (4, 0, 0),
         (16, 3, 1033), (16, 1, 0), (16, 0, 0),
-        # 英文/通用 (家族名次之)
         (1, 3, 1033), (1, 1, 0), (1, 0, 0),
     ]
 
     found_names = {}
     for record in names:
         key = (record.nameID, record.platformID, record.langID)
-        # 存储所有找到的名称记录，以便按优先级查找
-        # 确保使用 toUnicode() 解码
         try:
             found_names[key] = record.toUnicode()
         except UnicodeDecodeError:
-            log.warning(f"无法解码字体名称记录: {key} in font {font.sfntVersion}") # 添加警告
-            found_names[key] = record.string.decode('latin-1', errors='replace') # 尝试备用解码
+            log.warning(f"无法解码字体名称记录: {key} in font {str(getattr(font, 'reader', {}).get('file', 'N/A'))}")
+            found_names[key] = record.string.decode('latin-1', errors='replace')
 
-    # 按优先级查找
     for p_nameID, p_platformID, p_langID in priorities:
         if (p_nameID, p_platformID, p_langID) in found_names:
             best_name = found_names[(p_nameID, p_platformID, p_langID)]
-            # log.debug(f"  > 找到了优先名称 (ID={p_nameID}, Plat={p_platformID}, Lang={p_langID}): '{best_name}'")
-            break # 找到最高优先级的就停止
+            break
 
-    # 如果上面都没找到，再做一次不区分语言的全名和家族名查找 (作为最后手段)
     if not best_name:
         for record in names:
-            if record.nameID == 4: # 全名
+            if record.nameID == 4:
                 try: best_name = record.toUnicode(); break
                 except UnicodeDecodeError: pass
         if not best_name:
              for record in names:
-                 if record.nameID == 1: # 家族名
+                 if record.nameID == 1:
                      try: best_name = record.toUnicode(); break
                      except UnicodeDecodeError: pass
-
     return best_name
 
 @router.get("/available-fonts")
 async def get_available_fonts():
     """获取可用的字体列表"""
     fonts = []
-    absolute_font_dir = os.path.abspath(FONT_DIR)
-    # log.debug(f"开始扫描字体目录: {absolute_font_dir}") # Log 1: Absolute path
+    # FONT_DIR 已经是 Path 对象并且是绝对路径
+    absolute_font_dir = FONT_DIR 
+    log.debug(f"开始扫描字体目录: {absolute_font_dir}")
 
-    if os.path.exists(absolute_font_dir) and os.path.isdir(absolute_font_dir):
+    if absolute_font_dir.exists() and absolute_font_dir.is_dir():
         try:
-            all_files = os.listdir(absolute_font_dir)
-            # log.debug(f"在目录 {absolute_font_dir} 中找到的文件: {all_files}") # Log 2: All files found
+            all_files = os.listdir(absolute_font_dir) # os.listdir 也能接受 Path 对象
+            log.debug(f"在目录 {absolute_font_dir} 中找到的文件: {all_files}")
 
             font_files = [f for f in all_files if f.lower().endswith(('.ttf', '.otf'))]
-            # log.debug(f"过滤后的字体文件 (.ttf, .otf): {font_files}") # Log 3: Filtered font files
+            log.debug(f"过滤后的字体文件 (.ttf, .otf): {font_files}")
 
             for filename in font_files:
-                font_path = os.path.join(absolute_font_dir, filename)
-                # log.debug(f"正在处理字体文件: {font_path}") # Log 4: Processing file
+                font_path = absolute_font_dir / filename # 使用 Path 对象的 / 操作符
+                log.debug(f"正在处理字体文件: {font_path}")
                 try:
-                    font = TTFont(font_path)
-                    # 使用新的辅助函数提取首选名称
+                    # TTFont 构造函数可以接受 Path 对象或字符串路径
+                    font = TTFont(font_path) 
                     display_name = _get_preferred_font_name(font)
 
-                    # 如果辅助函数未能提取到名称，则回退到文件名
                     if not display_name:
-                        display_name = os.path.splitext(filename)[0]
+                        display_name = os.path.splitext(filename) # filename 是字符串
                         log.warning(f"  > 无法从元数据提取字体名称，回退到文件名: '{display_name}' for file '{filename}'")
-                    # else:
-                    #     log.debug(f"  > 最终选择的字体名称: '{display_name}' for file '{filename}'")
-
+                    
                     fonts.append({
-                        "file_name": filename,
+                        "file_name": filename, # 返回文件名字符串
                         "display_name": display_name
                     })
                 except Exception as e:
-                    # Log 5: Specific error during font parsing
-                    log.error(f"处理字体文件 {filename} 时出错: {e}", exc_info=True)
+                    log.error(f"处理字体文件 {str(font_path)} 时出错: {e}", exc_info=True)
         except Exception as e:
-             log.error(f"扫描字体目录 {absolute_font_dir} 时出错: {e}", exc_info=True)
+             log.error(f"扫描字体目录 {str(absolute_font_dir)} 时出错: {e}", exc_info=True)
     else:
-        log.warning(f"字体目录不存在或不是一个目录: {absolute_font_dir}")
+        log.warning(f"字体目录不存在或不是一个目录: {str(absolute_font_dir)}")
 
-    # log.debug(f"最终返回的字体列表: {fonts}") # Log 6: Final list
+    log.debug(f"最终返回的字体列表: {fonts}")
     return {"success": True, "fonts": fonts}
 
 @router.get("/{setting_key}")
@@ -295,8 +295,7 @@ async def get_setting(setting_key: str):
         
         setting_value = getattr(config, setting_key).value
         
-        # 处理枚举类型
-        if hasattr(setting_value, 'value'):
+        if hasattr(setting_value, 'value'): # 处理枚举
             setting_value = setting_value.value
         
         return {
@@ -313,82 +312,67 @@ async def get_setting(setting_key: str):
 @router.put("/{setting_key}")
 async def update_setting(setting_key: str, request: SettingUpdateRequest):
     """更新单个设置项"""
-    log.info(f"[Debug] 收到更新设置请求: key={setting_key}, value={request.value}")
+    log.info(f"收到更新设置请求: key={setting_key}, value={request.value}")
     try:
         if not hasattr(config, setting_key):
-            log.error(f"[Debug] 更新失败: 设置项 {setting_key} 不存在")
+            log.error(f"更新失败: 设置项 {setting_key} 不存在")
             raise HTTPException(status_code=404, detail=f"设置项 {setting_key} 不存在")
         
         config_item = getattr(config, setting_key)
         new_value = request.value
         
         if setting_key == "ThemeMode":
-            log.info(f"[Debug] 正在处理主题模式更新，新值为: {new_value}")
-            if new_value == "Light":
-                config_item.value = Theme.LIGHT
-            elif new_value == "Dark":
-                config_item.value = Theme.DARK
-            elif new_value == "Auto":
-                config_item.value = Theme.AUTO
+            log.info(f"正在处理主题模式更新，新值为: {new_value}")
+            if new_value == "Light": config_item.value = Theme.LIGHT
+            elif new_value == "Dark": config_item.value = Theme.DARK
+            elif new_value == "Auto": config_item.value = Theme.AUTO
             else:
-                log.error(f"[Debug] 无效的主题模式: {new_value}")
+                log.error(f"无效的主题模式: {new_value}")
                 raise HTTPException(status_code=400, detail="无效的主题模式")
                 
         elif setting_key == "readingOrder":
-            if new_value == "从右到左":
-                config_item.value = ReadingOrder.RIGHT_TO_LEFT
-            elif new_value == "从左到右":
-                config_item.value = ReadingOrder.LEFT_TO_RIGHT
-            else:
-                raise HTTPException(status_code=400, detail="无效的阅读方向")
+            if new_value == ReadingOrder.RIGHT_TO_LEFT.value: config_item.value = ReadingOrder.RIGHT_TO_LEFT.value
+            elif new_value == ReadingOrder.LEFT_TO_RIGHT.value: config_item.value = ReadingOrder.LEFT_TO_RIGHT.value
+            else: raise HTTPException(status_code=400, detail="无效的阅读方向")
                 
         elif setting_key == "displayMode":
-            if new_value == "单页显示":
-                config_item.value = DisplayMode.SINGLE.value
-            elif new_value == "双页显示":
-                config_item.value = DisplayMode.DOUBLE.value
-            elif new_value == "自适应":
-                config_item.value = DisplayMode.ADAPTIVE.value
-            else:
-                raise HTTPException(status_code=400, detail="无效的显示模式")
+            if new_value == DisplayMode.SINGLE.value: config_item.value = DisplayMode.SINGLE.value
+            elif new_value == DisplayMode.DOUBLE.value: config_item.value = DisplayMode.DOUBLE.value
+            elif new_value == DisplayMode.ADAPTIVE.value: config_item.value = DisplayMode.ADAPTIVE.value
+            else: raise HTTPException(status_code=400, detail="无效的显示模式")
         
         elif setting_key == "translatorType":
-            if new_value in ["Google", "智谱"]:
-                config_item.value = new_value
+            if new_value in ["Google", "智谱"]: config_item.value = new_value
             else:
                 log.error(f"更新设置 translatorType 失败: 无效的翻译引擎类型 '{new_value}'")
                 raise HTTPException(status_code=400, detail="无效的翻译引擎类型")
-        elif setting_key == "zhipu_api_key":
-            config_item.value = new_value
+        elif setting_key == "zhipu_api_key": config_item.value = new_value
         elif setting_key == "zhipu_model":
-            if new_value in ["glm-4-flash", "glm-4", "glm-3-turbo", "glm-4-flash-250414"]:
-                config_item.value = new_value
-            else:
-                raise HTTPException(status_code=400, detail="无效的智谱AI模型")
-        elif setting_key == "google_api_key":
-            config_item.value = new_value
-        elif setting_key == "fontName":
-            config_item.value = new_value
-        elif setting_key == "log_level":
+            if new_value in ["glm-4-flash", "glm-4", "glm-3-turbo", "glm-4-flash-250414"]: config_item.value = new_value
+            else: raise HTTPException(status_code=400, detail="无效的智谱AI模型")
+        elif setting_key == "google_api_key": config_item.value = new_value
+        elif setting_key == "fontName": config_item.value = new_value
+        elif setting_key == "logLevel": # 注意这里应该是 logLevel 不是 log_level
             valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
             if new_value in valid_levels:
                 config_item.value = new_value
-                from utils.manga_logger import MangaLogger
-                manga_logger = MangaLogger.get_instance()
-                manga_logger.set_level(new_value)
+                # 确保 MangaLogger 实例存在并更新其级别
+                if hasattr(log, 'MangaLogger'): # manga_logger.py 中定义的类名
+                    manga_logger_instance = log.MangaLogger.get_instance()
+                    if manga_logger_instance:
+                        manga_logger_instance.set_level(new_value)
                 log.info(f"日志等级已更新为: {new_value}")
             else:
                 raise HTTPException(status_code=400, detail="无效的日志等级")
         else:
             config_item.value = new_value
         
-        log.info(f"[Debug] 准备保存配置, key={setting_key}, new_value_to_save={config_item.value}")
+        log.info(f"准备保存配置, key={setting_key}, new_value_to_save={config_item.value}")
         config.save()
-        log.info(f"[Debug] 配置已保存。")
+        log.info(f"配置已保存。")
         
-        # 在返回之前，再次获取值以确认
         final_value = config_item.value
-        if hasattr(final_value, 'value'):
+        if hasattr(final_value, 'value'): # 处理枚举回显
             final_value = final_value.value
 
         return {
@@ -410,7 +394,7 @@ async def reset_settings():
     try:
         # 重置配置为默认值
         config.themeMode.value = Theme.AUTO
-        config.reading_order.value = ReadingOrder.LEFT_TO_RIGHT.value
+        config.reading_order.value = ReadingOrder.LEFT_TO_RIGHT.value # 确保使用枚举的值
         config.display_mode.value = DisplayMode.DOUBLE.value
         config.merge_tags.value = True
         config.log_level.value = "ERROR"
@@ -418,9 +402,8 @@ async def reset_settings():
         config.zhipu_api_key.value = ""
         config.zhipu_model.value = "glm-4-flash"
         config.google_api_key.value = ""
-        config.font_name.value = ""
+        config.font_name.value = "SourceHanSerifCN-Heavy.ttf" # 恢复默认字体或空字符串
         
-        # 保存配置
         config.save()
         
         return {
@@ -437,30 +420,32 @@ async def export_settings():
     """导出当前设置"""
     try:
         settings_data = {}
-        
-        # 导出主要设置（排除敏感信息）
         settings_keys = [
             "themeMode", "reading_order", "display_mode",
             "merge_tags", "log_level",
-            "translator_type", "zhipu_model", "font_name"
+            "translator_type", "zhipu_model", "font_name",
+            "ocrConfidenceThreshold" # 添加遗漏的配置
         ]
 
         for key in settings_keys:
             if hasattr(config, key):
                 value = getattr(config, key).value
-                # 处理枚举类型
-                if hasattr(value, 'value'):
+                if hasattr(value, 'value'): # 处理枚举
                     value = value.value
                 settings_data[key] = value
 
-        # API密钥不导出，仅显示是否已设置
         settings_data["zhipu_api_key_set"] = bool(config.zhipu_api_key.value)
         settings_data["google_api_key_set"] = bool(config.google_api_key.value)
         
+        # 实际应该使用当前时间
+        from datetime import datetime
+        settings_data["export_time"] = datetime.utcnow().isoformat() + "Z"
+        settings_data["version"] = "1.0.0" # 可以考虑从应用某处获取版本号
+
         return {
             "settings": settings_data,
-            "export_time": "2024-01-01T00:00:00Z",  # 实际应该使用当前时间
-            "version": "1.0.0"
+            "export_time": settings_data["export_time"],
+            "version": settings_data["version"]
         }
         
     except Exception as e:
@@ -471,14 +456,31 @@ async def export_settings():
 async def import_settings(settings_data: Dict[str, Any]):
     """导入设置"""
     try:
+        imported_settings = settings_data.get("settings", {}) # 假设导入的数据在 "settings" 键下
+        if not isinstance(imported_settings, dict):
+             raise HTTPException(status_code=400, detail="导入的数据格式不正确，期望在'settings'键下有字典。")
+
         imported_count = 0
         failed_keys = []
         
-        for key, value in settings_data.items():
+        for key, value in imported_settings.items():
             try:
                 if hasattr(config, key):
                     config_item = getattr(config, key)
-                    config_item.value = value
+                    # 特殊处理枚举类型，确保赋的是枚举成员或其 .value
+                    if key == "ThemeMode":
+                        config_item.value = Theme(value) if isinstance(value, str) else value
+                    elif key == "readingOrder":
+                         # 假设导入的是 "从右到左" 这样的字符串值
+                        enum_member = next((e for e in ReadingOrder if e.value == value), None)
+                        if enum_member: config_item.value = enum_member.value
+                        else: raise ValueError(f"无效的 readingOrder 值: {value}")
+                    elif key == "displayMode":
+                        enum_member = next((e for e in DisplayMode if e.value == value), None)
+                        if enum_member: config_item.value = enum_member.value
+                        else: raise ValueError(f"无效的 displayMode 值: {value}")
+                    else:
+                        config_item.value = value
                     imported_count += 1
                 else:
                     failed_keys.append(key)
@@ -486,7 +488,6 @@ async def import_settings(settings_data: Dict[str, Any]):
                 log.warning(f"导入设置 {key} 失败: {e}")
                 failed_keys.append(key)
         
-        # 保存配置
         config.save()
         
         return {
@@ -496,6 +497,8 @@ async def import_settings(settings_data: Dict[str, Any]):
             "failed_keys": failed_keys
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         log.error(f"导入设置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

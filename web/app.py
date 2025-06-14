@@ -5,7 +5,7 @@ FastAPI应用的主入口，集成所有API路由和WebSocket处理。
 复用现有的core业务逻辑，不修改任何现有代码。
 """
 
-import sys
+import sys # 保留 sys 以便未来可能的调试或特定检查
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -13,10 +13,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import uvicorn
-
-# 确保可以导入core模块
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 
 # 导入统一接口层
 try:
@@ -44,14 +40,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 设置静态文件和模板
-web_dir = Path(__file__).parent
-static_dir = web_dir / "static"
-templates_dir = web_dir / "templates"
+# --- 修改开始: 简化路径设置，依赖 __file__ 和 PyInstaller 的数据结构 ---
+# Path(__file__) 在开发时指向 web/app.py
+# 在 PyInstaller 打包后，如果 app.py 位于例如 _MEIPASS/web/app.py,
+# 那么 Path(__file__).parent 就会指向 _MEIPASS/web/
+# 此方案要求 PyInstaller 将 static 和 templates 目录也相应地放置在
+# _MEIPASS/web/static 和 _MEIPASS/web/templates (如果 app.py 在 _MEIPASS/web/ 下)
+# 或者，如果 app.py 在 _MEIPASS/app.py, 那么 static/templates 需在 _MEIPASS/static 等。
+# 关键是保持与 app.py 的相对路径一致。
 
-# 创建目录（如果不存在）
-static_dir.mkdir(exist_ok=True)
-templates_dir.mkdir(exist_ok=True)
+# 假设 app.py 始终和 static/templates 目录处于同一父目录下（无论是 web/还是 _MEIPASS/web/）
+current_script_dir = Path(__file__).resolve().parent
+
+static_dir = (current_script_dir / "static").resolve()
+templates_dir = (current_script_dir / "templates").resolve()
+
+# 确保目录存在 (主要用于开发环境，打包后 PyInstaller 应已创建)
+# 如果路径解析不正确，这里可能会在错误的地方创建目录，或因权限问题失败
+try:
+    static_dir.mkdir(parents=True, exist_ok=True)
+    templates_dir.mkdir(parents=True, exist_ok=True)
+except Exception as e:
+    log.error(f"创建静态或模板目录失败: {e}. Static: {static_dir}, Templates: {templates_dir}")
+    # 在打包环境中，如果目录不存在，这通常意味着 PyInstaller --add-data 配置问题
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        log.error("打包环境错误：请检查 PyInstaller 的 --add-data 配置是否正确地将 static 和 templates 目录包含进来，并放到了相对于 app.py 的正确位置。")
+        log.error(f"期望 app.py 位于: {current_script_dir}")
+        log.error(f"期望 static 目录位于: {static_dir}")
+        log.error(f"期望 templates 目录位于: {templates_dir}")
+        log.error(f"sys._MEIPASS (如果可用): {getattr(sys, '_MEIPASS', '不可用')}")
+
+log.info(f"静态文件目录 (使用 __file__): {static_dir}")
+log.info(f"模板文件目录 (使用 __file__): {templates_dir}")
+# --- 修改结束 ---
 
 # 挂载静态文件
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
@@ -105,8 +126,12 @@ async def root(request: Request):
 @app.get("/viewer.html", response_class=HTMLResponse)
 async def manga_viewer():
     """漫画查看器页面"""
-    # 直接返回HTML文件内容，不使用Jinja2模板
-    with open("web/templates/viewer.html", "r", encoding="utf-8") as f:
+    viewer_html_path = templates_dir / "viewer.html"
+    log.info(f"尝试打开 viewer.html at: {viewer_html_path}")
+    if not viewer_html_path.exists():
+        log.error(f"viewer.html 未找到 at {viewer_html_path}")
+        return HTMLResponse(content="Error: viewer.html not found.", status_code=404)
+    with open(viewer_html_path, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
 @app.get("/cache", response_class=HTMLResponse)
@@ -181,10 +206,11 @@ __all__ = ["app", "get_core_interface_instance"]
 
 if __name__ == "__main__":
     """直接运行时启动服务器"""
+    log.info("直接运行 web/app.py, 启动uvicorn服务器...")
     uvicorn.run(
         "web.app:app",
         host="0.0.0.0",
         port=8000,
-        reload=False,
+        reload=True, 
         log_level="info"
     )

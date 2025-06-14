@@ -14,10 +14,6 @@ from pathlib import Path
 import traceback # 保留用于打印错误
 import json # 用于创建JS事件的JSON payload
 
-# 添加项目根目录到Python路径
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
-
 # ----- 全局变量 -----
 desktop_app_instance = None # 用于全局函数/API方法访问应用实例
 core_interface = None       # 全局 CoreInterface 实例
