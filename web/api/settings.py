@@ -189,7 +189,7 @@ async def get_all_settings():
         
         # 字体设置
         settings.append(SettingItem(
-            key="fontName",
+            key="font_name",
             name="字体名称",
             description="翻译文本使用的字体名称",
             value=config.font_name.value,
@@ -351,7 +351,7 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
             if new_value in ["glm-4-flash", "glm-4", "glm-3-turbo", "glm-4-flash-250414"]: config_item.value = new_value
             else: raise HTTPException(status_code=400, detail="无效的智谱AI模型")
         elif setting_key == "google_api_key": config_item.value = new_value
-        elif setting_key == "fontName": config_item.value = new_value
+        elif setting_key == "font_name": config_item.value = new_value
         elif setting_key == "logLevel": # 注意这里应该是 logLevel 不是 log_level
             valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
             if new_value in valid_levels:
