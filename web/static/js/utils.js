@@ -299,7 +299,7 @@ window.UtilsMethods = {
                     console.log(`[fetchAvailableFonts] 当前字体无效或未设置, 设置为默认字体: ${defaultFont}`);
                     window.AppData.translationSettings.font_name = defaultFont; // 使用修正后的键名
                     // 异步更新后端设置 - 使用 snake_case
-                    this.updateSetting('fontName', defaultFont).then(() => {
+                    this.updateSetting('font_name', defaultFont).then(() => {
                          console.log(`[fetchAvailableFonts] 后端字体设置已更新为: ${defaultFont}`);
                     });
                 } else {
@@ -337,7 +337,7 @@ window.UtilsMethods = {
 
     onTranslationEngineChange(value) {
         // 使用后端的 snake_case 命名
-        this.updateSetting('translatorType', value);
+        this.updateSetting('translator_type', value);
     },
 
     onZhipuApiKeyChange(value) {
@@ -357,7 +357,7 @@ window.UtilsMethods = {
 
     onFontChange(value) {
         // 使用 snake_case
-        this.updateSetting('fontName', value);
+        this.updateSetting('font_name', value);
     },
 
     // ==================== 系统设置相关方法 ====================
@@ -390,8 +390,8 @@ window.UtilsMethods = {
                 }, {});
 
                 // 更新应用数据中的设置值
-                if (settingsMap.hasOwnProperty('translatorType')) {
-                    window.AppData.translationSettings.translator_type = settingsMap.translatorType; // AppData 使用 snake_case
+                if (settingsMap.hasOwnProperty('translator_type')) {
+                    window.AppData.translationSettings.translator_type = settingsMap.translator_type; // AppData 使用 snake_case
                 }
                 if (settingsMap.hasOwnProperty('zhipu_api_key')) {
                     window.AppData.translationSettings.zhipuApiKey = settingsMap.zhipu_api_key;
@@ -402,8 +402,8 @@ window.UtilsMethods = {
                 if (settingsMap.hasOwnProperty('google_api_key')) {
                     window.AppData.translationSettings.googleApiKey = settingsMap.google_api_key;
                 }
-                 if (settingsMap.hasOwnProperty('fontName')) {
-                    window.AppData.translationSettings.font_name = settingsMap.fontName; // AppData 使用 snake_case
+                 if (settingsMap.hasOwnProperty('font_name')) {
+                    window.AppData.translationSettings.font_name = settingsMap.font_name; // AppData 使用 snake_case
                 }
 
                 // 更新系统设置

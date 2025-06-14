@@ -221,9 +221,10 @@ class ZhipuTranslator(BaseTranslator):
         target_lang_name = lang_map.get(target_lang.lower(), target_lang)
 
         system_prompt_content = (
-            f"你是一个专业的翻译引擎。请将用户提供的每一行文本独立翻译成{target_lang_name}。"
+            f"你是一个专业的漫画翻译专家。请将用户提供的每一行文本独立翻译成{target_lang_name}。"
             "严格按照原始文本的顺序逐行翻译，每行翻译结果占一行。"
             "不要添加任何额外的解释、编号、或者与翻译无关的内容。"
+            "尽可能以轻小说的口吻进行翻译，名字必须使用常见的轻小说明明不允许翻译成英文名。"
             "如果某行文本由于内容限制无法翻译，请针对该行明确输出特殊标记：[UNTRANSLATABLE_CONTENT]"
         )
 

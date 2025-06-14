@@ -145,7 +145,7 @@ async def get_all_settings():
 
         # 翻译引擎类型
         settings.append(SettingItem(
-            key="translatorType",
+            key="translator_type",
             name="翻译引擎",
             description="选择使用的翻译引擎",
             value=config.translator_type.value,
