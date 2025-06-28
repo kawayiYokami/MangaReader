@@ -9,8 +9,16 @@ from utils import manga_logger as log
 from PIL import Image
 
 
+def _natural_sort_key(s):
+    """
+    为字符串提供自然排序的键。
+    例如: "item1", "item10", "item2" -> "item1", "item2", "item10"
+    """
+    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
+
+
 class MangaInfo:
-    def __init__(self, file_path):
+    def __init__(self, file_path, last_modified=0):
         self.file_path = file_path
         self.title = os.path.basename(file_path)
         self.tags = set()
@@ -18,7 +26,7 @@ class MangaInfo:
         self.total_pages = 0
         self.is_valid = False
         self.pages = []  # 存储页面路径
-        self.last_modified = os.path.getmtime(file_path) if os.path.exists(file_path) else 0  # 获取文件最后修改时间
+        self.last_modified = last_modified  # 从参数获取
 
         # 页面尺寸分析相关属性
         self.page_dimensions = []  # 存储每页的尺寸 [(width, height), ...]
@@ -241,7 +249,8 @@ class MangaLoader:
             log.warning(f"文件或目录不存在: {file_path}")
             return None
 
-        manga = MangaInfo(file_path)
+        last_modified = os.path.getmtime(file_path)
+        manga = MangaInfo(file_path, last_modified=last_modified)
 
         if os.path.isdir(file_path):
             # 处理文件夹作为漫画
@@ -275,18 +284,12 @@ class MangaLoader:
             # 处理ZIP文件作为漫画
             try:
                 with ZipFile(file_path, "r") as zip_file:
-                    all_files = zip_file.namelist()
-                    image_files = [
-                        f
-                        for f in all_files
-                        if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
-                    ]
+                    image_files = MangaLoader._get_image_files_from_zip(zip_file)
 
-                    if not image_files and all_files:
+                    if not image_files:
                         log.warning(f"ZIP中未找到图片文件: {file_path}")
                         return None
 
-                    image_files.sort()
                     manga.total_pages = len(image_files)
                     manga.pages = image_files  # 保存页面在ZIP文件中的路径
 
@@ -373,19 +376,32 @@ class MangaLoader:
             manga.is_likely_manga = True
 
     @staticmethod
+    def _get_image_files_from_zip(zip_file):
+        """
+        从ZipFile对象中提取所有图像文件路径，并进行自然排序。
+        这个方法会扫描所有子目录。
+        """
+        image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+        image_files = []
+        for file_info in zip_file.infolist():
+            # 确保不是目录，并且文件扩展名是支持的图片格式
+            if not file_info.is_dir() and file_info.filename.lower().endswith(image_extensions):
+                image_files.append(file_info.filename)
+        
+        # 使用自然排序
+        image_files.sort(key=_natural_sort_key)
+        return image_files
+
+    @staticmethod
     def _get_page_dimensions_from_zip(manga, page_index):
         """从ZIP文件获取页面尺寸（不加载完整图像）"""
         try:
             with ZipFile(manga.file_path, "r") as zip_file:
-                image_files = [
-                    f for f in zip_file.namelist()
-                    if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
-                ]
+                image_files = MangaLoader._get_image_files_from_zip(zip_file)
 
                 if page_index >= len(image_files):
                     return None, None
 
-                image_files.sort()
                 file_name = image_files[page_index]
 
                 # 读取图像数据
@@ -397,7 +413,7 @@ class MangaLoader:
                     return pil_image.size  # 返回 (width, height)
 
         except Exception as e:
-            log.debug(f"获取ZIP页面尺寸失败 {file_name}: {e}")
+            log.debug(f"获取ZIP页面尺寸失败 {manga.file_path} - page {page_index}: {e}")
             return None, None
 
     @staticmethod
@@ -450,18 +466,11 @@ class MangaLoader:
 
         try:
             with ZipFile(manga.file_path, "r") as zip_file:
-                # 获取并过滤图像文件
-                image_files = [
-                    f
-                    for f in zip_file.namelist()
-                    if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
-                ]
+                image_files = MangaLoader._get_image_files_from_zip(zip_file)
 
                 if not image_files:
                     log.debug(f"ZIP中未找到图片文件: {manga.file_path}")
                     return None
-
-                image_files.sort()
 
                 # 页码验证
                 if page_index < 0 or page_index >= len(image_files):

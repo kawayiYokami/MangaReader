@@ -10,12 +10,18 @@ export function createState() {
     const currentPage = ref(0);
     const showPageInput = ref(false);
     const pageInputText = ref('1');
-    const currentImageUrls = ref([]);
+    const currentImages = ref([]); // 替换 currentImageUrls
     const isLoading = ref(false);
     const isFullscreen = ref(false);
     const displayMode = ref('auto'); // 'auto', 'single', 'double'
     const translationEnabled = ref(false);
-    const isDragging = ref(false);
+    // isDragging 已被移除
+    const isAutoPaging = ref(false);
+    const autoPagingInterval = ref(10);
+    const autoPagingTimerId = ref(null);
+    const isAutoplaySettingsVisible = ref(false); // 新增：控制悬浮面板的显示
+    const autoplaySettingsHideTimer = ref(null); // 新增：用于延迟隐藏设置面板
+   const isDragging = ref(false); // 新增：用于跟踪进度条拖动状态
 
     // 屏幕信息
     const screenInfo = reactive({
@@ -28,16 +34,11 @@ export function createState() {
     const viewerContent = ref(null);
     const mangaImage = ref(null);
     const pageInputRef = ref(null);
-    const sliderContainer = ref(null);
+    const autoPagePopover = ref(null); // 新增 Popover 的引用
 
     // ==================== 计算属性 ====================
 
-    const actualDisplayMode = computed(() => {
-        if (displayMode.value === 'single') return 'single';
-        if (displayMode.value === 'double') return 'double';
-        // 自动模式：根据屏幕比例和宽度决定
-        return (screenInfo.ratio > 1.5 && screenInfo.width > 1200) ? 'double' : 'single';
-    });
+    const actualDisplayMode = ref('single'); // 从 computed 改为 ref
 
     const progressPercentage = computed(() => {
         if (mangaInfo.total_pages === 0) return 0;
@@ -51,19 +52,7 @@ export function createState() {
         return circumference - (progressPercentage.value / 100) * circumference;
     });
 
-    // 滑块样式
-    const thumbStyle = computed(() => {
-        if (!sliderContainer.value || mangaInfo.total_pages <= 1) {
-            return { top: '0px' };
-        }
-        const containerHeight = sliderContainer.value.offsetHeight;
-        const thumbHeight = 30; // 与CSS中设置的高度一致
-        const trackHeight = containerHeight - thumbHeight;
-        const percentage = currentPage.value / (mangaInfo.total_pages - 1);
-        const top = percentage * trackHeight;
-        return { top: `${top}px` };
-    });
-
+    // thumbStyle 已被移除，因为它依赖于一个不存在的 sliderContainer
     const displayModeText = computed(() => {
         const modes = {
             'auto': '自动',
@@ -83,26 +72,32 @@ export function createState() {
         currentPage,
         showPageInput,
         pageInputText,
-        currentImageUrls,
+        currentImages,
         isLoading,
         isFullscreen,
         displayMode,
         translationEnabled,
-        isDragging,
+       isDragging,
         screenInfo,
 
         // DOM 引用
         viewerContent,
         mangaImage,
         pageInputRef,
-        sliderContainer,
+        autoPagePopover, // 导出 popover 引用
+
+        // 自动翻页状态
+        isAutoPaging,
+        autoPagingInterval,
+        autoPagingTimerId,
+        isAutoplaySettingsVisible,
+        autoplaySettingsHideTimer,
 
         // 计算属性
         actualDisplayMode,
         progressPercentage,
         progressCircumference,
         progressOffset,
-        thumbStyle,
         displayModeText,
         canPrevious,
         canNext,

@@ -5,31 +5,44 @@ const { ElMessage } = ElementPlus;
 export function createControls(state, viewerManager) {
     const {
         mangaInfo, currentPage, showPageInput, pageInputText,
-        currentImageUrls, isLoading, isFullscreen, displayMode,
+        currentImages, isLoading, isFullscreen, displayMode,
         actualDisplayMode, translationEnabled, isDragging,
-        screenInfo, pageInputRef, sliderContainer, viewerContent
+        isAutoPaging, autoPagingInterval, autoPagingTimerId,
+        isAutoplaySettingsVisible, autoplaySettingsHideTimer,
+        screenInfo, pageInputRef, viewerContent
     } = state;
 
     // ==================== 页面加载 ====================
 
     async function loadCurrentPage() {
-        try {
-            const images = await viewerManager.getPageImages(
-                currentPage.value,
-                actualDisplayMode.value,
-                translationEnabled.value
-            );
+       try {
+           const modeToSend = displayMode.value === 'auto' ? 'double' : displayMode.value;
+           const result = await viewerManager.getPageImages(
+               currentPage.value,
+               modeToSend,
+               translationEnabled.value
+           );
 
-            if (images && images.length > 0) {
-                currentImageUrls.value = images.map(img => img.image_data);
-            } else {
-                throw new Error('无法加载页面图像');
-            }
-        } catch (error) {
-            ElMessage.error(`加载第 ${currentPage.value + 1} 页失败`);
-            console.error(error);
-        }
-    }
+           if (result && Array.isArray(result) && result.length > 0) {
+               currentImages.value = result.map(img => ({
+                   src: img.image_data,
+                   width: img.width,
+                   height: img.height,
+                   pageIndex: img.page_index
+               }));
+           } else {
+               currentImages.value = [];
+           }
+           
+           // 在图片数据更新后，手动计算并设置显示模式
+           updateActualDisplayMode();
+
+       } catch (error) {
+           ElMessage.error(`加载第 ${currentPage.value + 1} 页失败`);
+           console.error(error);
+           currentImages.value = [];
+       }
+   }
 
     // ==================== 页面控制 ====================
 
@@ -38,6 +51,7 @@ export function createControls(state, viewerManager) {
         const step = actualDisplayMode.value === 'double' ? 2 : 1;
         const newPage = Math.max(0, currentPage.value - step);
         onPageChange(newPage);
+        if (isAutoPaging.value) restartAutoPagingTimer(); // 重置计时器
     }
 
     function nextPage() {
@@ -45,12 +59,14 @@ export function createControls(state, viewerManager) {
         const step = actualDisplayMode.value === 'double' ? 2 : 1;
         const newPage = Math.min(mangaInfo.total_pages - 1, currentPage.value + step);
         onPageChange(newPage);
+        if (isAutoPaging.value) restartAutoPagingTimer(); // 重置计时器
     }
 
     async function onPageChange(newPage) {
         currentPage.value = newPage;
         pageInputText.value = (newPage + 1).toString();
         await loadCurrentPage();
+        // 注意：onPageChange 通常由其他函数调用，所以重置计时器的逻辑放在调用它的地方
     }
 
 
@@ -86,7 +102,8 @@ export function createControls(state, viewerManager) {
     }
 
     function onPageInputBlur() {
-        applyPageInput();
+        // 在 blur 时不再自动应用，避免与悬浮面板的交互冲突
+        // 如果需要，可以保留 applyPageInput();
     }
 
     function cancelPageInput() {
@@ -98,62 +115,65 @@ export function createControls(state, viewerManager) {
         const newPage = parseInt(pageInputText.value);
         if (newPage && newPage >= 1 && newPage <= mangaInfo.total_pages) {
             onPageChange(newPage - 1);
+            if (isAutoPaging.value) restartAutoPagingTimer(); // 重置计时器
         } else {
             pageInputText.value = (currentPage.value + 1).toString();
         }
         showPageInput.value = false;
     }
 
-    // ==================== 自定义滑块 ====================
+    // ==================== 自动翻页 (重构后) ====================
 
-    function onThumbMouseDown(event) {
-        isDragging.value = true;
-        const thumb = event.target;
-        const container = sliderContainer.value;
-        const initialY = event.clientY;
-        const initialTop = thumb.offsetTop;
-
-        const onMouseMove = (moveEvent) => {
-            if (!isDragging.value) return;
-            const deltaY = moveEvent.clientY - initialY;
-            let newTop = initialTop + deltaY;
-            const containerHeight = container.offsetHeight;
-            const thumbHeight = thumb.offsetHeight;
-            newTop = Math.max(0, Math.min(newTop, containerHeight - thumbHeight));
-            const percentage = newTop / (containerHeight - thumbHeight);
-            const newPage = Math.round(percentage * (mangaInfo.total_pages - 1));
-            pageInputText.value = (newPage + 1).toString();
-            thumb.style.top = `${newTop}px`;
-        };
-
-        const onMouseUp = () => {
-            isDragging.value = false;
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-            const finalPercentage = thumb.offsetTop / (container.offsetHeight - thumb.offsetHeight);
-            const finalPage = Math.round(finalPercentage * (mangaInfo.total_pages - 1));
-            if (finalPage !== currentPage.value) {
-                onPageChange(finalPage);
-            }
-        };
-
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
+    function startAutoPaging() {
+        isAutoPaging.value = true;
+        restartAutoPagingTimer();
+    }
+    
+    function stopAutoPaging() {
+        if (autoPagingTimerId.value) {
+            clearInterval(autoPagingTimerId.value);
+            autoPagingTimerId.value = null;
+        }
+        isAutoPaging.value = false;
     }
 
-    function onTrackClick(event) {
-        if (isDragging.value) return;
-        const container = sliderContainer.value;
-        const rect = container.getBoundingClientRect();
-        const clickY = event.clientY - rect.top;
-        const containerHeight = container.offsetHeight;
-        const thumbHeight = 30;
-        let percentage = (clickY - (thumbHeight / 2)) / (containerHeight - thumbHeight);
-        percentage = Math.max(0, Math.min(1, percentage));
-        const newPage = Math.round(percentage * (mangaInfo.total_pages - 1));
-        if (newPage !== currentPage.value) {
-            onPageChange(newPage);
+    // 新增：重置计时器的核心函数
+    function restartAutoPagingTimer() {
+        // 先清除旧的
+        if (autoPagingTimerId.value) {
+            clearInterval(autoPagingTimerId.value);
         }
+        // 设置新的
+        autoPagingTimerId.value = setInterval(() => {
+            if (currentPage.value < mangaInfo.total_pages - 1) {
+                nextPage(); // nextPage 内部会再次调用 restart
+            } else {
+                stopAutoPaging(); // 到达最后一页，自动停止
+            }
+        }, autoPagingInterval.value * 1000);
+    }
+
+    function toggleAutoPaging() {
+        if (isAutoPaging.value) {
+            stopAutoPaging();
+        } else {
+            startAutoPaging();
+        }
+    }
+
+    // 新增：自动播放设置面板交互
+    function handleAutoplayMouseEnter() {
+        if (autoplaySettingsHideTimer.value) {
+            clearTimeout(autoplaySettingsHideTimer.value);
+            autoplaySettingsHideTimer.value = null;
+        }
+        isAutoplaySettingsVisible.value = true;
+    }
+
+    function handleAutoplayMouseLeave() {
+        autoplaySettingsHideTimer.value = setTimeout(() => {
+            isAutoplaySettingsVisible.value = false;
+        }, 2000); // 延迟2秒隐藏
     }
 
     // ==================== 事件处理 ====================
@@ -231,14 +251,109 @@ export function createControls(state, viewerManager) {
     }
 
     function handleResize() {
+        // 只更新屏幕信息，不再触发页面重载
         screenInfo.width = window.innerWidth;
         screenInfo.height = window.innerHeight;
         screenInfo.ratio = window.innerWidth / window.innerHeight;
-        if (displayMode.value === 'auto') {
-            nextTick(loadCurrentPage);
-        }
     }
 
+    // 新增：手动更新显示模式的函数
+    function updateActualDisplayMode() {
+        if (displayMode.value === 'single') {
+            actualDisplayMode.value = 'single';
+            return;
+        }
+        if (displayMode.value === 'double') {
+            actualDisplayMode.value = currentImages.value.length === 1 ? 'single' : 'double';
+            return;
+        }
+
+        // 自动模式核心逻辑
+        if (currentImages.value.length === 0) {
+            actualDisplayMode.value = 'single';
+            return;
+        }
+        if (currentImages.value.length === 1) {
+            actualDisplayMode.value = 'single';
+            return;
+        }
+
+        const containerWidth = viewerContent.value ? viewerContent.value.clientWidth : window.innerWidth;
+        if (containerWidth < 900) {
+            actualDisplayMode.value = 'single';
+            return;
+        }
+        
+        const containerHeight = viewerContent.value ? viewerContent.value.clientHeight : window.innerHeight;
+        let totalWidth = 0;
+        for (const img of currentImages.value) {
+            if (!img.height || img.height === 0) {
+                actualDisplayMode.value = 'single';
+                return;
+            }
+            const scaleRatio = containerHeight / img.height;
+            totalWidth += img.width * scaleRatio;
+        }
+
+        actualDisplayMode.value = totalWidth > containerWidth ? 'single' : 'double';
+    }
+// 监听翻页间隔的变化，如果正在翻页，则重置计时器
+watch(autoPagingInterval, () => {
+    if (isAutoPaging.value) {
+        restartAutoPagingTimer();
+    }
+});
+
+   // ==================== 进度条控制 (支持拖拽) ====================
+   
+   // 拖动时仅更新页码，不加载图片，以保证流畅
+   function setPageFromProgress(event, container) {
+       const track = container.querySelector('.progress-bar-track');
+       if (!track) return;
+
+       const rect = track.getBoundingClientRect(); // 精确使用轨道的位置和尺寸
+       const clickY = event.clientY - rect.top;
+       const percentage = Math.max(0, Math.min(1, clickY / rect.height));
+       
+       if (mangaInfo.total_pages > 0) {
+           const targetPage = Math.floor(percentage * mangaInfo.total_pages);
+           const clampedPage = Math.max(0, Math.min(targetPage, mangaInfo.total_pages - 1));
+           
+           // 仅更新 ref，UI 上的页码会响应式更新
+           if (clampedPage !== currentPage.value) {
+               currentPage.value = clampedPage;
+               pageInputText.value = (clampedPage + 1).toString();
+           }
+       }
+   }
+
+   function onProgressMouseDown(event) {
+       isDragging.value = true;
+       event.preventDefault(); // 阻止默认的文本选择行为
+       
+       const container = event.currentTarget;
+       setPageFromProgress(event, container); // 立即响应第一次点击
+
+       const onMouseMove = (moveEvent) => {
+           if (isDragging.value) {
+               // 拖动时实时更新页码
+               setPageFromProgress(moveEvent, container);
+           }
+       };
+
+       const onMouseUp = () => {
+           isDragging.value = false;
+           window.removeEventListener('mousemove', onMouseMove);
+           window.removeEventListener('mouseup', onMouseUp);
+
+           // 拖动结束后，才真正加载图片
+           loadCurrentPage();
+           if (isAutoPaging.value) restartAutoPagingTimer();
+       };
+
+       window.addEventListener('mousemove', onMouseMove);
+       window.addEventListener('mouseup', onMouseUp);
+   }
     // 监听页码输入框显示状态，自动聚焦
     watch(showPageInput, (newValue) => {
         if (newValue) {
@@ -251,6 +366,7 @@ export function createControls(state, viewerManager) {
         }
     });
 
+
     return {
         loadCurrentPage,
         previousPage,
@@ -262,8 +378,10 @@ export function createControls(state, viewerManager) {
         onPageInputBlur,
         cancelPageInput,
         applyPageInput,
-        onThumbMouseDown,
-        onTrackClick,
+        toggleAutoPaging,
+        handleAutoplayMouseEnter,
+        handleAutoplayMouseLeave,
+        onProgressMouseDown,
         handleKeydown,
         onImageClick,
         onImageLoad,
