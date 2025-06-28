@@ -86,7 +86,11 @@ if app_type == "full":
 # ----- 后端逻辑实现 (供API或全局函数调用) -----
 
 def _dispatch_feedback_event(success, message, added=0, failed=0):
-    """辅助函数：向JavaScript发送反馈事件"""
+    """
+    辅助函数：向JavaScript发送反馈事件。
+    重构说明：移除了所有前端逻辑，后端只负责发送带有数据的纯净事件。
+    前端的Vue应用将监听'desktopImportComplete'事件并决定如何响应。
+    """
     global desktop_app_instance
     target_window = None
     if desktop_app_instance and desktop_app_instance.window:
@@ -96,35 +100,13 @@ def _dispatch_feedback_event(success, message, added=0, failed=0):
 
     if target_window:
         try:
-            log.debug(f"发送桌面事件反馈: 成功={success}, 消息={message}")
+            log.debug(f"发送桌面事件反馈: 成功={success}, 消息='{message}'")
             detail_payload = {"success": success, "message": message, "added": added, "failed": failed}
+            # 使用json.dumps确保特殊字符被正确转义
             detail_json = json.dumps(detail_payload, ensure_ascii=False)
 
-            # 增强的JavaScript代码，包含漫画列表刷新逻辑
-            js_code = f'''
-            window.dispatchEvent(new CustomEvent("desktopImportComplete", {{ detail: {detail_json} }}));
-
-            // 如果是成功的扫描操作，触发漫画列表刷新
-            if ({json.dumps(success)} && ({added} > 0 || "{message}".includes("扫描") || "{message}".includes("设置目录"))) {{
-                console.log(" 扫描操作成功，触发漫画列表刷新");
-                // 延迟500ms后刷新，确保后端数据已更新
-                setTimeout(() => {{
-                    // 尝试多种方式触发刷新
-                    if (window.Vue && window.Vue.loadMangaData) {{
-                        window.Vue.loadMangaData();
-                        console.log("[SUCCESS] 漫画列表已刷新 (Vue实例)");
-                    }} else if (window.app && window.app.loadMangaData) {{
-                        window.app.loadMangaData();
-                        console.log("[SUCCESS] 漫画列表已刷新 (app实例)");
-                    }} else {{
-                        console.warn("[WARNING] 未找到Vue实例或loadMangaData方法，尝试事件触发");
-                        // 尝试通过事件触发刷新
-                        const refreshEvent = new CustomEvent("refreshMangaList");
-                        window.dispatchEvent(refreshEvent);
-                    }}
-                }}, 500);
-            }}
-            '''
+            # 只发送一个干净的、携带数据的自定义事件
+            js_code = f'window.dispatchEvent(new CustomEvent("desktopImportComplete", {{ detail: {detail_json} }}));'
 
             target_window.evaluate_js(js_code)
             log.debug("桌面事件已发送")

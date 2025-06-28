@@ -724,8 +724,11 @@ window.MangaBrowserMethods = {
                 type: 'success',
                 duration: 5000
             });
-             // 依赖 MangaManager 信号触发的列表刷新，这里不主动调用 loadMangaData
-             // this.loadMangaData();
+
+            // 后端JS注入已被移除，现在由前端在收到成功事件后，
+            // 主动触发一个全局刷新事件。
+            window.dispatchEvent(new CustomEvent('refreshMangaList'));
+
         } else if (!success && message === '用户未选择目录') {
              console.log('用户取消选择目录或文件。');
              // ElMessage.info('未选择目录或文件。'); // 可选的轻提示
