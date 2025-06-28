@@ -55,6 +55,7 @@ window.AppData = {
     currentPage: 1,
     pageSize: 20,
     cacheSearchQuery: '',
+    showOnlyUnlikelyManga: false, // 筛选“可能非漫画”的开关
 
     // 简化的加载状态
     loadingStates: {

@@ -17,6 +17,7 @@ import math
 # 导入核心业务逻辑
 from core.core_cache.cache_factory import get_cache_factory_instance
 from core.harmonization_map_manager import get_harmonization_map_manager_instance
+from core.core_cache.manga_cache import LIBRARY_KEY
 
 log = logging.getLogger(__name__)
 
@@ -100,28 +101,31 @@ class MangaListCacheHandler(CacheHandler):
     async def get_info(self) -> CacheInfo:
         """获取漫画列表缓存信息"""
         try:
-            # 获取所有目录条目
-            cached_dirs = self.manager.get_all_entries_for_display()
-            total_entries = 0
-            
-            # 计算总漫画数量
-            for dir_entry in cached_dirs:
-                directory_path = dir_entry.get("directory_path")
-                if directory_path:
-                    manga_list = self.manager.get(directory_path)
-                    if manga_list:
-                        total_entries += len(manga_list)
+            # 直接从统一的漫画库中获取列表
+            manga_list = self.manager.get(LIBRARY_KEY)
+            total_entries = len(manga_list) if manga_list else 0
             
             # 获取缓存大小
             size_bytes = 0
             if hasattr(self.manager, 'get_cache_size_bytes'):
                 size_bytes = await self.manager.get_cache_size_bytes() if asyncio.iscoroutinefunction(self.manager.get_cache_size_bytes) else self.manager.get_cache_size_bytes()
             
+            # 获取最后更新时间
+            last_updated = None
+            if total_entries > 0:
+                # 尝试从缓存元数据获取时间
+                entries_meta = self.manager.get_all_entries_for_display()
+                if entries_meta and 'last_updated' in entries_meta[0]:
+                    last_updated = entries_meta[0]['last_updated']
+            
+            if last_updated is None:
+                last_updated = datetime.now().isoformat()
+
             return CacheInfo(
                 cache_type=self.cache_type,
                 total_entries=total_entries,
                 size_bytes=size_bytes,
-                last_updated=datetime.now().isoformat()
+                last_updated=last_updated
             )
         except Exception as e:
             self.log.error(f"获取漫画列表缓存信息失败: {e}")
@@ -130,16 +134,8 @@ class MangaListCacheHandler(CacheHandler):
     async def get_entries(self, page: int, page_size: int, search: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """获取漫画列表缓存条目"""
         try:
-            # 获取所有漫画条目
-            all_manga = []
-            cached_dirs = self.manager.get_all_entries_for_display()
-            
-            for dir_entry in cached_dirs:
-                directory_path = dir_entry.get("directory_path")
-                if directory_path:
-                    manga_list = self.manager.get(directory_path)
-                    if manga_list:
-                        all_manga.extend(manga_list)
+            # 直接从统一的漫画库中获取所有漫画条目
+            all_manga = self.manager.get(LIBRARY_KEY) or []
 
             # 1. 应用新的布尔筛选
             show_unlikely = kwargs.get("show_unlikely", False)

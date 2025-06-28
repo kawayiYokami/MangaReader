@@ -39,9 +39,9 @@ def parse_arguments():
     )
     
     parser.add_argument(
-        "--host", 
-        default="127.0.0.1",
-        help="服务器主机地址 (默认: 127.0.0.1)"
+        "--host",
+        default="0.0.0.0",
+        help="服务器主机地址 (默认: 0.0.0.0, 允许局域网访问)"
     )
     
     parser.add_argument(
