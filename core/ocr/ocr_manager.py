@@ -3,6 +3,7 @@
 import os
 import cv2
 import time
+import yaml
 import numpy as np
 from typing import List, Tuple, Optional, Dict, Any
 from PySide6.QtCore import QObject, Signal, QThread
@@ -108,16 +109,47 @@ class OCRManager(QObject):
         # 工作线程
         self.ocr_worker: Optional[OCRWorker] = None # Type hint
         
-        # OCR配置选项
-        self.ocr_options = {
-            'use_angle_cls': True,  # 是否使用角度分类器
-            'use_gpu': False,       # 是否使用GPU
-            'det': True,            # 是否进行文本检测
-            'rec': True,            # 是否进行文本识别
-            'cls': False             # 是否进行角度分类
-        }
+        # 从YAML文件加载OCR配置选项
+        self.ocr_options = self._load_config_from_yaml()
         
         log.info("OCRManager初始化完成")
+
+    def _get_default_options(self) -> Dict[str, Any]:
+        """返回一个安全的默认OCR配置"""
+        log.warning("无法加载或解析 ocr_config.yaml，将使用默认安全配置。")
+        return {
+            'use_angle_cls': True,
+            'use_gpu': False,
+            'det': True,
+            'rec': True,
+            'cls': False,
+            'det_model_dir': None,
+            'rec_model_dir': None,
+            'cls_model_dir': None,
+            'rec_char_dict_path': None
+        }
+
+    def _load_config_from_yaml(self) -> Dict[str, Any]:
+        """从YAML文件加载OCR配置"""
+        config_path = os.path.join(os.path.dirname(__file__), 'ocr_config.yaml')
+        if not os.path.exists(config_path):
+            return self._get_default_options()
+        
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_from_yaml = yaml.safe_load(f)
+            
+            # 将嵌套的字典扁平化为一个单一的选项字典
+            flat_options = {}
+            for category, settings in config_from_yaml.items():
+                if isinstance(settings, dict):
+                    flat_options.update(settings)
+            
+            log.info(f"从 {config_path} 加载OCR配置成功。")
+            return flat_options
+        except (yaml.YAMLError, IOError) as e:
+            log.error(f"加载或解析YAML配置文件 {config_path} 时出错: {e}")
+            return self._get_default_options()
     
     def load_model(self, model_options: Optional[Dict[str, Any]] = None):
         """加载OCR模型"""

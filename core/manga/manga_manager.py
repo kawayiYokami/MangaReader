@@ -50,20 +50,12 @@ class MangaManager(QObject):
         self.tags = set()
         self.current_manga = None
 
-        log.info(
-            f"MangaManager初始化完成，最新目录: {config.manga_dir.value}, 漫画数量: {len(self.manga_list)}"
-        )
+        # 初始化时直接从缓存加载漫画库
+        self.load_library_from_cache()
 
-    def set_manga_dir(self, dir_path, force_rescan=False):
-        log.info(f"设置漫画目录: {dir_path}")
-        if os.path.exists(dir_path) and os.path.isdir(dir_path):
-            config.manga_dir.value = dir_path  # 设置 config 值时使用 .value
-            self.save_config()
-            log.info(f"目录有效，开始扫描漫画文件")
-            self.scan_manga_files(force_rescan=force_rescan)
-            self.dir_changed.emit(config.manga_dir.value)  # 发送信号时使用 .value
-        else:
-            log.warning(f"目录无效或不存在: {dir_path}")
+        log.info(
+            f"MangaManager初始化完成，从缓存加载了 {len(self.manga_list)} 本漫画"
+        )
             
     def save_config(self):
         """保存配置到文件"""
@@ -121,8 +113,7 @@ class MangaManager(QObject):
         self.tags.clear()
         self.current_manga = None
         
-        # 清空配置中的目录和当前漫画路径
-        config.manga_dir.value = ""
+        # 清空配置中的当前漫画路径
         config.current_manga_path.value = ""
         config.current_page.value = 0
         self.save_config()
@@ -130,147 +121,124 @@ class MangaManager(QObject):
         # 清空缓存
         self.clear_manga_cache()
         self.clear_translation_cache()
-        
 
         # 发送信号通知UI更新
         self.filter_applied.emit([])
         self.tags_cleared.emit() # 发送标签清空信号
         log.info("所有漫画数据和缓存已清空")
 
-    def scan_manga_files(self, force_rescan=False):
-        # 访问 config 值时使用 .value
-        if not config.manga_dir.value:
-            log.warning("未设置漫画目录，无法扫描文件")
+    def add_manga_from_path(self, path: str):
+        """从指定路径（文件或文件夹）扫描并添加漫画到主库中。"""
+        if not os.path.exists(path):
+            log.error(f"路径不存在，无法添加: {path}")
             return
-
+        
         self.data_loading.emit()
-        # self.manga_list.clear() # 移除此行
-        # self.tags.clear() # 移除此行
-
+        log.info(f"开始从路径添加漫画: {path}")
+        
         try:
-            # 使用新的 MangaListCacheManager
-            cache_key = self.manga_list_cache_manager.generate_key(config.manga_dir.value)
-            
-            cached_manga_data_list = None
-            if not force_rescan:
-                cached_manga_data_list = self.manga_list_cache_manager.get(cache_key)
-            
-            current_scan_mangas = []
-            if cached_manga_data_list and not force_rescan:
-                log.info(f"从缓存加载漫画列表数据，共 {len(cached_manga_data_list)} 条记录")
-                
-                for manga_data in cached_manga_data_list:
-                    file_path = manga_data.get("file_path")
-                    if not file_path:
-                        log.warning(f"缓存数据中缺少 file_path: {manga_data.get('title', 'N/A')}")
-                        continue
-
-                    # is_manga_modified is now part of MangaListCacheManager
-                    if os.path.exists(file_path):
-                        try:
-                            manga = MangaInfo(file_path) # Recreate MangaInfo from path
-                            manga.title = manga_data.get("title", os.path.basename(file_path))
-                            manga.tags = set(manga_data.get("tags", []))
-                            manga.total_pages = manga_data.get("total_pages", 0)
-                            manga.is_valid = manga_data.get("is_valid", False) # Rely on cached validity
-                            manga.last_modified = manga_data.get("last_modified", 0)
-                            manga.pages = manga_data.get("pages", []) # Assuming pages are serializable
-                            # manga.is_translated = manga_data.get("is_translated", False) # If this field is used
-
-                            # 恢复页面尺寸分析数据
-                            manga.page_dimensions = manga_data.get("page_dimensions", [])
-                            manga.dimension_variance = manga_data.get("dimension_variance", None)
-                            manga.is_likely_manga = manga_data.get("is_likely_manga", None)
-                            if manga.is_valid: # Double check validity if needed, or trust cache
-                                current_scan_mangas.append(manga)
-                            else:
-                                log.warning(f"从缓存加载的漫画 {file_path} 无效，将尝试重新加载。")
-                                fresh_manga = MangaLoader.load_manga(file_path)
-                                if fresh_manga and fresh_manga.is_valid:
-                                    current_scan_mangas.append(fresh_manga)
-                        except Exception as e_load:
-                            log.error(f"从缓存数据创建 MangaInfo 对象失败 ({file_path}): {e_load}, 将尝试重新加载。")
-                            fresh_manga = MangaLoader.load_manga(file_path)
-                            if fresh_manga and fresh_manga.is_valid:
-                                current_scan_mangas.append(fresh_manga)
-                    else:
-                        log.info(f"漫画文件不存在于缓存: {file_path}，将重新加载。")
-                        manga = MangaLoader.load_manga(file_path)
-                        if manga and manga.is_valid:
-                            current_scan_mangas.append(manga)
-                        else:
-                            log.warning(f"无法加载漫画: {file_path}")
-            else:
-                log.info(f"开始扫描漫画目录 (无缓存或强制重新扫描): {config.manga_dir.value}")
-                manga_files = MangaLoader.find_manga_files(config.manga_dir.value)
-
-                for file_path_scan in manga_files:
-                    # 根据配置决定是否进行尺寸分析
-                    analyze_dimensions = config.enable_dimension_analysis.value
-                    manga = MangaLoader.load_manga(file_path_scan, analyze_dimensions=analyze_dimensions)
-
+            newly_scanned_mangas = []
+            if os.path.isdir(path):
+                manga_files = MangaLoader.find_manga_files(path)
+                for file_path in manga_files:
+                    manga = MangaLoader.load_manga(file_path, analyze_dimensions=config.enable_dimension_analysis.value)
                     if manga and manga.is_valid:
-                        # 根据配置决定是否过滤非漫画文件
-                        if config.filter_non_manga.value and manga.is_likely_manga is not None:
-                            if not manga.is_likely_manga:
-                                log.info(f"根据尺寸分析过滤非漫画文件: {file_path_scan} "
-                                        f"(方差分数: {manga.dimension_variance:.3f})")
-                                continue
-
-                        current_scan_mangas.append(manga)
-                    else:
-                        log.warning(f"无法加载漫画: {file_path_scan}")
+                        newly_scanned_mangas.append(manga)
+            elif os.path.isfile(path):
+                 manga = MangaLoader.load_manga(path, analyze_dimensions=config.enable_dimension_analysis.value)
+                 if manga and manga.is_valid:
+                    newly_scanned_mangas.append(manga)
             
-            # 更新缓存，只缓存当前目录的漫画
-            # The `set` method of MangaListCacheManager expects a list of manga objects
-            # or serializable dicts. current_scan_mangas contains MangaInfo objects.
-            # The MangaListCacheManager's set method should handle serialization.
-            self.manga_list_cache_manager.set(cache_key, current_scan_mangas)
+            if not newly_scanned_mangas:
+                log.warning(f"路径 {path} 中未找到有效漫画。")
+                self.data_loaded.emit(self.manga_list) # 仍然发送信号，以便UI可以停止加载状态
+                return
 
-            # 合并新扫描到的漫画到主列表，并去重
-            existing_manga_paths = {manga.file_path for manga in self.manga_list}
+            # 使用字典来合并新旧漫画，确保唯一性并处理更新
+            merged_mangas = {m.file_path: m for m in self.manga_list}
+            added_count = 0
+            updated_count = 0
+
+            for new_manga in newly_scanned_mangas:
+                if new_manga.file_path in merged_mangas:
+                    updated_count += 1
+                else:
+                    added_count += 1
+                # 无论新增还是更新，都将新对象放入字典
+                merged_mangas[new_manga.file_path] = new_manga
             
-            for manga in current_scan_mangas:
-                if manga.file_path not in existing_manga_paths:
+            # 循环结束后，从字典的值重建最终列表
+            self.manga_list = list(merged_mangas.values())
+
+            log.info(f"添加完成: 新增 {added_count} 本, 更新 {updated_count} 本。漫画库总数: {len(self.manga_list)}")
+
+            # 更新标签和缓存
+            self._update_tags_and_cache()
+            
+        except Exception as e:
+            error_msg = f"从路径 {path} 添加漫画时发生错误: {e}"
+            log.error(error_msg, exc_info=True)
+            self.data_load_failed.emit(error_msg)
+
+    def load_library_from_cache(self):
+        """从缓存加载主漫画库。"""
+        self.data_loading.emit()
+        try:
+            cache_key = self.manga_list_cache_manager.generate_key()
+            cached_data = self.manga_list_cache_manager.get(cache_key)
+
+            if not cached_data:
+                log.info("漫画库缓存为空，无需加载。")
+                self.manga_list = []
+                self.tags = set()
+                self.data_loaded.emit(self.manga_list)
+                return
+
+            log.info(f"从缓存加载漫画列表，共 {len(cached_data)} 条记录")
+            self.manga_list.clear()
+            
+            for manga_data in cached_data:
+                file_path = manga_data.get("file_path")
+                # 检查文件是否存在，如果不存在则不加载，下次添加时会自动处理
+                if file_path and os.path.exists(file_path):
+                    manga = MangaInfo(
+                        file_path,
+                        last_modified=manga_data.get("last_modified", 0)
+                    )
+                    manga.title = manga_data.get("title", os.path.basename(file_path))
+                    manga.tags = set(manga_data.get("tags", []))
+                    manga.total_pages = manga_data.get("total_pages", 0)
+                    manga.is_valid = manga_data.get("is_valid", True) # 缓存中的通常是有效的
+                    manga.last_modified = manga_data.get("last_modified", 0)
                     self.manga_list.append(manga)
-                    existing_manga_paths.add(manga.file_path) 
+                else:
+                    log.warning(f"缓存中的漫画文件不存在，已跳过: {file_path}")
 
-            log.info(f"扫描完成，当前共加载 {len(self.manga_list)} 本漫画")
-
-            # 重新收集所有漫画的标签
-            self.tags.clear() # 每次扫描后重新收集所有标签
-            for manga in self.manga_list:
-                self.tags.update(manga.tags)
-
-            log.info(f"标签收集完成，共收集 {len(self.tags)} 个标签")
-
-            self.data_loaded.emit(self.manga_list)
-            self.tags_updated.emit(self.tags)
-            self.filter_manga([])
-
-            # 恢复上次阅读状态
-            # 访问 config 值时使用 .value
-            if config.current_manga_path.value and os.path.exists(
-                config.current_manga_path.value
-            ):
-                # 访问 config 值时使用 .value
-                found_manga = next(
-                    (
-                        m
-                        for m in self.manga_list
-                        if m.file_path == config.current_manga_path.value
-                    ),
-                    None,
-                )
-                if found_manga:
-                    self.set_current_manga(found_manga)
-                    # 访问 config 值时使用 .value
-                    self.change_page(config.current_page.value)
+            log.info(f"成功从缓存加载 {len(self.manga_list)} 本有效漫画。")
+            self._update_tags_and_cache(save_to_cache=False) # 只更新标签，不重复写入缓存
 
         except Exception as e:
-            error_msg = f"扫描漫画文件时发生错误: {str(e)}"
-            log.error(error_msg)
+            error_msg = f"从缓存加载漫画库时发生错误: {e}"
+            log.error(error_msg, exc_info=True)
             self.data_load_failed.emit(error_msg)
+
+    def _update_tags_and_cache(self, save_to_cache=True):
+        """辅助函数，用于更新标签和保存缓存。"""
+        # 重新收集所有漫画的标签
+        self.tags.clear()
+        for manga in self.manga_list:
+            self.tags.update(manga.tags)
+        log.info(f"标签收集完成，共收集 {len(self.tags)} 个标签")
+
+        if save_to_cache:
+            cache_key = self.manga_list_cache_manager.generate_key()
+            self.manga_list_cache_manager.set(cache_key, self.manga_list)
+            log.info(f"主漫画库已更新到缓存中，共 {len(self.manga_list)} 本。")
+
+        # 发送信号通知UI更新
+        self.data_loaded.emit(self.manga_list)
+        self.tags_updated.emit(self.tags)
+        self.filter_manga([]) # 应用空过滤器以显示所有
 
     def change_page(self, page_number):
         if self.current_manga is None:
@@ -527,9 +495,10 @@ class MangaManager(QObject):
     def clear_manga_cache(self):
         """清空漫画列表缓存"""
         try:
-            cache_key = self.manga_list_cache_manager.generate_key(config.manga_dir.value)
+            # 使用新的单一key模型
+            cache_key = self.manga_list_cache_manager.generate_key()
             self.manga_list_cache_manager.delete(cache_key)
-            log.info("漫画列表缓存已清空")
+            log.info("主漫画库缓存已清空")
         except Exception as e:
             log.error(f"清空漫画列表缓存失败: {e}")
             raise

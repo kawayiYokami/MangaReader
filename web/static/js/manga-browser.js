@@ -116,6 +116,7 @@ window.MangaBrowserMethods = {
     processTagsByCategory() {
         const categories = {
             '作者': [],
+            '作品': [],
             '组': [],
             '平台': [],
             '汉化': [],
@@ -125,8 +126,8 @@ window.MangaBrowserMethods = {
 
         // 按分类整理标签
         for (const tag of this.availableTags) {
-            if (tag.startsWith('标题:') || tag.startsWith('作品:')) {
-                continue; // 跳过标题和作品标签
+            if (tag.startsWith('标题:')) {
+                continue; // 跳过标题标签
             }
 
             let category = '其他';
@@ -134,6 +135,9 @@ window.MangaBrowserMethods = {
 
             if (tag.startsWith('作者:')) {
                 category = '作者';
+                displayName = tag.substring(3);
+            } else if (tag.startsWith('作品:')) {
+                category = '作品';
                 displayName = tag.substring(3);
             } else if (tag.startsWith('组:')) {
                 category = '组';
@@ -523,7 +527,7 @@ window.MangaBrowserMethods = {
             } else if (tag.startsWith('作者:')) {
                 result.push(tag.substring(3));
             } else if (tag.startsWith('作品:')) {
-                continue; // 跳过作品标签（已用作标题）
+                result.push(tag.substring(3));
             } else if (tag.startsWith('组:')) {
                 result.push(tag.substring(2));
             } else if (tag.startsWith('平台:')) {
@@ -619,6 +623,7 @@ window.MangaBrowserMethods = {
 
     getCategoryFromTag(fullTag) {
         if (fullTag.startsWith('作者:')) return '作者';
+        if (fullTag.startsWith('作品:')) return '作品';
         if (fullTag.startsWith('组:')) return '组';
         if (fullTag.startsWith('平台:')) return '平台';
         if (fullTag.startsWith('汉化:')) return '汉化';

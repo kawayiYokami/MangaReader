@@ -166,15 +166,15 @@ def _trigger_select_directory_logic():
 
         if result and isinstance(result, tuple) and len(result) > 0:
             selected_path = result[0]
-            log.info(f"目录选择逻辑: 已选择目录: {selected_path}，正在调用漫画管理器设置目录...")
+            log.info(f"目录选择逻辑: 已选择目录: {selected_path}，正在调用漫画管理器添加路径...")
 
             try:
-                manga_manager.set_manga_dir(selected_path, force_rescan=True)
-                log.info(f"目录选择逻辑: 漫画管理器设置目录成功: '{selected_path}'")
-                _dispatch_feedback_event(success=True, message=f"已设置目录为 '{os.path.basename(selected_path)}'，正在扫描...")
-            except Exception as e_set_dir:
-                 log.error(f"目录选择逻辑错误: 调用漫画管理器设置目录失败: {e_set_dir}", exc_info=True)
-                 _dispatch_feedback_event(success=False, message=f"设置目录时出错: {e_set_dir}")
+                manga_manager.add_manga_from_path(selected_path)
+                log.info(f"目录选择逻辑: 漫画管理器添加路径成功: '{selected_path}'")
+                _dispatch_feedback_event(success=True, message=f"已添加路径 '{os.path.basename(selected_path)}' 到库中，正在扫描...")
+            except Exception as e_add_path:
+                 log.error(f"目录选择逻辑错误: 调用漫画管理器添加路径失败: {e_add_path}", exc_info=True)
+                 _dispatch_feedback_event(success=False, message=f"添加路径时出错: {e_add_path}")
 
         else:
             log.info("目录选择逻辑: 用户未选择目录或对话框被取消")
@@ -385,7 +385,7 @@ class MangaTranslatorDesktop:
             log.info(f"窗口创建后的实例: {self.window}")
 
             log.info(" 启动PyWebView事件循环...")
-            webview.start(debug=False) # 启用调试模式
+            webview.start(debug=True) # 启用调试模式
 
             log.info(" 桌面应用程序已关闭")
             return True

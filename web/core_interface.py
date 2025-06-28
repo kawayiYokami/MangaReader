@@ -101,56 +101,9 @@ class CoreInterface:
         if self._manga_manager is None:
             try:
                 self._manga_manager = MangaManager()
-
-                # 如果漫画列表为空，尝试从缓存加载
-                if len(self._manga_manager.manga_list) == 0:
-                    manga_dir = config.manga_dir.value
-                    if manga_dir:
-                        log.info(f"尝试从缓存加载漫画数据: {manga_dir}")
-                        try:
-                            # 尝试加载缓存
-                            cache_key = self._manga_manager.manga_list_cache_manager.generate_key(manga_dir)
-                            cached_manga = self._manga_manager.manga_list_cache_manager.get(cache_key)
-
-                            if cached_manga:
-                                # 将字典转换为MangaInfo对象
-                                manga_objects = []
-                                for manga_data in cached_manga:
-                                    try:
-                                        from core.manga.manga_model import MangaInfo
-                                        file_path = manga_data.get("file_path")
-                                        if file_path and os.path.exists(file_path):
-                                            manga = MangaInfo(file_path)
-                                            manga.title = manga_data.get("title", os.path.basename(file_path))
-                                            manga.tags = set(manga_data.get("tags", []))
-                                            manga.total_pages = manga_data.get("total_pages", 0)
-                                            manga.is_valid = manga_data.get("is_valid", False)
-                                            manga.last_modified = manga_data.get("last_modified", 0)
-                                            manga.pages = manga_data.get("pages", [])
-
-                                            # 恢复页面尺寸分析数据
-                                            manga.page_dimensions = manga_data.get("page_dimensions", [])
-                                            manga.dimension_variance = manga_data.get("dimension_variance", None)
-                                            manga.is_likely_manga = manga_data.get("is_likely_manga", None)
-
-                                            manga_objects.append(manga)
-                                    except Exception as e:
-                                        log.warning(f"转换缓存数据失败: {manga_data.get('file_path', 'unknown')}, 错误: {e}")
-
-                                self._manga_manager.manga_list = manga_objects
-                                # 重新收集标签
-                                self._manga_manager.tags.clear()
-                                for manga in self._manga_manager.manga_list:
-                                    self._manga_manager.tags.update(manga.tags)
-                                log.info(f"从缓存加载了 {len(manga_objects)} 个漫画")
-                            else:
-                                log.info("缓存中没有找到漫画数据")
-                        except Exception as e:
-                            log.warning(f"从缓存加载漫画数据失败: {e}")
-
                 log.info("MangaManager初始化成功")
             except Exception as e:
-                log.error(f"MangaManager初始化失败: {e}")
+                log.error(f"MangaManager初始化失败: {e}", exc_info=True)
                 raise CoreInterfaceError("漫画管理器初始化失败", e)
         return self._manga_manager
     
@@ -390,8 +343,8 @@ class CoreInterface:
 
 
 
-    def get_manga_page(self, manga_path: str, page_num: int) -> Optional[str]:
-        """获取漫画指定页面的base64编码图片"""
+    def get_manga_page(self, manga_path: str, page_num: int) -> Optional[Tuple[str, int, int]]:
+        """获取漫画指定页面的base64编码图片及其尺寸"""
         try:
             # 加载漫画
             manga_data = self.manga_loader.load_manga(manga_path)
@@ -421,6 +374,7 @@ class CoreInterface:
 
             # 创建PIL图片（注意：core返回的是RGB格式）
             pil_image = Image.fromarray(page_image)
+            width, height = pil_image.size
 
             # 转换为JPEG格式
             output = io.BytesIO()
@@ -435,7 +389,7 @@ class CoreInterface:
             pil_image.save(output, format='JPEG', quality=95)
             image_base64 = base64.b64encode(output.getvalue()).decode('utf-8')
 
-            return f"data:image/jpeg;base64,{image_base64}"
+            return f"data:image/jpeg;base64,{image_base64}", width, height
 
         except Exception as e:
             log.error(f"获取漫画页面失败 {manga_path}, 页码 {page_num}: {e}")

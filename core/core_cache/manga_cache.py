@@ -10,6 +10,7 @@ CACHE_DIR = "app/config"
 DB_NAME = "manga_list_cache.db"
 DB_PATH = os.path.join(CACHE_DIR, DB_NAME)
 TABLE_NAME = "manga_list_cache"
+LIBRARY_KEY = "user_main_library" # 代表整个用户库的唯一键
 
 class MangaListCacheManager(CacheInterface):
     """漫画扫描结果缓存管理类，基于SQLite数据库。"""
@@ -24,8 +25,12 @@ class MangaListCacheManager(CacheInterface):
 
     def _ensure_cache_dir_exists(self):
         """确保缓存目录存在"""
+        # 如果是内存数据库，则无需创建目录
+        if self.db_path == ":memory:":
+            return
+            
         directory = os.path.dirname(self.db_path)
-        if not os.path.exists(directory):
+        if directory and not os.path.exists(directory):
             try:
                 os.makedirs(directory)
                 log.info(f"创建缓存目录: {directory}")
@@ -61,7 +66,7 @@ class MangaListCacheManager(CacheInterface):
             cursor = conn.cursor()
             cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-                directory_path TEXT PRIMARY KEY,
+                library_id TEXT PRIMARY KEY,
                 manga_data TEXT NOT NULL,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -71,40 +76,44 @@ class MangaListCacheManager(CacheInterface):
         except sqlite3.Error as e:
             log.error(f"初始化数据库表 {TABLE_NAME} 失败: {e}")
 
-    def generate_key(self, directory_path: str, *args, **kwargs) -> str:
-        """对于漫画列表缓存，键就是目录路径。"""
-        if not isinstance(directory_path, str):
-            log.error("directory_path 必须是字符串")
-            raise TypeError("directory_path 必须是字符串")
-        return directory_path
+    def generate_key(self, *args, **kwargs) -> str:
+        """
+        对于统一漫画库缓存，键是固定的。
+        忽略所有参数，始终返回代表主库的唯一键。
+        """
+        return LIBRARY_KEY
 
     def get(self, key: str) -> Optional[List[Dict[str, Any]]]:
-        """获取指定目录（键）的漫画列表缓存。"""
-        if not isinstance(key, str):
-            log.warning(f"MangaListCacheManager.get 接收到非字符串键: {key}")
-            return None
+        """
+        获取主漫画库的缓存。
+        注意：'key' 参数被忽略，因为此缓存只管理一个单一的实体。
+        """
+        # 始终使用固定的库键
+        library_key = LIBRARY_KEY
         
         try:
             conn = self._connect()
             cursor = conn.cursor()
-            cursor.execute(f"SELECT manga_data FROM {TABLE_NAME} WHERE directory_path = ?", (key,))
+            cursor.execute(f"SELECT manga_data FROM {TABLE_NAME} WHERE library_id = ?", (library_key,))
             row = cursor.fetchone()
             if row:
                 manga_data_json = row["manga_data"]
                 return json.loads(manga_data_json)
+            log.info(f"漫画库缓存未找到 (键: {library_key})")
             return None
         except sqlite3.Error as e:
-            log.error(f"从漫画列表缓存获取数据失败 (键: {key}): {e}")
+            log.error(f"从漫画列表缓存获取数据失败 (键: {library_key}): {e}")
             return None
         except json.JSONDecodeError as e:
-            log.error(f"解析缓存的漫画列表数据失败 (键: {key}): {e}")
+            log.error(f"解析缓存的漫画列表数据失败 (键: {library_key}): {e}")
             return None
 
     def set(self, key: str, data: List[Any], **kwargs) -> None:
-        """更新指定目录（键）的漫画列表缓存。"""
-        if not isinstance(key, str):
-            log.error(f"MangaListCacheManager.set 接收到非字符串键: {key}")
-            return
+        """
+        更新主漫画库的缓存。
+        注意：'key' 参数被忽略，因为此缓存只管理一个单一的实体。
+        """
+        library_key = LIBRARY_KEY # 始终使用固定的库键
 
         serializable_list: List[Dict[str, Any]] = []
         for manga_item in data:
@@ -142,39 +151,40 @@ class MangaListCacheManager(CacheInterface):
                 }
                 serializable_list.append(manga_info)
             else:
-                log.warning(f"无法序列化漫画项目: {manga_item} (键: {key})")
+                log.warning(f"无法序列化漫画项目: {manga_item} (库: {library_key})")
         
         try:
             manga_data_json = json.dumps(serializable_list, ensure_ascii=False)
             conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(f"""
-            INSERT OR REPLACE INTO {TABLE_NAME} (directory_path, manga_data, last_updated)
+            INSERT OR REPLACE INTO {TABLE_NAME} (library_id, manga_data, last_updated)
             VALUES (?, ?, CURRENT_TIMESTAMP)
-            """, (key, manga_data_json))
+            """, (library_key, manga_data_json))
             conn.commit()
-            log.info(f"已更新目录 {key} 的漫画列表缓存，共 {len(serializable_list)} 本漫画")
+            log.info(f"已更新主漫画库缓存，共 {len(serializable_list)} 本漫画")
         except sqlite3.Error as e:
-            log.error(f"设置漫画列表缓存数据失败 (键: {key}): {e}")
+            log.error(f"设置主漫画库缓存失败 (键: {library_key}): {e}")
         except TypeError as e: # Error during json.dumps
-            log.error(f"序列化漫画列表数据失败 (键: {key}): {e}")
+            log.error(f"序列化主漫画库数据失败 (键: {library_key}): {e}")
 
     def delete(self, key: str) -> None:
-        """删除指定目录（键）的漫画列表缓存。"""
-        if not isinstance(key, str):
-            log.error(f"MangaListCacheManager.delete 接收到非字符串键: {key}")
-            return
+        """
+        删除主漫画库的缓存。
+        注意：'key' 参数被忽略，此操作将始终删除主库。
+        """
+        library_key = LIBRARY_KEY
         try:
             conn = self._connect()
             cursor = conn.cursor()
-            cursor.execute(f"DELETE FROM {TABLE_NAME} WHERE directory_path = ?", (key,))
+            cursor.execute(f"DELETE FROM {TABLE_NAME} WHERE library_id = ?", (library_key,))
             conn.commit()
             if cursor.rowcount > 0:
-                log.info(f"已删除目录 {key} 的漫画列表缓存")
+                log.info(f"已删除主漫画库缓存 (键: {library_key})")
             else:
-                log.info(f"尝试删除不存在的漫画列表缓存键: {key}")
+                log.info(f"尝试删除主漫画库缓存，但缓存不存在。")
         except sqlite3.Error as e:
-            log.error(f"删除漫画列表缓存数据失败 (键: {key}): {e}")
+            log.error(f"删除主漫画库缓存失败 (键: {library_key}): {e}")
 
     def clear(self) -> None:
         """清空所有漫画列表缓存"""
@@ -189,17 +199,13 @@ class MangaListCacheManager(CacheInterface):
 
     def get_all_entries_for_display(self) -> List[Dict[str, Any]]:
         """
-        获取所有漫画列表缓存条目，用于在界面中显示。
-        返回包含 directory_path 和 last_updated 的字典列表。
+        获取主漫画库的缓存条目信息，用于在界面中显示。
         """
         try:
             conn = self._connect()
             cursor = conn.cursor()
-            # Select directory_path and last_updated.
-            # We could also try to count items in manga_data, but that might be slow.
-            cursor.execute(f"SELECT directory_path, last_updated FROM {TABLE_NAME}")
+            cursor.execute(f"SELECT library_id, last_updated FROM {TABLE_NAME}")
             rows = cursor.fetchall()
-            # Convert rows to a list of dictionaries
             return [dict(row) for row in rows]
         except sqlite3.Error as e:
             log.error(f"获取所有漫画列表缓存条目失败: {e}")
@@ -236,13 +242,7 @@ class MangaListCacheManager(CacheInterface):
         self.close()
 
     def is_manga_modified(self, file_path: str) -> bool:
-        """
-        检查漫画文件是否被修改。
-        注意: 此方法需要知道漫画文件所属的目录键，或者遍历所有缓存的目录来查找文件。
-        当前实现需要调用者提供目录键，或者自行获取。
-        为了简单起见，这里假设我们能获取到包含该文件的目录的缓存数据。
-        如果需要全局检查，调用者需要迭代所有已知的目录键。
-        """
+        """检查指定漫画文件相对于缓存中的记录是否已被修改。"""
         if not os.path.exists(file_path):
             return True  # 文件不存在，视为已修改
 
@@ -252,34 +252,12 @@ class MangaListCacheManager(CacheInterface):
             log.warning(f"无法获取文件修改时间: {file_path}，视为已修改")
             return True
 
-        # This method's effectiveness depends on how it's used.
-        # If checking against a specific directory's cache:
-        # parent_dir = os.path.dirname(file_path)
-        # cached_manga_list = self.get(parent_dir)
-        # if cached_manga_list:
-        #     for manga_info in cached_manga_list:
-        #         if manga_info.get("file_path") == file_path:
-        #             return current_mtime > manga_info.get("last_modified", 0)
-        # return True # Not found in specific directory's cache or cache miss
-
-        # If iterating all cached directories (less efficient, as in original JSON version):
-        log.warning("is_manga_modified: 正在遍历所有缓存目录检查文件修改状态，可能效率低下。")
-        try:
-            conn = self._connect()
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT manga_data FROM {TABLE_NAME}")
-            all_cached_dirs = cursor.fetchall()
-            for row in all_cached_dirs:
-                manga_list_for_dir_json = row["manga_data"]
-                try:
-                    manga_list_for_dir = json.loads(manga_list_for_dir_json)
-                    for manga_info in manga_list_for_dir:
-                        if manga_info.get("file_path") == file_path:
-                            return current_mtime > manga_info.get("last_modified", 0)
-                except json.JSONDecodeError:
-                    log.error(f"解析缓存的漫画列表数据时出错（在 is_manga_modified 中）")
-                    continue # Skip corrupted entry
-            return True # 缓存中没有找到，视为已修改
-        except sqlite3.Error as e:
-            log.error(f"is_manga_modified 查询数据库时出错: {e}")
-            return True # Error, assume modified
+        cached_library = self.get(LIBRARY_KEY)
+        if cached_library:
+            for manga_info in cached_library:
+                if manga_info.get("file_path") == file_path:
+                    # 找到记录，比较修改时间
+                    return current_mtime > manga_info.get("last_modified", 0)
+        
+        # 如果缓存中没有找到该文件，视为新文件/已修改
+        return True

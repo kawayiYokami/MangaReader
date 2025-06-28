@@ -10,6 +10,8 @@
 import threading
 import uuid
 from typing import Dict, List, Optional, Tuple, Any
+from PIL import Image
+import io
 from enum import Enum
 from pathlib import Path
 import base64
@@ -75,9 +77,9 @@ class MangaViewerManager:
         self.translation_factory = get_translation_factory()
         self.core_interface = get_core_interface()
         
-        # 会话内存缓存
-        self.original_cache: Dict[str, str] = {}  # 原图缓存 (base64)
-        self.translated_cache: Dict[str, bytes] = {}  # 翻译图缓存 (WebP bytes)
+        # 会话内存缓存 (缓存元组: (image_data, width, height))
+        self.original_cache: Dict[str, Tuple[str, int, int]] = {}  # 原图缓存
+        self.translated_cache: Dict[str, Tuple[bytes, int, int]] = {}  # 翻译图缓存
         
         # 当前状态
         self.current_manga_path: Optional[str] = None
@@ -170,11 +172,14 @@ class MangaViewerManager:
             # 加载当前页面
             current_images = []
             for page_idx in current_pages:
-                image_data = self._get_page_image(page_idx, translation_enabled)
-                if image_data:
+                image_info = self._get_page_image(page_idx, translation_enabled)
+                if image_info:
+                    image_data, width, height = image_info
                     current_images.append({
                         "page_index": page_idx,
                         "image_data": image_data,
+                        "width": width,
+                        "height": height,
                         "is_translated": translation_enabled and self._is_page_translated(page_idx)
                     })
             
@@ -194,8 +199,8 @@ class MangaViewerManager:
             log.error(f"获取页面图像失败: {e}")
             return {"success": False, "message": str(e)}
     
-    def _get_page_image(self, page_index: int, use_translation: bool) -> Optional[str]:
-        """获取单个页面图像"""
+    def _get_page_image(self, page_index: int, use_translation: bool) -> Optional[Tuple[str, int, int]]:
+        """获取单个页面图像及其尺寸"""
         try:
             if use_translation:
                 return self._get_translated_page(page_index)
@@ -204,68 +209,66 @@ class MangaViewerManager:
         except Exception as e:
             log.error(f"获取页面图像失败 (页面 {page_index}): {e}")
             return None
-    
-    def _get_original_page(self, page_index: int) -> Optional[str]:
-        """获取原图页面"""
+
+    def _get_original_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
+        """获取原图页面及其尺寸"""
         cache_key = self.key_generator.generate_original_key(self.current_manga_path, page_index)
-        
+
         with self.cache_lock:
-            # 检查会话缓存
             if cache_key in self.original_cache:
                 log.debug(f"会话原图缓存命中: {cache_key}")
                 return self.original_cache[cache_key]
-        
-        # 通过核心接口获取原图
+
         try:
-            image_data = self.core_interface.get_manga_page(self.current_manga_path, page_index)
-            if image_data:
+            image_info = self.core_interface.get_manga_page(self.current_manga_path, page_index)
+            if image_info:
                 with self.cache_lock:
-                    self.original_cache[cache_key] = image_data
+                    self.original_cache[cache_key] = image_info
                     self.loaded_pages.add(page_index)
                 log.info(f"会话 {self.session_id}: 加载原图页面 {page_index}")
-                return image_data
+                return image_info
         except Exception as e:
             log.error(f"获取原图页面失败: {e}")
-        
+
         return None
-    
-    def _get_translated_page(self, page_index: int) -> Optional[str]:
-        """获取翻译页面"""
+
+    def _get_translated_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
+        """获取翻译页面及其尺寸"""
         translator_id = config.translator_type.value
         cache_key = self.key_generator.generate_translation_key(
             self.current_manga_path, page_index, translator_id
         )
-        
+
         with self.cache_lock:
-            # 检查会话缓存
             if cache_key in self.translated_cache:
                 log.debug(f"会话翻译缓存命中: {cache_key}")
-                # 转换为WebP格式的data URI
-                encoded_data = base64.b64encode(self.translated_cache[cache_key]).decode('utf-8')
-                return f"data:image/webp;base64,{encoded_data}"
-        
-        # 通过翻译工厂获取翻译图
+                cached_data, width, height = self.translated_cache[cache_key]
+                encoded_data = base64.b64encode(cached_data).decode('utf-8')
+                return f"data:image/webp;base64,{encoded_data}", width, height
+
         try:
             translated_data = self.translation_factory.get_translated_page(
                 self.current_manga_path, page_index, translator_id
             )
 
             if translated_data:
+                # 从图片字节流中解析尺寸
+                img = Image.open(io.BytesIO(translated_data))
+                width, height = img.size
+
                 with self.cache_lock:
-                    self.translated_cache[cache_key] = translated_data
+                    self.translated_cache[cache_key] = (translated_data, width, height)
                     self.loaded_pages.add(page_index)
+                
                 log.info(f"会话 {self.session_id}: 加载翻译页面 {page_index}")
-                # 转换为WebP格式的data URI
                 encoded_data = base64.b64encode(translated_data).decode('utf-8')
-                return f"data:image/webp;base64,{encoded_data}"
+                return f"data:image/webp;base64,{encoded_data}", width, height
             else:
-                # 翻译失败或超时，返回原图
                 log.info(f"翻译失败或超时，返回原图: {page_index}")
                 return self._get_original_page(page_index)
-                
+
         except Exception as e:
             log.error(f"获取翻译页面失败: {e}")
-            # 出错时返回原图
             return self._get_original_page(page_index)
     
     def _preload_pages_async(self, page_indices: List[int], use_translation: bool):

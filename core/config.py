@@ -193,7 +193,6 @@ class Config:
         self.thumbnail_max_size_mb = RangeConfigItem("ThumbnailCache", "MaxSizeMB", 500, validator=RangeValidator(50, 10240))
 
         # ==================== MangaManager 状态 ====================
-        self.manga_dir = ConfigItem("Manager", "MangaDirectory", "")
         self.current_page = ConfigItem("Manager", "CurrentPage", 0)
         self.current_manga_path = ConfigItem("Manager", "CurrentMangaPath", "")
         

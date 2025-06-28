@@ -1,250 +1,381 @@
-/* 禁用所有动画和过渡 */
-* {
-    transition: none !important;
-    animation: none !important;
-}
-/* 漫画查看器样式 */
+/* =================================================================
+   VIEWER.CSS - Material Design 3 Redesign
+   ================================================================= */
 
-/* 全局样式重置 */
+/* 1. 全局与根变量
+   -------------------------------------------------------------- */
+:root {
+    --viewer-bg: #1F1F1F;
+    --sidebar-bg: #2A2A2A;
+    --surface-color: rgba(255, 255, 255, 0.08);
+    --surface-hover-color: rgba(255, 255, 255, 0.12);
+    --primary-color: #8AB4F8;
+    --on-primary-color: #1F1F1F;
+    --text-primary: #E8EAED;
+    --text-secondary: #9AA0A6;
+    --icon-color: #BDC1C6;
+    --icon-hover-color: #FFFFFF;
+    --border-color: rgba(255, 255, 255, 0.1);
+}
+
 * {
-    margin: 0;
-    padding: 0;
     box-sizing: border-box;
+    transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
 }
 
 html, body {
     height: 100%;
     overflow: hidden;
-    background: var(--color-bg-default);
-    color: var(--color-text-default);
+    background: var(--viewer-bg);
+    color: var(--text-primary);
+    font-family: 'Roboto', 'Noto Sans SC', sans-serif;
 }
 
 #app {
     height: 100%;
     display: flex;
     flex-direction: row;
-    background: var(--color-bg-default);
 }
 
-/* 左侧边栏 */
+/* 2. 左侧边栏布局
+   -------------------------------------------------------------- */
 .left-sidebar {
-    width: 120px;
+    width: 100px;
     height: 100vh;
-    background: var(--color-bg-subtle);
-    backdrop-filter: blur(10px);
-    border-right: 1px solid var(--color-border-default);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 20px 10px;
+    justify-content: space-between;
+    padding: 16px 8px;
     z-index: 1000;
-    gap: 20px;
-
 }
 
-/* 漫画标题区域 */
+/* 3. 边栏内部区域
+   -------------------------------------------------------------- */
 .manga-title-section {
     width: 100%;
     text-align: center;
-    border-bottom: 1px solid var(--color-border-default);
-    padding-bottom: 15px;
+    flex-shrink: 0;
 }
 
 .manga-title-vertical {
     writing-mode: vertical-rl;
     text-orientation: mixed;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
-    color: var(--color-text-default);
-    text-align: center;
+    color: var(--text-secondary);
     max-height: 200px;
-    overflow-y: hidden;
+    overflow: hidden;
     margin: 0 auto;
+    letter-spacing: 2px;
 }
 
-/* 显示模式区域 */
-.display-mode-section {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-}
-
-/* 翻译开关区域 */
-.translation-section {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-}
-
-/* 页面导航区域 */
 .page-navigation {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
-    justify-content: center;
-}
-
-.page-info-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 15px;
-}
-
-/* 全屏按钮区域 */
-.fullscreen-section {
+    justify-content: center; /* 恢复居中对齐 */
+    gap: 16px;
     width: 100%;
+    flex-grow: 1;
+    margin-bottom: 24px; /* 新增：与下方工具栏的间距 */
+}
+
+.bottom-toolbar {
     display: flex;
-    justify-content: center;
-    border-top: 1px solid var(--color-border-default);
-    padding-top: 15px;
-}
-
-.nav-btn {
-    width: 48px !important;
-    height: 48px !important;
-    border-radius: 50% !important;
-    font-size: 18px !important;
-    font-weight: bold !important;
-    background: var(--color-bg-elevated) !important;
-    border: 1px solid var(--color-border-default) !important;
-    color: var(--color-text-default) !important;
-    transition: all 0.2s ease !important;
-}
-
-.nav-btn:hover {
-    background: var(--color-accent-hover) !important;
-    border-color: var(--color-accent-default) !important;
-    transform: scale(1.05);
-}
-
-/* 页码显示区域 - 参考PDF阅读器设计 */
-.page-display {
-    display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 2px;
-    margin-bottom: 8px;
-    padding: 6px 8px;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-default);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 60px;
+    width: 100%;
+    flex-shrink: 0;
 }
 
-.page-display:hover {
-    background: var(--color-bg-subtle);
-    border-color: var(--color-border-subtle);
+.toolbar-item-wrapper {
+    position: relative; /* 为悬浮面板提供定位上下文 */
+    margin-bottom: 12px;
+}
+
+.toolbar-item-wrapper:last-child {
+    margin-bottom: 0;
+}
+
+/* 4. 核心导航控件
+   -------------------------------------------------------------- */
+.page-info {
+    cursor: pointer;
+    text-align: center;
+}
+
+.page-display {
+    padding: 4px 8px;
 }
 
 .current-page {
-    font-size: 13px;
-    color: var(--color-text-default);
-    font-weight: bold;
-    min-width: 20px;
-    text-align: center;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text-primary);
 }
 
 .page-divider {
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    margin: 0 2px;
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin: 0 4px;
 }
 
 .total-pages {
-    font-size: 11px;
-    color: var(--color-text-secondary);
-    font-weight: normal;
-    min-width: 20px;
-    text-align: center;
-}
-
-/* 页码输入框 */
-.page-input-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    margin-bottom: 8px;
-    min-width: 60px;
+    font-size: 16px;
+    color: var(--text-secondary);
 }
 
 .page-input {
-    width: 40px !important;
+    width: 60px !important;
 }
 
 .page-input .el-input__wrapper {
-    background: var(--color-bg-elevated) !important;
-    border: 1px solid var(--color-accent-default) !important;
-    border-radius: 4px !important;
-    box-shadow: 0 0 0 1px var(--color-accent-default) inset !important;
+    background-color: var(--surface-color) !important;
+    border: 1px solid var(--primary-color) !important;
+    box-shadow: none !important;
 }
 
 .page-input .el-input__inner {
-    color: var(--color-text-default) !important;
+    color: var(--text-primary) !important;
     text-align: center !important;
-    font-size: 13px !important;
-    font-weight: bold !important;
-    padding: 0 4px !important;
 }
 
-/* 圆形进度条 */
-.progress-circle {
-    position: relative;
+
+/* 5. 通用按钮样式
+   -------------------------------------------------------------- */
+.nav-btn, .toolbar-btn {
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 16px !important;
+    background: transparent !important;
+    border: none !important;
+    color: var(--icon-color) !important;
+    display: flex !important; /* 强制flex布局 */
+    align-items: center !important; /* 垂直居中 */
+    justify-content: center !important; /* 水平居中 */
+    padding: 0 !important;
+}
+
+.nav-btn .material-icons, .toolbar-btn .material-icons {
+    font-size: 28px; /* 稍微增大图标尺寸 */
+}
+
+.nav-btn:hover, .toolbar-btn:hover {
+    background: var(--surface-hover-color) !important;
+    color: var(--icon-hover-color) !important;
+}
+
+.toolbar-btn.is-active {
+    background: var(--primary-color) !important;
+    color: var(--on-primary-color) !important;
+}
+
+.toolbar-btn.is-active:hover {
+    background: var(--primary-color) !important;
+    opacity: 0.9;
+}
+
+/* 6. Popover 样式
+   -------------------------------------------------------------- */
+.viewer-popover {
+    background-color: #333 !important; /* 更深的背景 */
+    border: 1px solid var(--border-color) !important;
+    border-radius: 16px !important; /* 更大的圆角 */
+    color: var(--text-primary) !important;
+    padding: 16px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.viewer-popover .el-popper__title {
+    color: var(--text-primary) !important; /* 标题颜色 */
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-color); /* 添加分割线 */
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.viewer-popover .el-popper__arrow::before {
+    background-color: #333 !important;
+    border-color: var(--border-color) !important;
+}
+
+.popover-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px; /* 增加间距 */
+}
+
+.popover-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: -8px;
+}
+
+/* 美化自动翻页控件 */
+.auto-paging-controls {
     display: flex;
     align-items: center;
+    gap: 12px;
+}
+
+.popover-slider {
+    flex-grow: 1; /* 滑块占据更多空间 */
+    margin: 0;
+}
+
+.popover-slider .el-slider__runway {
+    background-color: var(--surface-color);
+}
+
+.popover-slider .el-slider__bar {
+    background-color: var(--primary-color);
+}
+
+.popover-slider .el-slider__button {
+    border-color: var(--primary-color);
+    background-color: var(--primary-color);
+}
+
+.popover-input-number {
+    width: 90px !important;
+}
+
+/* 重置 Input Number 的样式 */
+.popover-input-number .el-input__wrapper {
+    background-color: var(--surface-color) !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    border: 1px solid transparent !important;
+    padding: 0 4px !important;
+}
+.popover-input-number .el-input__wrapper:hover,
+.popover-input-number .el-input__wrapper.is-focus {
+    border-color: var(--primary-color) !important;
+}
+
+.popover-input-number .el-input__inner {
+    color: var(--text-primary) !important;
+    text-align: center !important;
+}
+
+.popover-input-number .el-input-number__decrease,
+.popover-input-number .el-input-number__increase {
+    background: transparent !important;
+    border: none !important;
+    color: var(--icon-color) !important;
+    width: 28px; /* 调整按钮宽度 */
+}
+
+.popover-input-number .el-input-number__decrease:hover,
+.popover-input-number .el-input-number__increase:hover {
+    color: var(--primary-color) !important;
+}
+
+.popover-action-btn {
+    width: 100%;
+    background-color: var(--primary-color) !important;
+    color: var(--on-primary-color) !important;
+    border: none;
+}
+.popover-action-btn:hover {
+    opacity: 0.9;
+    background-color: var(--primary-color) !important;
+    color: var(--on-primary-color) !important;
+}
+
+/* 全新的手动进度条样式 */
+.progress-bar-container {
+    flex-grow: 1;
+    width: 100%;
+    min-height: 100px;
+    display: flex;
     justify-content: center;
+    padding: 10px 0;
+    cursor: pointer;
 }
 
-.progress-svg {
-    transform: rotate(-90deg);
+.progress-bar-track {
+    width: 4px;
+    height: 100%;
+    background-color: var(--surface-color);
+    border-radius: 2px;
+    position: relative;
 }
 
-.progress-bg {
-    fill: none;
-    stroke: var(--color-border-subtle);
-    stroke-width: 3;
-}
-
-.progress-fill {
-    fill: none;
-    stroke: var(--color-accent-default);
-    stroke-width: 3;
-    stroke-linecap: round;
-    transition: stroke-dashoffset 0.3s ease;
-}
-
-.progress-text {
+.progress-bar-thumb {
     position: absolute;
-    font-size: 10px;
-    color: var(--color-text-secondary);
-    font-weight: bold;
+    left: 50%;
+    transform: translate(-50%, -50%); /* 垂直和水平居中，修正偏移 */
+    width: 16px;
+    height: 16px;
+    background-color: var(--primary-color);
+    border: 2px solid var(--sidebar-bg);
+    border-radius: 50%;
+    /* transition: top 0.1s ease; */ /* 移除动画 */
 }
 
-/* 主要内容区域 */
+
+/* 新增：自动播放悬浮设置面板样式 (Slider 版本) */
+.autoplay-settings-panel {
+    position: absolute;
+    left: 110%; /* 定位到按钮右侧 */
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #383838;
+    border-radius: 12px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    border: 1px solid var(--border-color);
+    z-index: 1100;
+    width: 220px; /* 增加宽度以容纳滑块 */
+}
+
+.autoplay-settings-panel .panel-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.autoplay-slider {
+    flex-grow: 1;
+    --el-slider-button-size: 16px;
+}
+
+.autoplay-slider .el-slider__runway {
+    background-color: var(--surface-color);
+}
+.autoplay-slider .el-slider__bar {
+    background-color: var(--primary-color);
+}
+.autoplay-slider .el-slider__button {
+    border: 2px solid var(--primary-color);
+    background-color: var(--sidebar-bg);
+}
+
+.slider-value-display {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums; /* 等宽数字 */
+    color: var(--text-primary);
+    width: 3.5ch; /* 容纳 '30s' */
+    text-align: right;
+}
+
+/* 7. 主要内容区域 (viewer-content)
+   -------------------------------------------------------------- */
 .viewer-content {
     height: 100%;
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--color-bg-default);
     position: relative;
     overflow: auto;
-}
-
-/* 加载状态 */
-.loading-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    color: var(--color-text-default);
 }
 
 /* 图片容器 */
@@ -255,10 +386,7 @@ html, body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    position: relative;
-    /* 确保容器不会超出父元素 */
-    max-width: 100%;
-    max-height: 100%;
+    padding: 0; /* 移除内边距 */
 }
 
 /* 漫画图片 */
@@ -268,318 +396,76 @@ html, body {
     object-fit: contain;
     user-select: none;
     -webkit-user-drag: none;
-    border-radius: 4px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); /* Keep hardcoded shadow for now */
-}
-
-/* 单页模式 */
-.single-page {
-    max-width: calc(100%); /* 留出一些边距 */
-    
-    width: 100%;
-    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
 }
 
 /* 双页模式 */
 .double-page-container {
     display: flex;
-    gap: 10px;
+    gap: 0; /* 保持不变 */
     align-items: center;
-    justify-content: center;
+    width: 100%;
     height: 100%;
-    max-width: calc(100%); /* 留出边距 */
-    max-height: calc(100%); /* 留出边距 */
+}
+
+/* 新增：为每个页面创建一个插槽，用于对齐 */
+.page-slot {
+    width: 50%;
+    height: 100%;
+    display: flex;
+    align-items: center; /* 垂直居中 */
+}
+
+.page-slot.left-page {
+    justify-content: flex-end; /* 左页图片靠右 */
+}
+
+.page-slot.right-page {
+    justify-content: flex-start; /* 右页图片靠左 */
+}
+
+/* 图片现在由 .page-slot 控制，不再需要 .double-page 类进行布局 */
+.page-slot .manga-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
 }
 
 .double-page {
+    /* 核心修复: 限制每张图片宽度为一半 */
     width: 50%;
+    height: 100%;
+    
+    /* 再次强调尺寸限制，并使用 object-fit 保持比例 */
     max-width: 50%;
     max-height: 100%;
-    height: 100%;
-    flex-shrink: 0;
+    object-fit: contain;
 }
 
-/* 错误状态 */
-.error-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    color: var(--color-text-default);
+.single-page {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
 }
 
-/* 模式切换按钮 */
-.mode-btn {
-    width: 48px !important;
-    height: 48px !important;
-    border-radius: 50% !important;
-    font-size: 11px !important;
-    font-weight: bold !important;
-    background: var(--color-bg-elevated) !important;
-    border: 1px solid var(--color-border-default) !important;
-    color: var(--color-text-default) !important;
-    transition: all 0.2s ease !important;
+/* 8. Material Icons 样式
+   -------------------------------------------------------------- */
+.material-icons {
+    font-family: 'Material Icons';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;  /* Preferred icon size */
+    display: inline-block;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'liga';
 }
 
-.mode-btn:hover {
-    background: var(--color-accent-hover) !important;
-    border-color: var(--color-accent-default) !important;
-    transform: scale(1.05);
-}
-
-/* 翻译按钮 */
-.translation-btn {
-    width: 48px !important;
-    height: 48px !important;
-    border-radius: 50% !important;
-    font-size: 14px !important;
-    font-weight: bold !important;
-    background: var(--color-bg-elevated) !important;
-    border: 1px solid var(--color-border-default) !important;
-    color: var(--color-text-default) !important;
-    transition: all 0.2s ease !important;
-}
-
-.translation-btn:hover {
-    background: var(--color-accent-hover) !important;
-    border-color: var(--color-accent-default) !important;
-    transform: scale(1.05);
-}
-
-/* 翻译按钮激活状态 */
-.translation-active {
-    background: var(--color-accent-default) !important;
-    border-color: var(--color-accent-hover) !important;
-    color: var(--color-text-default) !important;
-    box-shadow: 0 0 8px rgba(var(--color-accent-default), 0.5) !important; /* Use rgba with variable */
-}
-
-.translation-active:hover {
-    background: rgba(var(--color-accent-default), 0.4) !important; /* Use rgba with variable */
-    border-color: rgba(var(--color-accent-default), 0.8) !important; /* Use rgba with variable */
-}
-
-
-
-/* 返回按钮 */
-.back-button-section {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 20px;
-}
-
-.back-btn {
-    width: 48px !important;
-    height: 48px !important;
-    border-radius: 50% !important;
-    font-size: 18px !important;
-    font-weight: bold !important;
-    background: rgba(var(--color-text-default), 0.1) !important; /* Use rgba with variable */
-    border: 1px solid rgba(var(--color-text-default), 0.2) !important; /* Use rgba with variable */
-    color: var(--color-text-default) !important;
-    transition: all 0.2s ease !important;
-}
-
-.back-btn:hover {
-    background: rgba(var(--color-text-default), 0.2) !important; /* Use rgba with variable */
-    border-color: rgba(var(--color-text-default), 0.3) !important; /* Use rgba with variable */
-    transform: scale(1.05);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); /* Keep hardcoded shadow for now */
-}
-
-/* 响应式设计 */
-@media (max-width: 1200px) {
-    .left-sidebar {
-        width: 100px;
-    }
-
-    .manga-title-vertical {
-        font-size: 11px;
-        max-height: 100px;
-    }
-
-    .mode-btn {
-        width: 40px !important;
-        height: 40px !important;
-        font-size: 10px !important;
-    }
-
-    .translation-btn {
-        width: 40px !important;
-        height: 40px !important;
-        font-size: 12px !important;
-    }
-}
-
-@media (max-width: 768px) {
-    .left-sidebar {
-        width: 80px;
-        padding: 15px 5px;
-        gap: 15px;
-    }
-
-    .nav-btn {
-        width: 40px !important;
-        height: 40px !important;
-        font-size: 14px !important;
-    }
-
-    .manga-title-vertical {
-        font-size: 10px;
-        max-height: 80px;
-    }
-
-    .mode-btn {
-        width: 35px !important;
-        height: 35px !important;
-        font-size: 9px !important;
-    }
-
-    .translation-btn {
-        width: 35px !important;
-        height: 35px !important;
-        font-size: 11px !important;
-    }
-
-    .page-info-vertical {
-        font-size: 10px;
-        padding: 6px 2px;
-    }
-
-    .progress-circle svg {
-        width: 50px;
-        height: 50px;
-    }
-
-    .progress-text {
-        font-size: 9px;
-    }
-}
-
-@media (max-width: 480px) {
-    .left-sidebar {
-        width: 60px;
-        padding: 10px 2px;
-        gap: 10px;
-    }
-
-    .manga-title-section {
-        display: none;
-    }
-
-    .nav-btn {
-        width: 35px !important;
-        height: 35px !important;
-        font-size: 12px !important;
-    }
-
-    .mode-btn {
-        width: 30px !important;
-        height: 30px !important;
-        font-size: 8px !important;
-    }
-
-    .translation-btn {
-        width: 30px !important;
-        height: 30px !important;
-        font-size: 10px !important;
-    }
-
-    .double-page-container {
-        flex-direction: column;
-        gap: 10px;
-    }
-}
-
-/* 进度滑动条 */
-.progress-slider-section {
-    width: 100%;
-    padding: 15px 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.progress-slider-wrapper {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 200px;
-}
-
-/* 自定义页面滑块样式 */
-.page-slider-container {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-}
-
-.page-slider-track {
-    width: 2px;
-    height: 100%;
-    background-color: var(--color-border-default);
-    position: relative;
-    border-radius: 1px;
-}
-
-.page-slider-thumb {
-    position: absolute;
-    width: 10px;
-    height: 30px;
-    background-color: var(--color-accent-default);
-    border-radius: 5px;
-    cursor: grab;
-    transform: translateX(-4px); /* (track_width - thumb_width) / 2 */
-    transition: background-color 0.2s ease, height 0.2s ease;
-}
-
-.page-slider-thumb:hover {
-    background-color: var(--color-accent-hover);
-}
-
-.page-slider-thumb.dragging {
-    cursor: grabbing;
-}
-
-
-/* 关键帧动画 */
-@keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(var(--color-accent-default), 0.7); /* Use rgba with variable */
-    }
-    70% {
-        box-shadow: 0 0 0 10px rgba(var(--color-accent-default), 0); /* Use rgba with variable */
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(var(--color-accent-default), 0); /* Use rgba with variable */
-    }
-}
-
-
-/* 谷歌风格的自定义滚动条 */
-.viewer-content::-webkit-scrollbar {
-    width: 12px;  /* 增加轨道宽度以容纳内边距 */
-    height: 12px;
-}
-
-.viewer-content::-webkit-scrollbar-track {
-    background: transparent; /* 轨道背景透明 */
-}
-
-.viewer-content::-webkit-scrollbar-thumb {
-    background-color: rgba(180, 180, 180, 0.4); /* 半透明的滑块 */
-    border-radius: 6px; /* 圆角 */
-    border: 3px solid transparent; /* 创建内边距效果 */
-    background-clip: content-box; /* 让边框透明 */
-    transition: background-color 0.2s ease-in-out;
-}
-
-.viewer-content::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(180, 180, 180, 0.7); /* 悬停时更不透明 */
-}
