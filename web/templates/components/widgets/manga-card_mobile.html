@@ -1,0 +1,53 @@
+<!-- 移动版漫画卡片组件 -->
+<article v-for="manga in filteredMangaList"
+         :key="manga.file_path"
+         :data-manga-path="manga.file_path"
+         class="manga-card-mobile"
+         @click="selectManga(manga)"
+         :ref="el => { if (el) observeCard(el) }">
+
+    <div class="cover-container">
+        <!-- 封面图片 -->
+        <img v-if="getThumbnailUrl(manga.file_path)"
+             :src="getThumbnailUrl(manga.file_path)"
+             :alt="getTitleTag(manga.tags) || '漫画封面'"
+             class="cover-image"
+             decoding="async">
+
+        <!-- 加载中状态 -->
+        <div v-else-if="isThumbnailLoading(manga.file_path)" class="cover-loading">
+            <el-icon class="is-loading"><Loading /></el-icon>
+        </div>
+
+        <!-- 无图片占位符 -->
+        <div v-else class="cover-placeholder">
+            <span class="material-symbols-rounded">photo_size_select_actual</span>
+        </div>
+        
+        <!-- 页数角标 -->
+        <span class="page-count" v-text="manga.total_pages"></span>
+
+        <!-- 标题 -->
+        <h3 class="manga-title"
+            :title="getTitleTag(manga.tags)"
+            v-text="getTitleTag(manga.tags) || '无标题'">
+        </h3>
+    </div>
+
+    <div class="info-container">
+        <!-- 标签 -->
+        <div class="manga-tags" v-if="getOtherTags(manga.tags).length > 0">
+            <span class="tag"
+                  v-for="tag in getOtherTags(manga.tags).slice(0, 2)"
+                  :key="tag.full"
+                  @click.stop="onTagClick(tag.full)"
+                  :class="{ 'is-active': filterOptions.tags.includes(tag.full) }"
+                  v-text="tag.display"></span>
+            <span class="tag more-tag"
+                  v-if="getOtherTags(manga.tags).length > 2"
+                  @click.stop="showAllTags(manga)">
+                +<span v-text="getOtherTags(manga.tags).length - 2"></span>
+            </span>
+        </div>
+    </div>
+</article>

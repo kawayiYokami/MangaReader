@@ -16,10 +16,15 @@ window.AppData = {
     selectedTags: [],
     searchQuery: '',
     isLoading: false,
+    showFilterDrawer: false, // 控制移动端筛选面板
+    filterOptions: { // 新增：用于存储筛选条件
+        tags: []
+    },
 
     // 标签分类过滤
     tagsByCategory: {},
-    activeTagCategory: '作者',
+    activeTagCategory: '作者', // For old desktop UI, can be deprecated later
+    activeAccordion: '作者', // For new mobile UI
     tagCategoryShowAll: {},
 
     // 新的缩略图系统（优化版本）
@@ -216,10 +221,10 @@ window.AppComputed = {
             );
         }
 
-        // 标签过滤
-        if (this.selectedTags.length > 0) {
+        // 标签过滤（重构以使用新的filterOptions）
+        if (this.filterOptions.tags.length > 0) {
             filtered = filtered.filter(manga =>
-                this.selectedTags.some(tag => manga.tags.includes(tag))
+                this.filterOptions.tags.every(tag => manga.tags.includes(tag))
             );
         }
 

@@ -4,7 +4,7 @@
 采用清晰的架构设计，每种缓存类型独立处理，便于维护和调试。
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from abc import ABC, abstractmethod
@@ -21,7 +21,21 @@ from core.core_cache.manga_cache import LIBRARY_KEY
 
 log = logging.getLogger(__name__)
 
-router = APIRouter()
+# ==================== 安全依赖项 ====================
+
+async def verify_local_access(request: Request):
+    """
+    依赖项：只允许来自本地回环地址的请求访问。
+    """
+    if request.client.host not in ("127.0.0.1", "::1"):
+        raise HTTPException(
+            status_code=403,
+            detail="此功能仅限桌面应用或本地访问"
+        )
+
+# 应用安全依赖项到整个路由
+router = APIRouter(dependencies=[Depends(verify_local_access)])
+
 
 # ==================== 数据模型 ====================
 

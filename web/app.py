@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 import uvicorn
 
 # 导入统一接口层
@@ -115,7 +115,22 @@ from core.config import config
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    """主页"""
+    """
+    主页 - 根据设备类型提供不同版本。
+    - 移动设备: 重定向到 /dev/mobile-home
+    - 桌面设备: 提供桌面版主页
+    """
+    user_agent = request.headers.get("user-agent", "").lower()
+    
+    # 简单的移动设备检测
+    is_mobile = any(keyword in user_agent for keyword in ["mobi", "android", "iphone"])
+
+    if is_mobile:
+        log.info(f"检测到移动设备, User-Agent: {user_agent}. 重定向到移动版主页。")
+        return RedirectResponse(url="/dev/mobile-home")
+
+    # 桌面设备逻辑
+    log.info(f"检测到桌面设备, User-Agent: {user_agent}. 提供桌面版主页。")
     theme_value = config.themeMode.value
     if hasattr(theme_value, 'value'):  # 如果是枚举类型
         initial_theme = theme_value.value
@@ -139,7 +154,21 @@ async def cache_management(request: Request):
     """缓存管理页面"""
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/dev/viewer-mobile", response_class=HTMLResponse)
+async def dev_viewer_mobile():
+    """[仅供开发] 移动端查看器的独立入口"""
+    mobile_viewer_path = templates_dir / "viewer_mobile.html"
+    if not mobile_viewer_path.exists():
+        return HTMLResponse(content="Error: viewer_mobile.html not found.", status_code=404)
+    return FileResponse(mobile_viewer_path)
+
 @app.get("/test-viewer", response_class=HTMLResponse)
+@app.get("/dev/mobile-home", response_class=HTMLResponse)
+async def dev_mobile_home(request: Request):
+    """[仅供开发] 移动端主页的独立入口"""
+    # 主页需要被Jinja2渲染以处理 include 标签
+    return templates.TemplateResponse("index_mobile.html", {"request": request})
+
 async def test_viewer_page(request: Request):
     """翻译工厂架构测试页面"""
     return templates.TemplateResponse("test_viewer.html", {"request": request})
