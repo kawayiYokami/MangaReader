@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="theme-dark" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫画查看器</title>
+
+    <!-- Google Material Icons -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    
+    <!-- 自定义样式 -->
+    <link rel="stylesheet" href="/static/css/mobile/viewer.css"> <!-- 移动端专属覆盖样式 -->
+    <link rel="stylesheet" href="/static/css/modern-theme.css">
+    <link rel="stylesheet" href="/static/css/viewer.css">
+
+</head>
+<body>
+    <div id="app">
+        <!-- 移除所有导航栏和工具栏 -->
+
+        <!-- 主要内容区域 -->
+        <div class="viewer-content" ref="viewerContent">
+            <!-- 图片显示区域, 改造为长条滚动模式 -->
+            <div v-if="loadedPages.length > 0" class="image-container-scrolling" @scroll="handleScroll" ref="scrollContainer">
+                 <template v-for="page in loadedPages" :key="page.pageIndex">
+                    <div class="manga-page" :data-page-index="page.pageIndex">
+                        <img
+                            :src="page.src"
+                            :alt="`第 ${page.pageIndex + 1} 页`"
+                            class="manga-image"
+                            loading="lazy"
+                            decoding="async"
+                            @load="onImageLoad($event, page.pageIndex)"
+                            @error="onImageError(page.pageIndex)">
+                    </div>
+                    <!-- 恢复：精确的、可见的吸附目标，同时作为页面分隔符 -->
+                    <div class="snap-target"></div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Fast Scrubber UI -->
+       <div class="fast-scrubber-container"
+            :class="{ 'scrubber-visible': isScrubberVisible, 'is-dragging': isDraggingScrubber }"
+            @mousedown.stop="onScrubberPress"
+            @touchstart.stop="onScrubberPress"
+            >
+           <div class="fast-scrubber-handle" :style="{ top: scrubberHandleTop + '%' }">
+               <span class="page-indicator">{{ scrubberPageNumber }} / {{ mangaInfo.total_pages }}</span>
+           </div>
+       </div>
+    </div>
+
+    <!-- Vue 3 和 Element Plus -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    
+    <!-- 简化的查看器管理器 -->
+    <script src="/static/js/viewer_manager_simple.js"></script>
+
+    <!-- 移动端专属应用程序入口 -->
+    <script type="module" src="/static/js/viewer/mobile_viewer.js"></script>
+
+</body>
+</html>

@@ -595,6 +595,19 @@ async def batch_compress_manga(
         log.error(f"批量压缩失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/batch-compress/cancel")
+async def cancel_batch_compression(
+    interface: CoreInterface = Depends(get_interface)
+):
+    """取消正在进行的批量压缩任务"""
+    try:
+        log.info("接收到前端取消压缩请求...")
+        interface.cancel_batch_compression()
+        return {"success": True, "message": "已发送取消压缩请求"}
+    except Exception as e:
+        log.error(f"取消批量压缩失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 

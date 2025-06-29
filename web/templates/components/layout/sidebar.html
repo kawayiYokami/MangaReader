@@ -29,7 +29,7 @@
             <span class="nav-text">漫画压缩</span>
         </div>
 
-        <div v-if="isLocalAccess" class="nav-item" :class="{ active: activeMenu === 'cache' }" @click="handleMenuSelect('cache')">
+        <div v-if="runningInDesktopApp()" class="nav-item" :class="{ active: activeMenu === 'cache' }" @click="handleMenuSelect('cache')">
             <div class="nav-icon"><span class="material-symbols-rounded">database</span></div>
             <span class="nav-text">缓存管理</span>
         </div>

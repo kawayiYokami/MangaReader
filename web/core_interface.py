@@ -20,9 +20,12 @@ import time
 from datetime import datetime
 from dataclasses import dataclass, asdict
 import traceback
+import shutil
 import tempfile
 import hashlib
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 导入core模块
 from core.manga.manga_manager import MangaManager
@@ -30,6 +33,8 @@ from core.manga.manga_model import MangaInfo, MangaLoader
 from core.core_cache.thumbnail_cache import ThumbnailCache
 from core.config import config
 from core.core_cache.cache_factory import get_cache_factory_instance
+from core.image.image_compressor import get_image_compressor, ImageCompressor
+from core.manga.batch_compression_manager import get_batch_compression_manager, BatchCompressionManager
 from utils import manga_logger as log
 
 
@@ -89,6 +94,7 @@ class CoreInterface:
         self._manga_manager: Optional[MangaManager] = None
         self._manga_loader: Optional[MangaLoader] = None
         self._thumbnail_cache: Optional[ThumbnailCache] = None
+        self._batch_compression_manager: Optional[BatchCompressionManager] = None
 
         # 转换结果缓存机制
         self._conversion_cache: Dict[str, WebMangaInfo] = {}
@@ -138,6 +144,14 @@ class CoreInterface:
                 log.error(f"缩略图缓存管理器初始化失败: {e}")
                 raise CoreInterfaceError("缩略图缓存管理器初始化失败", e)
         return self._thumbnail_cache
+
+    @property
+    def batch_compression_manager(self) -> BatchCompressionManager:
+        """获取BatchCompressionManager实例（懒加载）"""
+        if self._batch_compression_manager is None:
+            self._batch_compression_manager = get_batch_compression_manager()
+            log.info("BatchCompressionManager初始化成功")
+        return self._batch_compression_manager
     
     # ==================== 目录管理 ====================
     
@@ -693,235 +707,46 @@ class CoreInterface:
 
     # ==================== 批量压缩功能 ====================
 
-    def batch_compress_manga(self, webp_quality: int = 85,
-                           min_compression_ratio: float = 0.25,
-                           preserve_original_names: bool = True) -> Dict[str, Any]:
+    def batch_compress_manga(
+        self,
+        webp_quality: int = 85,
+        min_compression_ratio: float = 0.25,
+        preserve_original_names: bool = True,
+        manga_files: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         """
-        批量压缩漫画库中的所有漫画文件
-
-        Args:
-            webp_quality: WebP质量 (75-100)
-            min_compression_ratio: 最小压缩比例 (0.25 = 25%)
-            preserve_original_names: 是否保留原始文件名
-
-        Returns:
-            包含压缩结果的字典
+        启动批量压缩任务。
+        此方法会立即返回，并在后台线程中执行实际的压缩任务。
         """
         try:
-            from core.image.image_compressor import ImageCompressor
-            import tempfile
-            import shutil
-            from datetime import datetime
+            if self.batch_compression_manager.is_running:
+                return {"success": False, "message": "一个批量压缩任务已经在运行中。"}
 
-            compressor = ImageCompressor()
-
-            # 获取所有漫画文件
-            all_manga = self.get_manga_list()
-
-            # 过滤出需要压缩的文件（跳过.webp文件）
-            files_to_compress = []
-            skipped_files = []
-
-            for manga in all_manga:
-                file_path = manga.file_path
-                file_ext = os.path.splitext(file_path)[1].lower()
-
-                # 跳过已经是webp格式的文件
-                if file_ext == '.webp':
-                    skipped_files.append({
-                        "file_path": file_path,
-                        "reason": "已是WebP格式，跳过处理"
-                    })
-                    continue
-
-                # 只处理常见的漫画压缩包格式
-                if file_ext in ['.zip', '.rar', '.7z', '.cbz', '.cbr']:
-                    files_to_compress.append(file_path)
-                else:
-                    skipped_files.append({
-                        "file_path": file_path,
-                        "reason": f"不支持的格式: {file_ext}"
-                    })
-
-            log.info(f"开始批量压缩 {len(files_to_compress)} 个文件，跳过 {len(skipped_files)} 个文件")
-
-            successful_compressions = 0
-            failed_files = []
-            total_size_saved = 0
-
-            for i, file_path in enumerate(files_to_compress):
-                try:
-                    log.info(f"压缩文件 {i+1}/{len(files_to_compress)}: {file_path}")
-
-                    # 获取原始文件大小
-                    original_size = os.path.getsize(file_path)
-
-                    # 执行单个文件压缩
-                    result = compressor.compress_manga_file(
-                        file_path=file_path,
-                        webp_quality=webp_quality,
-                        preserve_original_names=preserve_original_names
-                    )
-
-                    if result["success"]:
-                        compressed_size = os.path.getsize(result["temp_file"])
-                        compression_ratio = (original_size - compressed_size) / original_size
-
-                        if compression_ratio >= min_compression_ratio:
-                            # 验证压缩文件的完整性
-                            if self._verify_compressed_file(file_path, result["temp_file"]):
-                                # 备份原文件
-                                backup_path = file_path + ".backup"
-                                shutil.copy2(file_path, backup_path)
-
-                                try:
-                                    # 替换原文件
-                                    shutil.move(result["temp_file"], file_path)
-
-                                    # 删除备份文件
-                                    os.remove(backup_path)
-
-                                    successful_compressions += 1
-                                    size_saved = original_size - compressed_size
-                                    total_size_saved += size_saved
-
-                                    log.info(f"成功压缩并替换文件: {file_path}, 节省空间: {size_saved} 字节")
-
-                                except Exception as e:
-                                    # 如果替换失败，恢复备份
-                                    if os.path.exists(backup_path):
-                                        shutil.move(backup_path, file_path)
-                                    failed_files.append({
-                                        "file_path": file_path,
-                                        "reason": f"文件替换失败: {str(e)}"
-                                    })
-                            else:
-                                failed_files.append({
-                                    "file_path": file_path,
-                                    "reason": "压缩文件验证失败"
-                                })
-                        else:
-                            # 压缩效果不佳，删除临时文件
-                            if os.path.exists(result["temp_file"]):
-                                os.remove(result["temp_file"])
-                            skipped_files.append({
-                                "file_path": file_path,
-                                "reason": f"压缩效果不佳，仅减少 {compression_ratio:.1%}"
-                            })
-                    else:
-                        failed_files.append({
-                            "file_path": file_path,
-                            "reason": result.get("message", "压缩失败")
-                        })
-
-                except Exception as e:
-                    log.error(f"压缩文件失败 {file_path}: {e}")
-                    failed_files.append({
-                        "file_path": file_path,
-                        "reason": str(e)
-                    })
+            files_to_process = manga_files
+            if files_to_process is None:
+                files_to_process = [m.file_path for m in self.get_manga_list()]
+            
+            # 在后台线程中运行管理器，以避免阻塞API
+            thread = threading.Thread(
+                target=self.batch_compression_manager.run_batch_compression,
+                args=(files_to_process, webp_quality, min_compression_ratio, preserve_original_names)
+            )
+            thread.start()
+            
+            log.info(f"批量压缩任务已在后台启动，将处理 {len(files_to_process)} 个文件。")
 
             return {
                 "success": True,
-                "total_files": len(files_to_compress),
-                "successful_compressions": successful_compressions,
-                "skipped_files": len(skipped_files),
-                "failed_files": failed_files,
-                "total_size_saved": total_size_saved,
-                "skipped_details": skipped_files
+                "message": "批量压缩任务已成功启动，正在后台运行。"
             }
-
         except Exception as e:
-            log.error(f"批量压缩失败: {e}")
-            raise CoreInterfaceError("批量压缩失败", e)
+            log.error(f"启动批量压缩任务失败: {e}", exc_info=True)
+            raise CoreInterfaceError("启动批量压缩任务失败", e)
 
-    def _verify_compressed_file(self, original_path: str, compressed_path: str) -> bool:
-        """
-        验证压缩文件的完整性
-
-        Args:
-            original_path: 原始文件路径
-            compressed_path: 压缩后文件路径
-
-        Returns:
-            验证是否通过
-        """
-        try:
-            import zipfile
-            import random
-            from PIL import Image
-            import io
-
-            # 1. 检查文件数量是否一致
-            original_files = []
-            compressed_files = []
-
-            # 读取原始文件内容
-            with zipfile.ZipFile(original_path, 'r') as original_zip:
-                original_files = [f for f in original_zip.namelist() if not f.endswith('/')]
-
-            # 读取压缩文件内容
-            with zipfile.ZipFile(compressed_path, 'r') as compressed_zip:
-                compressed_files = [f for f in compressed_zip.namelist() if not f.endswith('/')]
-
-            # 检查文件数量
-            if len(original_files) != len(compressed_files):
-                log.error(f"文件数量不一致: 原始 {len(original_files)}, 压缩后 {len(compressed_files)}")
-                return False
-
-            # 2. 随机选择3个图片文件进行质量对比
-            image_files = [f for f in original_files if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif'))]
-
-            if len(image_files) >= 3:
-                # 随机选择3个文件
-                sample_files = random.sample(image_files, min(3, len(image_files)))
-
-                with zipfile.ZipFile(original_path, 'r') as original_zip, \
-                     zipfile.ZipFile(compressed_path, 'r') as compressed_zip:
-
-                    for file_name in sample_files:
-                        try:
-                            # 读取原始图片
-                            original_data = original_zip.read(file_name)
-                            original_img = Image.open(io.BytesIO(original_data))
-
-                            # 查找对应的压缩图片（只比较文件名部分，不包括扩展名）
-                            original_stem = os.path.splitext(file_name)[0]
-                            compressed_file_name = None
-
-                            # 在压缩文件中查找对应的文件
-                            for compressed_file in compressed_files:
-                                compressed_stem = os.path.splitext(compressed_file)[0]
-                                if compressed_stem == original_stem:
-                                    compressed_file_name = compressed_file
-                                    break
-
-                            if not compressed_file_name:
-                                log.error(f"在压缩文件中找不到对应的文件: {file_name}")
-                                return False
-
-                            # 读取压缩图片
-                            compressed_data = compressed_zip.read(compressed_file_name)
-                            compressed_img = Image.open(io.BytesIO(compressed_data))
-
-                            # 检查尺寸是否一致
-                            if original_img.size != compressed_img.size:
-                                log.error(f"图片尺寸不一致: {file_name}")
-                                return False
-
-                            # 检查图片是否能正常打开（基本完整性检查）
-                            compressed_img.verify()
-
-                        except Exception as e:
-                            log.error(f"验证图片失败 {file_name}: {e}")
-                            return False
-
-            log.info("压缩文件验证通过")
-            return True
-
-        except Exception as e:
-            log.error(f"文件验证失败: {e}")
-            return False
+    def cancel_batch_compression(self):
+        """请求取消正在进行的批量压缩任务。"""
+        log.info("CoreInterface: 正在请求取消批量压缩任务...")
+        self.batch_compression_manager.cancel()
 
     # ==================== 自动过滤功能 ====================
 

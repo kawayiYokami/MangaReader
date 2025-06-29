@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+{% include 'components/layout/mobile-head.html' %}
+
+<body class="mobile-body">
+    <div id="app">
+        <!-- 移动版漫画浏览器 -->
+        {% include 'components/pages/manga-browser_mobile.html' %}
+    </div>
+
+    <!-- 移动端专属脚本和样式 -->
+    <link rel="stylesheet" href="/static/css/mobile/browser.css">
+    <script src="/static/js/mobile/manga-browser.js?v=3"></script>
+
+    <script>
+        const { createApp } = Vue;
+        const { ElMessage, ElMessageBox, ElLoading, ElDrawer, ElIcon } = ElementPlus;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (!window.AppData || !window.MangaBrowserMethods) {
+                console.error('❌ 核心JS模块未加载');
+                return;
+            }
+
+            const app = createApp({
+                data() {
+                    return window.AppData;
+                },
+                computed: window.AppComputed || {},
+                mounted() {
+                    if (window.AppLifecycle && window.AppLifecycle.mounted) {
+                        window.AppLifecycle.mounted.call(this);
+                    }
+                },
+                methods: {
+                    ...(window.UtilsMethods || {}),
+                    ...(window.MangaBrowserMethods || {}),
+                    ...(window.CacheManagementMethods || {}),
+                    ...(window.TranslationMethods || {}),
+                    ...(window.CompressionMethods || {}),
+                }
+            });
+
+            app.use(ElementPlus);
+            
+            // 注册图标
+            if (window.ElementPlusIconsVue) {
+                for (const [key, component] of Object.entries(window.ElementPlusIconsVue)) {
+                    app.component(key, component);
+                }
+            }
+
+            app.mount('#app');
+        });
+    </script>
+</body>
+
+</html>

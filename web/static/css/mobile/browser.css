@@ -1,0 +1,287 @@
+/*
+ * =========================================
+ * Mobile Browser CSS (Google Material Style)
+ * =========================================
+ */
+
+/* --- 1. Global & Body --- */
+:root {
+    --mobile-header-height: 64px;
+    --mobile-background-color: #f0f2f5;
+    --mobile-card-background: #ffffff;
+    --mobile-text-primary: #202124;
+    --mobile-text-secondary: #5f6368;
+    --mobile-divider-color: #e0e0e0;
+}
+
+.theme-dark {
+    --mobile-background-color: #202124;
+    --mobile-card-background: #303134;
+    --mobile-text-primary: #e8eaed;
+    --mobile-text-secondary: #9aa0a6;
+    --mobile-divider-color: #3c4043;
+}
+
+.mobile-body {
+    background-color: var(--mobile-background-color);
+    padding-top: var(--mobile-header-height); /* 为固定头部留出空间 */
+}
+
+/* --- 2. Header --- */
+.mobile-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    height: var(--mobile-header-height);
+    background-color: var(--mobile-card-background);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    z-index: 100;
+}
+
+.mobile-header .el-input {
+    flex: 1;
+    margin-right: 8px;
+}
+
+.mobile-header .el-button {
+    width: 40px;
+    height: 40px;
+    font-size: 24px;
+}
+
+/* --- 3. Main Content & Grid --- */
+.mobile-main-content {
+    padding: 8px;
+}
+
+.manga-grid-mobile {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+/* --- 4. Manga Card --- */
+.manga-card-mobile {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--mobile-card-background);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    transition: box-shadow 0.2s ease-in-out;
+    cursor: pointer;
+}
+.manga-card-mobile:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.cover-container {
+    position: relative;
+    width: 100%;
+    padding-top: 141.4%; /* 保持 1:sqrt(2) 的宽高比，适合大多数漫画 */
+    background-color: #e0e0e0;
+    overflow: hidden; /* 确保子元素不会溢出容器 */
+}
+
+.cover-container .cover-image,
+.cover-container .cover-loading,
+.cover-container .cover-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cover-placeholder .material-symbols-rounded {
+    font-size: 48px;
+    color: #a0a0a0;
+}
+.cover-loading .el-icon {
+    font-size: 32px;
+    color: #a0a0a0;
+}
+
+
+.cover-container .page-count {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background-color: rgba(0,0,0,0.6);
+    color: white;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    z-index: 3;
+}
+
+.cover-container .manga-title {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: white;
+    padding: 16px 8px 8px; /* 顶部留出更多空间给渐变 */
+    margin: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 1;
+}
+
+.info-container {
+    padding: 8px; /* 为标签提供内边距 */
+    color: var(--mobile-text-primary);
+}
+
+.info-container .manga-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px; /* 统一的标签间距 */
+}
+
+.info-container .tag,
+.panel-content .tag-list .tag {
+    font-size: 14px;
+    padding: 4px 8px; /* 调整为更紧凑的内边距 */
+    color: var(--mobile-text-secondary);
+    border-radius: 16px; /* 药丸形状 */
+    white-space: nowrap;
+    background-color: transparent; /* 默认无背景 */
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    border: 1px solid transparent; /* 占位边框 */
+    cursor: pointer;
+}
+
+.info-container .tag.is-active,
+.panel-content .tag-list .tag.is-active {
+    background-color: #e6f2ff;
+    color: #409eff;
+    border-color: #d9ecff;
+}
+
+.mobile-header .el-button.is-active {
+    color: #409EFF;
+    background-color: #e6f2ff;
+}
+
+/* --- 5. Filter Panel (Half-screen pull-up) --- */
+.filter-panel-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    transition: background-color 0.3s ease;
+}
+
+.filter-panel {
+    width: 100%;
+    max-height: 75vh;
+    background-color: var(--mobile-card-background);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    animation: slide-up 0.3s ease-out;
+}
+
+@keyframes slide-up {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--mobile-divider-color);
+}
+
+.panel-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--mobile-text-primary);
+    margin: 0;
+}
+
+.panel-header .el-button {
+    font-size: 24px;
+}
+
+.panel-content {
+    padding: 0 16px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.panel-content .tag-category-filters {
+    padding-top: 8px;
+}
+/* --- 6. Accordion Filter --- */
+.accordion-filter {
+    padding: 8px 0;
+}
+
+.accordion-item {
+    border-bottom: 1px solid var(--mobile-divider-color);
+}
+
+.accordion-item:last-child {
+    border-bottom: none;
+}
+
+.accordion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    cursor: pointer;
+}
+
+.accordion-header .header-title {
+    font-size: 16px;
+    color: var(--mobile-text-primary);
+    font-weight: 600; /* 加粗以作区分 */
+}
+
+.accordion-header .material-symbols-rounded {
+    transition: transform 0.3s ease;
+    color: var(--mobile-text-primary);
+}
+
+.accordion-header .material-symbols-rounded.is-active {
+    transform: rotate(180deg);
+}
+
+.accordion-content {
+    padding: 0 0 16px 0;
+}
+
+.panel-content .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+
+/* 移除不再需要的 panel-footer */
