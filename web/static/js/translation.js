@@ -6,6 +6,8 @@ window.TranslationMethods = {
         this.$refs.translationFileInput.click();
     },
 
+    // ==================== 通用接口适配 ====================
+
     handleTranslationFileSelect(event) {
         const files = Array.from(event.target.files);
         this.processSelectedFiles(files);
@@ -335,24 +337,48 @@ window.TranslationMethods = {
         return imageExtensions.includes(extension);
     },
 
-    downloadTask(task) {
+    async downloadTask(task) {
         if (task.status !== 'completed' || !task.result) {
             ElMessage.warning('任务未完成或结果不可用');
             return;
         }
 
         try {
-            // 生成下载文件名
             const originalName = task.fileName;
             const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.'));
             const downloadName = `${nameWithoutExt}_translated.zip`;
 
-            // 下载文件
-            saveAs(task.result, downloadName);
-            ElMessage.success('下载开始');
+            // 检查 task.result 的类型
+            if (task.result instanceof Blob) {
+                // 兼容旧的同步流程或已获取Blob的情况
+                saveAs(task.result, downloadName);
+                ElMessage.success('下载开始');
+            } else if (Array.isArray(task.result)) {
+                // 处理异步流程返回的文件路径数组
+                ElMessage.info('正在准备下载，请稍候...');
+                
+                const downloadResponse = await axios.post('/api/translation/download-task', {
+                    task_name: task.fileName,
+                    output_files: task.result
+                }, {
+                    responseType: 'blob'
+                });
+
+                const blob = downloadResponse.data;
+                saveAs(blob, downloadName);
+                ElMessage.success('下载开始');
+                
+                // 优化：将获取的Blob存回，避免重复请求
+                task.result = blob;
+
+            } else {
+                throw new Error('未知的任务结果类型，无法下载');
+            }
         } catch (error) {
             console.error('下载失败:', error);
-            ElMessage.error('下载失败: ' + error.message);
+            // 尝试从axios错误中获取更详细的信息
+            const errorMessage = error.response?.data?.detail || error.message;
+            ElMessage.error('下载失败: ' + errorMessage);
         }
     },
 
@@ -363,17 +389,18 @@ window.TranslationMethods = {
             ElMessage.success(`已移除任务: ${task.fileName}`);
         }
     },
-
-    clearTranslationTasks() {
+    
+    clearTasks() {
         if (this.translationTasks.length === 0) {
             ElMessage.info('任务列表已经是空的');
             return;
         }
-
+    
         this.translationTasks = [];
         ElMessage.success('已清空所有翻译任务');
     },
-
+    
+    // getTaskStatusText 名称已符合通用接口，无需修改
     getTaskStatusText(status) {
         const statusMap = {
             'pending': '等待中',

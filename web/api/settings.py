@@ -262,10 +262,9 @@ async def get_available_fonts():
 
             for filename in font_files:
                 font_path = absolute_font_dir / filename # 使用 Path 对象的 / 操作符
-                log.debug(f"正在处理字体文件: {font_path}")
                 try:
                     # TTFont 构造函数可以接受 Path 对象或字符串路径
-                    font = TTFont(font_path) 
+                    font = TTFont(font_path)
                     display_name = _get_preferred_font_name(font)
 
                     if not display_name:

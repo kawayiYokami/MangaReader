@@ -73,10 +73,10 @@
                         <el-button
                             type="primary"
                             @click="startTranslation"
-                            :disabled="translationTasks.length === 0 || taskIsProcessing"
-                            :loading="taskIsProcessing"
+                            :disabled="tasks.length === 0 || isProcessing"
+                            :loading="isProcessing"
                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
-                            <span style="display: inline-flex; align-items: center; gap: 6px;" v-if="taskIsProcessing"><span class="material-symbols-rounded">autorenew</span> <span>翻译中...</span></span>
+                            <span style="display: inline-flex; align-items: center; gap: 6px;" v-if="isProcessing"><span class="material-symbols-rounded">autorenew</span> <span>翻译中...</span></span>
                             <span style="display: inline-flex; align-items: center; gap: 6px;" v-else><span class="material-symbols-rounded">translate</span> <span>开始翻译</span></span>
                         </el-button>
                     </div>
@@ -85,7 +85,7 @@
                         <el-button
                             type="warning"
                             @click="stopTranslation"
-                            :disabled="false"
+                            :disabled="!isProcessing"
                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
                             <span style="display: inline-flex; align-items: center; gap: 6px;"><span class="material-symbols-rounded">stop</span> <span>停止翻译</span></span>
                         </el-button>
@@ -93,8 +93,8 @@
 
                     <div style="margin-bottom: 0;">
                         <el-button
-                            @click="clearTranslationTasks"
-                            :disabled="translationTasks.length === 0"
+                            @click="clearTasks"
+                            :disabled="tasks.length === 0 || isProcessing"
                             style="width: 100%; height: 40px; display: block; margin: 0 auto;">
                             <span style="display: inline-flex; align-items: center; gap: 6px;"><span class="material-symbols-rounded">delete</span> <span>清空任务</span></span>
                         </el-button>
@@ -120,7 +120,7 @@
                 <template #header>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span><span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">list_alt</span> 翻译任务</span>
-                        <span class="task-count"><span v-text="translationTasks.length"></span> 个任务</span>
+                        <span class="task-count"><span v-text="tasks.length"></span> 个任务</span>
                     </div>
                 </template>
 

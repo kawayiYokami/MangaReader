@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from abc import ABC, abstractmethod
 import asyncio
+import json
 from datetime import datetime
 import logging
 import os
@@ -34,7 +35,7 @@ async def verify_local_access(request: Request):
         )
 
 # 应用安全依赖项到整个路由
-router = APIRouter(dependencies=[Depends(verify_local_access)])
+router = APIRouter()
 
 
 # ==================== 数据模型 ====================
@@ -106,34 +107,19 @@ class CacheHandler(ABC):
 # ==================== 具体实现类 ====================
 
 class MangaListCacheHandler(CacheHandler):
-    """漫画列表缓存处理器"""
-    
+    """漫画列表缓存处理器 - 已重构"""
+
     def __init__(self):
         super().__init__("manga_list")
         self.manager = get_cache_factory_instance().get_manager("manga_list")
-    
+
     async def get_info(self) -> CacheInfo:
         """获取漫画列表缓存信息"""
         try:
-            # 直接从统一的漫画库中获取列表
-            manga_list = self.manager.get(LIBRARY_KEY)
-            total_entries = len(manga_list) if manga_list else 0
-            
-            # 获取缓存大小
-            size_bytes = 0
-            if hasattr(self.manager, 'get_cache_size_bytes'):
-                size_bytes = await self.manager.get_cache_size_bytes() if asyncio.iscoroutinefunction(self.manager.get_cache_size_bytes) else self.manager.get_cache_size_bytes()
-            
-            # 获取最后更新时间
-            last_updated = None
-            if total_entries > 0:
-                # 尝试从缓存元数据获取时间
-                entries_meta = self.manager.get_all_entries_for_display()
-                if entries_meta and 'last_updated' in entries_meta[0]:
-                    last_updated = entries_meta[0]['last_updated']
-            
-            if last_updated is None:
-                last_updated = datetime.now().isoformat()
+            # 调用在 Core 层新添加的 get_manga_count 方法
+            total_entries = await self.manager.get_manga_count()
+            size_bytes = self.manager.get_cache_size_bytes()
+            last_updated = datetime.now().isoformat()
 
             return CacheInfo(
                 cache_type=self.cache_type,
@@ -142,56 +128,36 @@ class MangaListCacheHandler(CacheHandler):
                 last_updated=last_updated
             )
         except Exception as e:
-            self.log.error(f"获取漫画列表缓存信息失败: {e}")
-            return CacheInfo(cache_type=self.cache_type, total_entries=0, size_bytes=0)
-    
+            self.log.error(f"获取漫画列表缓存信息失败: {e}", exc_info=True)
+            return CacheInfo(
+                cache_type=self.cache_type,
+                total_entries=0,
+                size_bytes=0,
+                last_updated=datetime.now().isoformat()
+            )
+
     async def get_entries(self, page: int, page_size: int, search: Optional[str] = None, **kwargs) -> Dict[str, Any]:
-        """获取漫画列表缓存条目"""
+        """获取漫画列表缓存条目，在内存中进行分页和搜索"""
         try:
-            # 直接从统一的漫画库中获取所有漫画条目
-            all_manga = self.manager.get(LIBRARY_KEY) or []
-
-            # 1. 应用新的布尔筛选
-            show_unlikely = kwargs.get("show_unlikely", False)
-            if show_unlikely:
-                all_manga = [
-                    manga for manga in all_manga
-                    if manga.get("is_likely_manga") is False and manga.get("dimension_variance") is not None
-                ]
-
-            # 2. 应用文本搜索过滤
+            # 1. 调用 Core 层方法获取所有数据
+            all_manga = await self.manager.get_manga_list_for_display()
+            
+            # 2. 在内存中进行搜索过滤
             if search:
                 query = search.lower()
-                # 避免在已有 unlikely 筛选时重复过滤
-                if not show_unlikely: 
-                    if "category:unlikely_manga" in query:
-                        # 提示用户使用开关，但仍执行一次
-                        self.log.info("检测到旧的过滤语法，请使用'仅显示可能非漫画'开关。")
-                        all_manga = [
-                            manga for manga in all_manga
-                            if manga.get("is_likely_manga") is False and manga.get("dimension_variance") is not None
-                        ]
-                        # 移除分类指令，只留下搜索词
-                        query = query.replace("category:unlikely_manga", "").strip()
+                all_manga = [
+                    m for m in all_manga
+                    if query in m.get("title", "").lower() or query in m.get("file_path", "").lower()
+                ]
 
-                if query: # 如果移除指令后还有搜索词
-                    filtered_manga = []
-                    for manga in all_manga:
-                        title = str(manga.get("title", "")).lower()
-                        file_path = str(manga.get("file_path", "")).lower()
-                        tags = str(manga.get("tags", [])).lower()
-                        if query in title or query in file_path or query in tags:
-                            filtered_manga.append(manga)
-                    all_manga = filtered_manga
-            
-            # 3. 分页
+            # 3. 在内存中进行分页
             total = len(all_manga)
             start = (page - 1) * page_size
             end = start + page_size
-            page_manga = all_manga[start:end]
-            
-            # 4. 格式化条目
-            entries = [self._format_manga_entry(manga) for manga in page_manga]
+            paginated_manga = all_manga[start:end]
+
+            # 4. 格式化当前页的条目
+            entries = [self._format_manga_entry(m) for m in paginated_manga]
             
             return {
                 "entries": entries,
@@ -199,57 +165,39 @@ class MangaListCacheHandler(CacheHandler):
                 "page": page,
                 "page_size": page_size,
                 "total_pages": (total + page_size - 1) // page_size if page_size > 0 else 0,
-                "filter_applied": "unlikely" if show_unlikely else None
+                "filter_applied": None
             }
         except Exception as e:
-            self.log.error(f"获取漫画列表缓存条目失败: {e}")
+            self.log.error(f"获取漫画列表缓存条目失败: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"获取漫画列表缓存条目失败: {e}")
-    
+
     def _format_manga_entry(self, manga: Dict[str, Any]) -> Dict[str, Any]:
-        """格式化漫画条目"""
+        """格式化从 get_manga_list_for_display 返回的字典"""
         file_path = manga.get("file_path", "")
-        is_directory = os.path.isdir(file_path) if file_path else False
-        
-        # 处理dimension_variance字段
-        dimension_variance = manga.get("dimension_variance")
-        if is_directory:
-            variance_str = "不适用"
-            dimension_variance = "N/A"
-        elif isinstance(dimension_variance, (int, float)):
-            variance_str = f"{dimension_variance:.3f}"
-        elif dimension_variance is None:
-            variance_str = "未分析"
-        else:
-            variance_str = str(dimension_variance)
         
         # 格式化文件大小
         file_size = manga.get("file_size", 0)
-        if file_size > 0:
-            if file_size >= 1024 * 1024:
-                size_str = f"{file_size / (1024 * 1024):.1f} MB"
-            elif file_size >= 1024:
-                size_str = f"{file_size / 1024:.1f} KB"
-            else:
-                size_str = f"{file_size} B"
-        else:
-            size_str = "未知"
+        size_str = format_bytes(file_size) if file_size else "未知"
         
-        is_likely_manga = manga.get("is_likely_manga", "未知")
         total_pages = manga.get("total_pages", 0)
-        tags = manga.get("tags", [])
+        tags_list = manga.get("tags", [])
+        tags_count = len(tags_list)
         
+        # last_modified 已经是 ISO 格式的字符串
+        created_time = manga.get("last_modified")
+
         return {
             "key": file_path,
             "value": manga,
-            "value_preview": f"漫画: {manga.get('title', 'Unknown')} | 方差: {variance_str} | 可能是漫画: {is_likely_manga} | 页数: {total_pages} | 大小: {size_str}",
-            "size_bytes": len(str(manga)) * 2,
-            "created_time": datetime.fromtimestamp(manga.get("last_modified", 0)).isoformat() if manga.get("last_modified") else None,
-            # 额外字段
-            "dimension_variance": dimension_variance,
-            "is_likely_manga": is_likely_manga,
+            "value_preview": f"漫画: {manga.get('title', 'N/A')} | 页数: {total_pages} | 大小: {size_str} | 标签数: {tags_count}",
+            "size_bytes": file_size, # 使用真实大小
+            "created_time": created_time,
+            # 额外字段，用于前端显示
+            "title": manga.get("title"),
             "total_pages": total_pages,
             "file_size": file_size,
-            "tags_count": len(tags)
+            "tags_count": tags_count,
+            "file_type": manga.get("file_type")
         }
     
     async def refresh(self) -> Dict[str, Any]:
@@ -330,10 +278,18 @@ class OcrCacheHandler(CacheHandler):
                 query = search.lower()
                 filtered_entries = []
                 for entry in all_entries:
-                    cache_key = str(entry.get("cache_key", "")).lower()
-                    file_name = str(entry.get("file_name", "")).lower()
-                    page_num = str(entry.get("page_num", "")).lower()
-                    if query in cache_key or query in file_name or query in page_num:
+                    # 先解析 value 字段的 JSON
+                    try:
+                        value_data = json.loads(entry.get("value", "{}"))
+                    except (json.JSONDecodeError, TypeError):
+                        value_data = {}
+
+                    # 然后在解析后的数据和顶层键中搜索
+                    cache_key_str = str(entry.get("key", "")).lower()
+                    file_name_str = str(value_data.get("file_name", "")).lower()
+                    page_num_str = str(value_data.get("page_num", "")).lower()
+
+                    if query in cache_key_str or query in file_name_str or query in page_num_str:
                         filtered_entries.append(entry)
                 all_entries = filtered_entries
 
@@ -361,16 +317,26 @@ class OcrCacheHandler(CacheHandler):
 
     def _format_ocr_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """格式化OCR条目"""
-        cache_key = entry.get("cache_key", "unknown_key")
-        file_name = entry.get("file_name", "Unknown")
-        page_num = entry.get("page_num", 0)
+        cache_key = entry.get("key", "unknown_key")
+        value_str = entry.get("value", "{}")
+        created_time = entry.get("last_updated")
+
+        try:
+            # 解析存储在 value 字段中的 JSON 数据
+            value_data = json.loads(value_str)
+            file_name = value_data.get("file_name", "Unknown")
+            page_num = value_data.get("page_num", "N/A")
+            preview = f"OCR: {os.path.basename(file_name)} 第{page_num}页"
+        except (json.JSONDecodeError, TypeError):
+            value_data = {}
+            preview = "无效的OCR数据"
 
         return {
             "key": cache_key,
-            "value": entry,
-            "value_preview": f"OCR: {file_name} 第{page_num}页",
-            "size_bytes": len(str(entry)) * 2,
-            "created_time": datetime.fromtimestamp(entry.get("last_modified", 0)).isoformat() if entry.get("last_modified") else None
+            "value": value_data,
+            "value_preview": preview,
+            "size_bytes": len(value_str),
+            "created_time": created_time
         }
 
     async def refresh(self) -> Dict[str, Any]:
@@ -454,12 +420,22 @@ class TranslationCacheHandler(CacheHandler):
             # 2. 应用文本搜索过滤
             if search:
                 query = search.lower()
-                all_entries = [
-                    entry for entry in all_entries
-                    if query in str(entry.get("cache_key", "")).lower() or \
-                        query in str(entry.get("original_text", "")).lower() or \
-                        query in str(entry.get("translated_text", "")).lower()
-                ]
+                filtered_entries = []
+                for entry in all_entries:
+                    # 先解析 value 字段的 JSON
+                    try:
+                        value_data = json.loads(entry.get("value", "{}"))
+                    except (json.JSONDecodeError, TypeError):
+                        value_data = {}
+                    
+                    # 然后在解析后的数据和顶层键中搜索
+                    cache_key_str = str(entry.get("key", "")).lower()
+                    original_text_str = str(value_data.get("original_text", "")).lower()
+                    translated_text_str = str(value_data.get("translated_text", "")).lower()
+
+                    if query in cache_key_str or query in original_text_str or query in translated_text_str:
+                        filtered_entries.append(entry)
+                all_entries = filtered_entries
 
             # 3. 分页
             total = len(all_entries)
@@ -484,35 +460,33 @@ class TranslationCacheHandler(CacheHandler):
 
     def _format_translation_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """格式化翻译条目"""
-        cache_key = entry.get("cache_key", "unknown_key")
-        original = entry.get('original_text_sample', entry.get('original_text', ''))
-        translated = entry.get('translated_text', '')
-        is_sensitive = entry.get('is_sensitive', False)
+        cache_key = entry.get("key", "unknown_key")
+        value_str = entry.get("value", "{}")
+        created_time = entry.get("last_updated")
+        is_sensitive = entry.get("is_sensitive", False)
 
-        original_preview = original[:30] + "..." if len(original) > 30 else original
-        translated_preview = translated[:30] + "..." if len(translated) > 30 else translated
-
-        # 处理时间戳转换
-        created_time = None
-        last_updated = entry.get("last_updated")
-        if last_updated:
-            try:
-                # 如果是字符串，直接使用；如果是数字，转换为ISO格式
-                if isinstance(last_updated, str):
-                    created_time = last_updated
-                else:
-                    created_time = datetime.fromtimestamp(float(last_updated)).isoformat()
-            except (ValueError, TypeError) as e:
-                self.log.warning(f"无法解析时间戳 {last_updated}: {e}")
-                created_time = str(last_updated)
+        try:
+            # 解析存储在 value 字段中的 JSON 数据
+            value_data = json.loads(value_str)
+            original_text = value_data.get("original_text", "")
+            translated_text = value_data.get("translated_text", "")
+            
+            original_preview = original_text[:30] + "..." if len(original_text) > 30 else original_text
+            translated_preview = translated_text[:30] + "..." if len(translated_text) > 30 else translated_text
+            preview = f"翻译: {original_preview} → {translated_preview}"
+        except (json.JSONDecodeError, TypeError):
+            value_data = {}
+            original_text = ""
+            translated_text = ""
+            preview = "无效的翻译数据"
 
         return {
             "key": cache_key,
-            "value": translated,
-            "original_text": original,
-            "value_preview": f"翻译: {original_preview} → {translated_preview}",
+            "value": translated_text, # 主值设为翻译后的文本
+            "original_text": original_text,
+            "value_preview": preview,
             "is_sensitive": is_sensitive,
-            "size_bytes": len(original.encode('utf-8')) + len(translated.encode('utf-8')),
+            "size_bytes": len(value_str),
             "created_time": created_time
         }
 
@@ -935,7 +909,7 @@ async def get_all_cache_stats():
         }
 
 
-@router.get("/{cache_type}/info")
+@router.get("/{cache_type}/info", dependencies=[Depends(verify_local_access)])
 async def get_cache_info(cache_type: str):
     """获取指定缓存类型的详细信息"""
     try:
@@ -949,7 +923,7 @@ async def get_cache_info(cache_type: str):
         raise HTTPException(status_code=500, detail=f"获取缓存信息失败: {e}")
 
 
-@router.get("/{cache_type}/entries")
+@router.get("/{cache_type}/entries", dependencies=[Depends(verify_local_access)])
 async def get_cache_entries(
     cache_type: str,
     page: int = 1,
@@ -981,7 +955,7 @@ async def get_cache_entries(
         raise HTTPException(status_code=500, detail=f"获取缓存条目失败: {e}")
 
 
-@router.post("/{cache_type}/refresh")
+@router.post("/{cache_type}/refresh", dependencies=[Depends(verify_local_access)])
 async def refresh_cache(cache_type: str):
     """刷新指定类型的缓存"""
     try:
@@ -995,7 +969,7 @@ async def refresh_cache(cache_type: str):
         raise HTTPException(status_code=500, detail=f"刷新缓存失败: {e}")
 
 
-@router.post("/{cache_type}/clear")
+@router.post("/{cache_type}/clear", dependencies=[Depends(verify_local_access)])
 async def clear_cache(cache_type: str):
     """清空指定类型的缓存"""
     try:
@@ -1015,7 +989,7 @@ async def clear_cache(cache_type: str):
         raise HTTPException(status_code=500, detail=f"清空缓存失败: {e}")
 
 
-@router.put("/{cache_type}/entries")
+@router.put("/{cache_type}/entries", dependencies=[Depends(verify_local_access)])
 async def update_cache_entry(cache_type: str, request: UpdateEntryRequest):
     """更新指定缓存类型的条目"""
     try:
@@ -1029,7 +1003,7 @@ async def update_cache_entry(cache_type: str, request: UpdateEntryRequest):
         raise HTTPException(status_code=500, detail=f"更新缓存条目失败: {e}")
 
 
-@router.delete("/{cache_type}/entries/{key}")
+@router.delete("/{cache_type}/entries/{key}", dependencies=[Depends(verify_local_access)])
 async def delete_cache_entry(cache_type: str, key: str):
     """删除指定缓存类型的条目"""
     try:

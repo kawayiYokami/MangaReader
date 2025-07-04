@@ -5,16 +5,23 @@
 通过统一接口层与core模块交互。
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Request
-from fastapi.responses import Response
+from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File, Form
+from fastapi.responses import Response, FileResponse
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import os
 import base64
 from pathlib import Path
 from functools import wraps
+import shutil
+import tempfile
+from datetime import datetime
+from urllib.parse import unquote
 
 # 导入统一接口层
+from starlette.background import BackgroundTask
+
+from core.image.image_compressor import get_image_compressor
 from web.core_interface import (
     get_core_interface,
     CoreInterface,
@@ -106,7 +113,7 @@ async def manga_health():
 async def get_current_directory(interface: CoreInterface = Depends(get_interface)):
     """获取当前漫画目录"""
     try:
-        dir_info = interface.get_current_directory()
+        dir_info = await interface.get_current_directory()
         return {
             "current_directory": dir_info.path,
             "exists": dir_info.exists,
@@ -129,7 +136,7 @@ async def set_directory(
 ):
     """设置漫画目录并扫描文件"""
     try:
-        scan_result = interface.set_directory(request.directory_path)
+        scan_result = await interface.set_directory(request.directory_path)
 
         return {
             "success": scan_result.success,
@@ -148,53 +155,41 @@ async def set_directory(
         log.error(f"设置目录失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/list")
-async def get_manga_list(interface: CoreInterface = Depends(get_interface)) -> List[MangaInfoResponse]:
-    """获取漫画列表"""
+@router.get("/list", response_model=List[MangaInfoResponse])
+async def get_manga_list(
+    sort_by: Optional[str] = None,
+    tag_filters: Optional[str] = None, # 接收逗号分隔的字符串
+    interface: CoreInterface = Depends(get_interface)
+):
+    """
+    获取漫画列表，支持排序和标签过滤。
+    - sort_by: 排序字段和顺序, e.g., "title ASC", "last_modified DESC"
+    - tag_filters: 逗号分隔的标签字符串, e.g., "tag1,tag2"
+    """
     try:
-        web_manga_list = interface.get_manga_list()
+        filters = tag_filters.split(',') if tag_filters else None
+        
+        # 默认排序
+        sort_order = sort_by if sort_by else "last_modified DESC"
 
-        # DEBUG: 检查接口层返回的数据
-        for i, web_manga in enumerate(web_manga_list[:5]):  # 只检查前5个
-            log.debug(f"DEBUG API接口层 {i}: title={web_manga.title}, dimension_variance={getattr(web_manga, 'dimension_variance', 'N/A')}, 类型={type(getattr(web_manga, 'dimension_variance', None))}")
+        web_manga_list = await interface.get_manga_list(sort_by=sort_order, tag_filters=filters)
 
-        manga_list = []
-        for web_manga in web_manga_list:
-            dimension_variance = getattr(web_manga, 'dimension_variance', None)
-            is_likely_manga = getattr(web_manga, 'is_likely_manga', None)
-
-            # DEBUG: 检查转换过程
-            if not web_manga.file_path.endswith('/') and len(manga_list) < 5:  # 只检查前5个ZIP文件
-                log.debug(f"DEBUG API转换: file_path={web_manga.file_path}, dimension_variance={dimension_variance}, 类型={type(dimension_variance)}")
-
-            manga_list.append(MangaInfoResponse(
-                file_path=web_manga.file_path,
-                title=web_manga.title,
-                tags=web_manga.tags,
-                total_pages=web_manga.total_pages,
-                is_valid=web_manga.is_valid,
-                last_modified=web_manga.last_modified,
-                file_type=web_manga.file_type,
-                file_size=web_manga.file_size,
-                dimension_variance=dimension_variance,
-                is_likely_manga=is_likely_manga,
-                page_dimensions=getattr(web_manga, 'page_dimensions', None)
-            ))
-
-        return manga_list
+        # WebMangaInfo 已经是一个足够丰富的模型，可以直接使用，无需再次转换
+        # 如果 MangaInfoResponse 有额外字段，可以在这里处理
+        return [MangaInfoResponse(**m.__dict__) for m in web_manga_list]
 
     except CoreInterfaceError as e:
-        log.error(f"获取漫画列表失败: {e}")
+        log.error(f"获取漫画列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"获取漫画列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"获取漫画列表时发生未知错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
 
 @router.get("/tags")
 async def get_all_tags(interface: CoreInterface = Depends(get_interface)) -> List[str]:
     """获取所有标签"""
     try:
-        return interface.get_all_tags()
+        return await interface.get_all_tags()
     except CoreInterfaceError as e:
         log.error(f"获取标签失败: {e}")
         raise HTTPException(status_code=500, detail=e.message)
@@ -202,73 +197,35 @@ async def get_all_tags(interface: CoreInterface = Depends(get_interface)) -> Lis
         log.error(f"获取标签失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/filter")
-async def filter_by_tags(
-    request: TagFilterRequest,
-    interface: CoreInterface = Depends(get_interface)
-) -> List[MangaInfoResponse]:
-    """根据标签过滤漫画"""
-    try:
-        web_manga_list = interface.filter_manga_by_tags(request.tags)
-
-        manga_list = []
-        for web_manga in web_manga_list:
-            manga_list.append(MangaInfoResponse(
-                file_path=web_manga.file_path,
-                title=web_manga.title,
-                tags=web_manga.tags,
-                total_pages=web_manga.total_pages,
-                is_valid=web_manga.is_valid,
-                last_modified=web_manga.last_modified,
-                file_type=web_manga.file_type,
-                file_size=web_manga.file_size
-            ))
-
-        return manga_list
-
-    except CoreInterfaceError as e:
-        log.error(f"标签过滤失败: {e}")
-        raise HTTPException(status_code=500, detail=e.message)
-    except Exception as e:
-        log.error(f"标签过滤失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# /filter 端点已被移除，其功能已合并到 /list 端点中
 
 @router.get("/current")
 async def get_current_manga(interface: CoreInterface = Depends(get_interface)):
-    """获取当前选中的漫画"""
-    try:
-        # 注意：这个功能需要在接口层实现
-        # 暂时返回空，后续可以扩展
-        return {"current_manga": None, "current_page": 0}
-
-    except Exception as e:
-        log.error(f"获取当前漫画失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """获取当前选中的漫画（功能未实现）"""
+    raise HTTPException(status_code=501, detail="此功能尚未实现")
 
 @router.post("/scan")
-async def scan_manga_files(
-    request: ScanRequest,
-    interface: CoreInterface = Depends(get_interface)
-):
-    """扫描漫画文件"""
+async def scan_manga_files(interface: CoreInterface = Depends(get_interface)):
+    """重新扫描当前设置的漫画目录以发现新文件"""
     try:
-        scan_result = interface.scan_manga_files(force_rescan=request.force_rescan)
+        # 获取当前配置的目录
+        dir_info = await interface.get_current_directory()
+        if not dir_info.path or not dir_info.exists:
+            raise CoreInterfaceError("漫画目录未设置或不存在，无法扫描。")
+        
+        # 调用新的统一接口进行扫描（本质是添加）
+        # 注意：force_rescan 的逻辑已移至 set_directory, 此处为增量扫描
+        scan_result = await interface.add_mangas_from_paths([dir_info.path])
 
-        return {
-            "success": scan_result.success,
-            "message": scan_result.message,
-            "manga_count": scan_result.manga_count,
-            "tags_count": scan_result.tags_count,
-            "scan_time": scan_result.scan_time,
-            "errors": scan_result.errors
-        }
+        # add_mangas_from_paths 返回的是一个 Pydantic 模型，可以直接返回
+        return scan_result
 
     except CoreInterfaceError as e:
         log.error(f"扫描文件失败: {e}")
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"扫描文件失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"扫描文件时发生未知错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
 
 @router.post("/add")
 @local_only
@@ -277,62 +234,15 @@ async def add_manga_files(
     http_request: Request,
     interface: CoreInterface = Depends(get_interface)
 ):
-    """添加漫画文件或文件夹到缓存"""
+    """添加多个漫画文件或文件夹到缓存"""
     try:
-        import os
-
-        added_count = 0
-        failed_paths = []
-
-        for path in request.paths:
-            try:
-                # 检查路径是否存在
-                if not os.path.exists(path):
-                    failed_paths.append(f"{path} (路径不存在)")
-                    continue
-
-                # 检查是否为支持的类型
-                if os.path.isdir(path):
-                    # 文件夹
-                    result = interface.add_manga_from_path(path)
-                    if result.success:
-                        added_count += result.manga_count
-                    else:
-                        failed_paths.append(f"{path} ({result.message})")
-                elif path.lower().endswith('.zip'):
-                    # ZIP文件
-                    result = interface.add_manga_from_path(path)
-                    if result.success:
-                        added_count += result.manga_count
-                    else:
-                        failed_paths.append(f"{path} ({result.message})")
-                else:
-                    failed_paths.append(f"{path} (不支持的文件类型)")
-
-            except Exception as e:
-                failed_paths.append(f"{path} (处理失败: {str(e)})")
-
-        # 构建响应消息
-        message_parts = []
-        if added_count > 0:
-            message_parts.append(f"成功添加 {added_count} 本漫画")
-        if failed_paths:
-            message_parts.append(f"失败 {len(failed_paths)} 个路径")
-
-        message = "，".join(message_parts) if message_parts else "没有添加任何漫画"
-
-        return {
-            "success": added_count > 0,
-            "message": message,
-            "added_count": added_count,
-            "failed_paths": failed_paths
-        }
-
+        result = await interface.add_mangas_from_paths(request.paths)
+        return result
     except CoreInterfaceError as e:
         log.error(f"添加漫画失败: {e}")
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
-        log.error(f"添加漫画失败: {e}")
+        log.error(f"添加漫画时发生未知错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 # Web版本不支持文件对话框功能，该功能已移除
@@ -347,44 +257,15 @@ async def scan_directory(
 ):
     """扫描指定目录中的所有漫画"""
     try:
-        import os
-
-        directory_path = request.directory_path
-
-        # 检查目录是否存在
-        if not os.path.exists(directory_path):
-            return {
-                "success": False,
-                "message": f"目录不存在: {directory_path}",
-                "added_count": 0,
-                "failed_paths": [f"{directory_path} (目录不存在)"]
-            }
-
-        if not os.path.isdir(directory_path):
-            return {
-                "success": False,
-                "message": f"路径不是目录: {directory_path}",
-                "added_count": 0,
-                "failed_paths": [f"{directory_path} (不是目录)"]
-            }
-
-        # 调用核心接口扫描目录
-        result = interface.scan_directory_for_manga(directory_path)
-
-        return {
-            "success": result.success,
-            "message": result.message,
-            "added_count": result.manga_count,
-            "scan_time": result.scan_time,
-            "errors": result.errors
-        }
-
+        # 复用 add_mangas_from_paths 逻辑，因为扫描目录就是添加一个路径
+        result = await interface.add_mangas_from_paths([request.directory_path])
+        return result
     except CoreInterfaceError as e:
-        log.error(f"扫描目录失败: {e}")
+        log.error(f"扫描目录 '{request.directory_path}' 失败: {e}")
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
-        log.error(f"扫描目录失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"扫描目录 '{request.directory_path}' 时发生未知错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
 
 @router.delete("/clear")
 @local_only
@@ -394,7 +275,7 @@ async def clear_all_data(
 ):
     """清空所有漫画数据"""
     try:
-        success = interface.clear_all_data()
+        success = await interface.clear_all_data()
 
         return {
             "success": success,
@@ -408,51 +289,26 @@ async def clear_all_data(
         log.error(f"清空数据失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/thumbnail/{manga_path:path}")
-async def get_manga_thumbnail(
-    manga_path: str,
-    size: int = 300,
-    interface: CoreInterface = Depends(get_interface)
-):
-    """获取漫画缩略图"""
-    try:
-        # URL解码
-        import urllib.parse
-        manga_path = urllib.parse.unquote(manga_path)
-
-        thumbnail_data = interface.get_manga_thumbnail(manga_path, max_size=size)
-
-        if thumbnail_data:
-            return {"thumbnail": thumbnail_data}
-        else:
-            raise HTTPException(status_code=404, detail="无法获取漫画缩略图")
-
-    except CoreInterfaceError as e:
-        log.error(f"获取缩略图失败: {e}")
-        raise HTTPException(status_code=500, detail=e.message)
-    except Exception as e:
-        log.error(f"获取缩略图失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/thumbnail")
 async def get_manga_thumbnail_post(
     request: dict,
     interface: CoreInterface = Depends(get_interface)
 ):
-    """获取漫画缩略图（POST方式，避免URL编码问题）"""
+    """
+    获取漫画缩略图（POST方式）。
+    此接口为获取缩略图的唯一推荐方式。
+    它返回文件本身，以利用浏览器缓存。
+    """
     try:
         manga_path = request.get("manga_path")
-        size = request.get("size", 300)
-
         if not manga_path:
             raise HTTPException(status_code=400, detail="缺少manga_path参数")
 
-        # 获取缩略图文件路径
-        thumbnail_path = interface.thumbnail_cache.get_thumbnail_path(manga_path)
+        # 调用新的核心接口方法获取缩略图文件路径
+        thumbnail_path = interface.get_manga_thumbnail_path(manga_path)
 
-        if thumbnail_path and os.path.exists(thumbnail_path):
+        if thumbnail_path:
             # 直接返回文件，让浏览器缓存
-            from fastapi.responses import FileResponse
             return FileResponse(
                 thumbnail_path,
                 media_type="image/webp",
@@ -462,14 +318,15 @@ async def get_manga_thumbnail_post(
                 }
             )
         else:
-            raise HTTPException(status_code=404, detail="无法获取漫画缩略图")
+            # 如果核心层无法提供路径（例如，原始文件不存在），则返回404
+            raise HTTPException(status_code=404, detail="无法获取或生成漫画缩略图")
 
     except CoreInterfaceError as e:
-        log.error(f"获取缩略图失败: {e}")
+        log.error(f"获取缩略图时发生核心层错误: {e}")
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"获取缩略图失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"获取缩略图时发生未知错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
 
 
 # ==================== 漫画查看器 API ====================
@@ -479,21 +336,10 @@ async def set_current_manga(
     request: SetCurrentMangaRequest,
     interface: CoreInterface = Depends(get_interface)
 ):
-    """设置当前查看的漫画"""
-    try:
-        # 这里需要在接口层实现状态管理
-        # 暂时返回成功，后续可以扩展
-        return {
-            "success": True,
-            "manga_path": request.manga_path,
-            "page": request.page,
-            "message": "当前漫画设置成功"
-        }
-    except Exception as e:
-        log.error(f"设置当前漫画失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """设置当前查看的漫画（功能未实现）"""
+    raise HTTPException(status_code=501, detail="此功能尚未实现")
 
-@router.post("/viewer/info")
+@router.post("/viewer/info", response_model=MangaInfoResponse)
 async def get_manga_info(
     request: dict,
     interface: CoreInterface = Depends(get_interface)
@@ -504,32 +350,29 @@ async def get_manga_info(
         if not manga_path:
             raise HTTPException(status_code=400, detail="缺少manga_path参数")
 
-        log.info(f"查找漫画信息: {manga_path}")
+        log.info(f"通过路径查找漫画信息: {manga_path}")
+        
+        # 调用接口层的封装方法
+        manga_info = await interface.get_manga_by_path(manga_path)
 
-        # 从漫画列表中查找对应的漫画
-        manga_list = interface.get_manga_list()
-        target_manga = None
-
-        for manga in manga_list:
-            if manga.file_path == manga_path:
-                target_manga = manga
-                break
-
-        if not target_manga:
+        if not manga_info:
             log.warning(f"漫画未找到: {manga_path}")
-            log.info(f"可用漫画列表前5个: {[m.file_path for m in manga_list[:5]]}")
             raise HTTPException(status_code=404, detail="漫画未找到")
-
-        return {
-            "file_path": target_manga.file_path,
-            "title": target_manga.title,
-            "tags": target_manga.tags,
-            "total_pages": target_manga.total_pages,
-            "is_valid": target_manga.is_valid,
-            "last_modified": target_manga.last_modified,
-            "file_type": target_manga.file_type,
-            "file_size": target_manga.file_size
-        }
+        
+        # MangaInfo -> MangaInfoResponse
+        return MangaInfoResponse(
+            file_path=manga_info.file_path,
+            title=manga_info.title,
+            tags=list(manga_info.tags),
+            total_pages=manga_info.total_pages,
+            is_valid=manga_info.is_valid,
+            last_modified=datetime.fromtimestamp(manga_info.last_modified).isoformat() if manga_info.last_modified else "",
+            file_type=manga_info.file_type,
+            file_size=manga_info.file_size,
+            dimension_variance=getattr(manga_info, 'dimension_variance', None),
+            is_likely_manga=getattr(manga_info, 'is_likely_manga', None),
+            page_dimensions=getattr(manga_info, 'page_dimensions', None)
+        )
 
     except CoreInterfaceError as e:
         log.error(f"获取漫画信息失败: {e}")
@@ -556,7 +399,7 @@ async def get_manga_page(
         log.info(f"获取漫画页面: {manga_path}, 页码: {page_num}")
 
         # 调用核心接口获取页面图片
-        image_data = interface.get_manga_page(manga_path, page_num)
+        image_data, _, _ = await interface.get_manga_page(manga_path, page_num)
 
         if image_data:
             return {"image": image_data}
@@ -571,89 +414,109 @@ async def get_manga_page(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ==================== 批量压缩功能 ====================
+# ==================== 单文件压缩功能 (重构后) ====================
 
-class BatchCompressionRequest(BaseModel):
-    webp_quality: int = 85
-    min_compression_ratio: float = 0.25
-    preserve_original_names: bool = True  # 默认保留原始文件名
-
-@router.post("/batch-compress")
-async def batch_compress_manga(
-    request: BatchCompressionRequest,
-    interface: CoreInterface = Depends(get_interface)
+@router.post("/compress-file-and-download")
+@local_only
+async def compress_file_and_download(
+    request: Request,
+    file: UploadFile = File(...),
+    webp_quality: int = Form(85)
 ):
-    """批量压缩漫画库中的所有漫画文件"""
+    """
+    接收单个上传的漫画文件，使用新的 ImageCompressor 进行压缩，
+    并以文件流的形式返回压缩后的文件供下载。
+    """
+    temp_upload_path = None
     try:
-        result = interface.batch_compress_manga(
-            webp_quality=request.webp_quality,
-            min_compression_ratio=request.min_compression_ratio,
-            preserve_original_names=request.preserve_original_names
+        # 将上传的文件保存到临时位置
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}") as temp_upload_file:
+            shutil.copyfileobj(file.file, temp_upload_file)
+            temp_upload_path = temp_upload_file.name
+
+        # 调用新的压缩模块
+        compressor = get_image_compressor()
+        compressor.reset_cancel_flag()  # 确保每次调用都是干净的状态
+        
+        compressed_temp_path = compressor.compress_manga_file(
+            file_path=temp_upload_path,
+            webp_quality=webp_quality,
+            preserve_original_names=True
         )
-        return result
-    except Exception as e:
-        log.error(f"批量压缩失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/batch-compress/cancel")
-async def cancel_batch_compression(
+        if compressed_temp_path and os.path.exists(compressed_temp_path):
+            # 浏览器上传时可能已对文件名进行URL编码，此处进行解码以还原
+            unquoted_filename = unquote(file.filename)
+            original_name_without_ext = Path(unquoted_filename).stem
+            download_filename = f"{original_name_without_ext}_compressed.zip"
+
+            return FileResponse(
+                path=compressed_temp_path,
+                filename=download_filename,
+                media_type='application/zip',
+                background=BackgroundTask(os.remove, compressed_temp_path)
+            )
+        else:
+            log.error(f"文件 {file.filename} 压缩失败，未返回有效的压缩包路径。")
+            raise HTTPException(status_code=500, detail="文件压缩失败或未返回有效的压缩包路径。")
+
+    except Exception as e:
+        log.error(f"处理压缩请求 {file.filename} 时发生错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"服务器处理压缩时出错: {str(e)}")
+    finally:
+        # 确保上传的临时文件总能被清理
+        if temp_upload_path and os.path.exists(temp_upload_path):
+            os.remove(temp_upload_path)
+
+
+# ==================== 随机阅读 API ====================
+
+class RandomSessionRequest(BaseModel):
+    limit: int = 50
+
+@router.post("/random-session")
+async def start_random_session(
+    request: RandomSessionRequest,
     interface: CoreInterface = Depends(get_interface)
 ):
-    """取消正在进行的批量压缩任务"""
+    """启动一个新的随机漫画会话"""
     try:
-        log.info("接收到前端取消压缩请求...")
-        interface.cancel_batch_compression()
-        return {"success": True, "message": "已发送取消压缩请求"}
+        session_id, first_page_manga = await interface.start_random_session(limit=request.limit)
+        if session_id:
+            return {
+                "success": True,
+                "session_id": session_id,
+                "manga_list": first_page_manga
+            }
+        else:
+            return {"success": False, "message": "无法启动随机播放会话，因为漫画库为空。"}
+    except CoreInterfaceError as e:
+        raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"取消批量压缩失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"启动随机播放会话失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
 
-
-
-
-# ==================== 自动过滤功能 ====================
-
-class AutoFilterRequest(BaseModel):
-    filter_method: str = "dimension_analysis"
-    threshold: float = 0.15
-    force_reanalyze: bool = False
-
-class ApplyFilterRequest(BaseModel):
-    filter_results: Dict[str, Any]
-
-@router.post("/auto-filter-preview")
-async def auto_filter_preview(
-    request: AutoFilterRequest,
+@router.get("/random-session/{session_id}")
+async def get_random_session_page(
+    session_id: str,
+    page: int = 1,
+    limit: int = 50,
     interface: CoreInterface = Depends(get_interface)
 ):
-    """预览自动过滤结果"""
+    """获取随机漫画会话的特定页面"""
     try:
-        result = interface.auto_filter_manga(
-            filter_method=request.filter_method,
-            threshold=request.threshold,
-            force_reanalyze=request.force_reanalyze
-        )
-        return result
-    except Exception as e:
-        log.error(f"自动过滤预览失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/apply-auto-filter")
-async def apply_auto_filter(
-    request: ApplyFilterRequest,
-    interface: CoreInterface = Depends(get_interface)
-):
-    """应用自动过滤结果"""
-    try:
-        success = interface.apply_filter_results(request.filter_results)
+        manga_page = await interface.get_random_session_page(session_id, page, limit)
         return {
-            "success": success,
-            "message": "过滤结果已应用",
-            "removed_count": len(request.filter_results.get("removed_manga", []))
+            "success": True,
+            "session_id": session_id,
+            "manga_list": manga_page,
+            "page": page
         }
+    except CoreInterfaceError as e:
+        raise HTTPException(status_code=404, detail=e.message) # 404 for session not found
     except Exception as e:
-        log.error(f"应用自动过滤失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"获取随机播放会话页面失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
 
 
 # ==================== 缓存管理功能 ====================
@@ -662,7 +525,7 @@ async def apply_auto_filter(
 async def get_cache_stats(interface: CoreInterface = Depends(get_interface)):
     """获取缓存统计信息"""
     try:
-        stats = interface.thumbnail_cache.get_cache_stats()
+        stats = interface.get_cache_stats()
         return {"success": True, "stats": stats}
     except Exception as e:
         log.error(f"获取缓存统计失败: {e}")
@@ -673,43 +536,27 @@ async def cleanup_cache(
     request: dict = None,
     interface: CoreInterface = Depends(get_interface)
 ):
-    """清理缓存"""
+    """清理过期的缓存文件"""
     try:
-        max_age_days = 7  # 默认7天
-
-        if request:
-            max_age_days = request.get("max_age_days", 7)
-
-        interface.thumbnail_cache._cleanup_expired_cache(max_age_days)
-
-        # 返回清理后的统计信息
-        stats = interface.thumbnail_cache.get_cache_stats()
-        return {"success": True, "message": "缓存清理完成", "stats": stats}
+        max_age_days = request.get("max_age_days", 7) if request else 7
+        
+        cleanup_result = interface.cleanup_cache(max_age_days=max_age_days)
+        
+        return {
+            "success": True,
+            "message": "缓存清理完成",
+            "stats": cleanup_result
+        }
     except Exception as e:
-        log.error(f"清理缓存失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"清理缓存失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
 
 @router.post("/cache/clear")
 async def clear_cache(interface: CoreInterface = Depends(get_interface)):
     """清空所有缓存"""
     try:
-        interface.thumbnail_cache.clear_cache()
+        interface.clear_cache()
         return {"success": True, "message": "缓存已清空"}
     except Exception as e:
         log.error(f"清空缓存失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/cache/clear-manga-list")
-async def clear_manga_list_cache(interface: CoreInterface = Depends(get_interface)):
-    """清空漫画列表缓存并重新扫描"""
-    try:
-        # 清空漫画列表缓存
-        interface.manga_manager.clear_manga_cache()
-
-        # 强制重新扫描
-        interface.manga_manager.scan_manga_files(force_rescan=True)
-
-        return {"success": True, "message": "漫画列表缓存已清空并重新扫描"}
-    except Exception as e:
-        log.error(f"清空漫画列表缓存失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

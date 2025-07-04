@@ -1,92 +1,62 @@
 <!-- 漫画浏览页面 -->
 <div class="manga-browser">
     <!-- 搜索和过滤 -->
-    <el-card>
-        <div class="manga-filters">
-            <!-- 顶部操作栏 -->
-            <div class="filter-header">
-                <!-- 搜索框 -->
-                <el-input
-                    v-model="searchQuery"
-                    placeholder="搜索漫画标题..."
-                    prefix-icon="Search"
-                    clearable
-                    style="flex: 1; margin-right: 16px;">
-                </el-input>
+    <div class="manga-filters" style="margin-bottom: 20px;">
+        <!-- 顶部操作栏 -->
+        <div class="filter-header">
+            <!-- 搜索框 -->
+            <el-input
+                v-model="searchQuery"
+                placeholder="搜索漫画标题..."
+                prefix-icon="Search"
+                clearable
+                style="flex: 1;">
+            </el-input>
 
-                <!-- Web版本只读提示按钮 (仅 Web 版显示) -->
-                <el-tooltip content="Web版本不支持添加漫画功能" placement="bottom" v-if="!runningInDesktopApp">
-                    <el-button type="primary" disabled>
-                        <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">public</span> Web版本 (只读模式)
+            <!-- 过滤器按钮 -->
+            <el-tooltip content="过滤器" placement="bottom">
+                <el-button
+                    @click="isFilterDrawerVisible = true"
+                    :class="{ 'is-active': filterOptions.tags.length > 0 }"
+                    text>
+                    <span class="material-symbols-rounded">filter_list</span>
+                </el-button>
+            </el-tooltip>
+
+            <!-- 随机阅读按钮 -->
+            <el-tooltip content="随机阅读" placement="bottom">
+                <el-button
+                    @click="toggleRandomMode"
+                    :class="{ 'is-active': isRandomMode }"
+                    text>
+                    <span class="material-symbols-rounded">shuffle</span>
+                </el-button>
+            </el-tooltip>
+
+            <!-- PyWebView 专属按钮组 -->
+            <template v-if="isPyWebView">
+                <!-- 选择目录按钮 -->
+                <el-tooltip content="选择目录" placement="bottom">
+                    <el-button @click="selectDirectory" text>
+                        <span class="material-symbols-rounded">folder_open</span>
                     </el-button>
                 </el-tooltip>
+                <!-- 选择文件按钮 -->
+                <el-tooltip content="选择文件" placement="bottom">
+                    <el-button @click="selectFile" text>
+                        <span class="material-symbols-rounded">description</span>
+                    </el-button>
+                </el-tooltip>
+            </template>
 
-                <!-- 桌面版：选择目录按钮 -->
-                <el-button
-                    v-if="runningInDesktopApp"
-                    type="primary"
-                    @click="selectDirectory"
-                    style="margin-left: 8px;">
-                    <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">folder_open</span> 选择目录
+            <!-- Web/桌面浏览器只读提示 -->
+            <el-tooltip content="Web版本不支持文件操作" placement="bottom" v-if="!isPyWebView">
+                 <el-button text disabled>
+                    <span class="material-symbols-rounded">public</span>
                 </el-button>
-                <!-- 桌面版：选择文件按钮 -->
-                <el-button
-                    v-if="runningInDesktopApp"
-                    type="success"  {# 使用不同颜色区分 #}
-                    @click="selectFile"
-                    style="margin-left: 8px;">
-                    <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 4px;">description</span> 选择文件
-                </el-button>
-
-                <!-- 清除过滤按钮 -->
-                <el-button
-                    v-if="selectedTags.length > 0"
-                    size="default"
-                    type="info"
-                    text
-                    @click="clearTagFilters"
-                    style="margin-left: 8px;">
-                    清除 (<span v-text="selectedTags.length"></span>)
-                </el-button>
-            </div>
-
-            <!-- 标签分类过滤 -->
-            <div v-if="Object.keys(tagsByCategory).length > 0" class="tag-category-filters">
-                <!-- 标签分类选择器 -->
-                <el-tabs v-model="activeTagCategory" type="card" class="tag-category-tabs">
-                    <el-tab-pane
-                        v-for="(tags, category) in tagsByCategory"
-                        :key="category"
-                        :label="`${category} (${tags.length})`"
-                        :name="category">
-
-                        <div class="tag-list">
-                            <el-tag
-                                v-for="tag in tags.slice(0, tagCategoryShowAll[category] ? tags.length : 20)"
-                                :key="tag.full"
-                                :type="selectedTags.includes(tag.full) ? 'primary' : undefined"
-                                :effect="selectedTags.includes(tag.full) ? 'dark' : 'plain'"
-                                @click="toggleTag(tag.full)"
-                                class="filter-tag">
-                                <span v-text="tag.display"></span>
-                            </el-tag>
-
-                            <!-- 显示更多按钮 -->
-                            <el-button
-                                v-if="tags.length > 20"
-                                size="small"
-                                type="info"
-                                text
-                                @click="toggleShowAllTags(category)"
-                                class="show-more-btn">
-                                <span v-text="tagCategoryShowAll[category] ? '收起' : `显示全部 ${tags.length} 个`"></span>
-                            </el-button>
-                        </div>
-                    </el-tab-pane>
-                </el-tabs>
-            </div>
+            </el-tooltip>
         </div>
-    </el-card>
+    </div>
 
     <!-- 空状态 -->
     {% include 'components/shared/empty-state.html' %}
@@ -94,9 +64,48 @@
     <!-- 加载状态 -->
     {% include 'components/shared/loading-state.html' %}
 
+    <!-- 侧边栏筛选面板 -->
+    <el-drawer
+        v-model="isFilterDrawerVisible"
+        title="标签筛选"
+        direction="rtl"
+        size="360px">
+        <div class="filter-drawer-content">
+            {% raw %}
+            <!-- 手风琴式标签分类过滤 -->
+            <div v-if="Object.keys(tagsByCategory).length > 0" class="accordion-filter">
+                <div v-for="(tags, category) in tagsByCategory" :key="category" class="accordion-item">
+                    <div class="accordion-header" @click="toggleAccordion(category)">
+                        <span class="header-title">{{ category }} ({{ tags.length }})</span>
+                        <span class="material-symbols-rounded" :class="{ 'is-active': activeAccordion === category }">
+                            expand_more
+                        </span>
+                    </div>
+                    <div v-show="activeAccordion === category" class="accordion-content">
+                        <div class="tag-list">
+                            <span v-for="tag in tags"
+                                  :key="tag.full"
+                                  class="tag"
+                                  :class="{ 'is-active': filterOptions.tags.includes(tag.full) }"
+                                  @click="onTagClick(tag.full)"
+                                  v-text="tag.display">
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div v-else class="empty-state-in-drawer">
+                <el-empty description="没有可用的标签"></el-empty>
+            </div>
+            {% endraw %}
+        </div>
+    </el-drawer>
+    
     <!-- 漫画列表 -->
-    <div v-else-if="filteredMangaList.length > 0" class="manga-grid">
-        {% include 'components/widgets/manga-card.html' %}
+    <div v-if="filteredMangaList.length > 0" class="manga-grid">
+        {% include 'components/widgets/manga-card_desktop.html' %}
+        <!-- 无限滚动触发器 -->
+        <div id="infinite-scroll-trigger" v-if="isRandomMode"></div>
     </div>
 
     <!-- 无结果状态 -->

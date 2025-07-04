@@ -3,6 +3,7 @@ import os
 import cv2
 import numpy as np
 import threading
+import asyncio
 from typing import Optional, Dict, Any, Union, List
 from pathlib import Path
 
@@ -175,7 +176,7 @@ class ImageTranslator:
             "is_cancelled": self.cancel_flag.is_set()
         }
     
-    def translate_image(self,
+    async def translate_image(self,
                        image_input: Union[str, np.ndarray],
                        target_language: str = "zh",
                        output_path: Optional[str] = None,
@@ -270,7 +271,7 @@ class ImageTranslator:
                 ocr_results = ocr_options["results"]
                 log.info(f"复用提供的 {len(ocr_results)} 个OCR结果")
             else:
-                ocr_results = self.ocr_manager.recognize_image_data_sync(
+                ocr_results = await self.ocr_manager.recognize_image_data(
                     image_data,
                     file_path_for_cache=current_file_path_for_cache,
                     page_num_for_cache=page_num_for_cache,
@@ -323,23 +324,28 @@ class ImageTranslator:
             log.info(f"开始翻译 (使用 {self.translator.__class__.__name__ if self.translator else '未知翻译器'})...")
             api_translations: List[str] = []
             
-            if isinstance(self.translator, ZhipuTranslator):
-                log.info(f"使用智谱翻译器批量翻译 {len(actual_texts_for_api)} 个文本块...")
-                if not self.translator.api_key: 
-                    log.error("智谱翻译器 API Key 未配置，无法进行翻译。将返回原文。")
-                    api_translations = actual_texts_for_api # Use harmonized (or original if no harmonization)
+            def do_translation():
+                if isinstance(self.translator, ZhipuTranslator):
+                    log.info(f"使用智谱翻译器批量翻译 {len(actual_texts_for_api)} 个文本块...")
+                    if not self.translator.api_key:
+                        log.error("智谱翻译器 API Key 未配置，无法进行翻译。将返回原文。")
+                        return actual_texts_for_api
+                    else:
+                        return self.translator.translate_batch(actual_texts_for_api, target_lang=target_language)
                 else:
-                    api_translations = self.translator.translate_batch(actual_texts_for_api, target_lang=target_language)
-            else: 
-                log.info(f"使用 {self.translator.__class__.__name__ if self.translator else '未知翻译器'} 翻译器逐个翻译 {len(actual_texts_for_api)} 个文本块...")
-                for text_for_api in actual_texts_for_api:
-                    try:
-                        translated = self.translator.translate(text_for_api, target_lang=target_language)
-                        api_translations.append(translated)
-                        log.debug(f"翻译API输入: '{text_for_api}' -> '{translated}'")
-                    except Exception as e:
-                        log.error(f"翻译失败: {text_for_api}, 错误: {e}")
-                        api_translations.append(text_for_api) # Return text_for_api (harmonized or original) on error
+                    log.info(f"使用 {self.translator.__class__.__name__ if self.translator else '未知翻译器'} 翻译器逐个翻译 {len(actual_texts_for_api)} 个文本块...")
+                    translations = []
+                    for text_for_api in actual_texts_for_api:
+                        try:
+                            translated = self.translator.translate(text_for_api, target_lang=target_language)
+                            translations.append(translated)
+                            log.debug(f"翻译API输入: '{text_for_api}' -> '{translated}'")
+                        except Exception as e:
+                            log.error(f"翻译失败: {text_for_api}, 错误: {e}")
+                            translations.append(text_for_api) # Return text_for_api (harmonized or original) on error
+                    return translations
+
+            api_translations = await asyncio.to_thread(do_translation)
             
             # Map translations back to original OCR texts
             final_translations_map: Dict[str, str] = {}
@@ -382,7 +388,7 @@ class ImageTranslator:
             log.error(traceback.format_exc()) 
             raise RuntimeError(f"图片翻译失败: {e}")
     
-    def translate_image_simple(self, 
+    async def translate_image_simple(self,
                               image_path: str,
                               output_dir: str = "output",
                               target_language: str = "zh") -> str:
@@ -391,22 +397,22 @@ class ImageTranslator:
         """
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"图片文件不存在: {image_path}")
-        
+
         os.makedirs(output_dir, exist_ok=True)
-        
+
         input_path = Path(image_path)
         output_filename = f"{input_path.stem}_translated_{target_language}.webp"
         output_path = os.path.join(output_dir, output_filename)
-        
-        translated_image_data = self.translate_image( 
+
+        translated_image_data = await self.translate_image(
             image_input=image_path,
             target_language=target_language,
-            output_path=output_path, 
+            output_path=output_path,
             save_original=True
         )
         return output_path
     
-    def batch_translate_images(self,
+    async def batch_translate_images(self,
                               input_dir: str,
                               output_dir: str = "output",
                               target_language: str = "zh",
@@ -416,30 +422,30 @@ class ImageTranslator:
         """
         if image_extensions is None:
             image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
-        
+
         if not os.path.exists(input_dir):
             raise FileNotFoundError(f"输入目录不存在: {input_dir}")
-        
+
         os.makedirs(output_dir, exist_ok=True)
-        
+
         image_files = []
         for ext in image_extensions:
             pattern = f"*{ext}"
             image_files.extend(Path(input_dir).glob(pattern))
             image_files.extend(Path(input_dir).glob(pattern.upper()))
-        
+
         if not image_files:
             log.warning(f"在目录 {input_dir} 中未找到图片文件")
             return []
-        
+
         log.info(f"找到 {len(image_files)} 个图片文件，开始批量翻译...")
-        
+
         output_paths = []
-        for i, image_file_path_obj in enumerate(image_files, 1): 
+        for i, image_file_path_obj in enumerate(image_files, 1):
             try:
                 log.info(f"处理第 {i}/{len(image_files)} 个文件: {image_file_path_obj.name}")
-                output_path = self.translate_image_simple(
-                    str(image_file_path_obj), 
+                output_path = await self.translate_image_simple(
+                    str(image_file_path_obj),
                     output_dir,
                     target_language
                 )
@@ -447,12 +453,12 @@ class ImageTranslator:
                 log.info(f"完成: {image_file_path_obj.name} -> {os.path.basename(output_path)}")
             except Exception as e:
                 log.error(f"处理文件 {image_file_path_obj.name} 时发生错误: {e}")
-                continue 
-        
+                continue
+
         log.info(f"批量翻译完成，成功处理 {len(output_paths)}/{len(image_files)} 个文件")
         return output_paths
     
-    def batch_translate_images_optimized(self,
+    async def batch_translate_images_optimized(self,
                                  image_inputs: List[Union[str, np.ndarray]],
                                  output_paths: Optional[List[str]] = None,
                                  target_language: str = "zh",
@@ -575,7 +581,7 @@ class ImageTranslator:
                 current_pn_cache = final_page_nums_for_cache[i]
                 current_oa_cache = final_original_archive_paths_for_cache[i]
 
-                ocr_results_page = self.ocr_manager.recognize_image_data_sync(
+                ocr_results_page = await self.ocr_manager.recognize_image_data(
                     img_data_item,
                     file_path_for_cache=current_fp_cache,
                     page_num_for_cache=current_pn_cache,
@@ -627,11 +633,14 @@ class ImageTranslator:
             log.info(f"开始批量翻译 {len(actual_texts_for_api_optimized)} 个唯一（可能已和谐化）文本 (使用 {self.translator.__class__.__name__ if self.translator else '未知翻译器'} optimized)...")
             
             api_translations_optimized: List[str] = []
-            if actual_texts_for_api_optimized: 
+            def do_bulk_translation():
+                if not actual_texts_for_api_optimized:
+                    return []
+                
                 if isinstance(self.translator, ZhipuTranslator):
                     if not self.translator.api_key:
                         log.error("智谱翻译器 API Key 未配置 (optimized)，无法进行翻译。将返回原文。")
-                        api_translations_optimized = actual_texts_for_api_optimized
+                        return actual_texts_for_api_optimized
                     else:
                         # 传递取消标志给智谱翻译器
                         translated_results = self.translator.translate_batch(
@@ -639,20 +648,24 @@ class ImageTranslator:
                             target_lang=target_language,
                             cancel_flag=self.cancel_flag
                         )
-                        api_translations_optimized = translated_results if translated_results else actual_texts_for_api_optimized
+                        return translated_results if translated_results else actual_texts_for_api_optimized
                 else:
+                    translations = []
                     for text_for_api in actual_texts_for_api_optimized:
                         # 检查取消标志
                         if self.cancel_flag.is_set():
                             log.info("翻译已取消，停止文本翻译处理")
                             raise RuntimeError("翻译已被用户取消")
-
                         try:
                             translated = self.translator.translate(text_for_api, target_lang=target_language)
-                            api_translations_optimized.append(translated)
+                            translations.append(translated)
                         except Exception as e_trans:
                             log.error(f"翻译失败 (optimized): {text_for_api}, 错误: {e_trans}")
-                            api_translations_optimized.append(text_for_api)
+                            translations.append(text_for_api)
+                    return translations
+
+            if actual_texts_for_api_optimized:
+                api_translations_optimized = await asyncio.to_thread(do_bulk_translation)
             
             # Map translations back to original unique OCR texts
             bulk_translations_map: Dict[str, str] = {} 
@@ -724,7 +737,7 @@ class ImageTranslator:
             # 重置翻译状态
             self.is_translating = False
 
-    def get_ocr_results(self,
+    async def get_ocr_results(self,
                        image_input: Union[str, np.ndarray],
                        file_path_for_cache: Optional[str] = None,
                        page_num_for_cache: Optional[int] = None,
@@ -756,7 +769,7 @@ class ImageTranslator:
         if image_data is None:
             raise RuntimeError("无法加载图片数据")
 
-        ocr_results = self.ocr_manager.recognize_image_data_sync(
+        ocr_results = await self.ocr_manager.recognize_image_data(
             image_data,
             file_path_for_cache=current_file_path_for_cache,
             page_num_for_cache=page_num_for_cache,
@@ -768,7 +781,7 @@ class ImageTranslator:
         structured_texts = self.ocr_manager.get_structured_text(filtered_results)
         return structured_texts
 
-    def translate_text(self, text: str, target_language: str = "zh") -> str:
+    async def translate_text(self, text: str, target_language: str = "zh") -> str:
         """直接翻译文本 (主要用于测试或独立文本翻译)"""
         if not self.translator:
             log.warning("翻译器未初始化，尝试根据当前配置重新初始化...")
@@ -778,17 +791,20 @@ class ImageTranslator:
                     raise RuntimeError("翻译器仍未初始化")
             except Exception as e:
                 raise RuntimeError(f"翻译器初始化失败: {e}")
-        
+
         # Apply harmonization if manager is available
         text_to_translate = text
         if self.harmonization_manager:
             text_to_translate = self.harmonization_manager.apply_mapping_to_text(text)
             if text != text_to_translate:
                 log.debug(f"文本和谐化: '{text}' -> '{text_to_translate}'")
-        
-        return self.translator.translate(text_to_translate, target_lang=target_language)
 
-    def translate_image_with_cache_data(self, image_input: Union[str, np.ndarray],
+        def do_translate():
+            return self.translator.translate(text_to_translate, target_lang=target_language)
+
+        return await asyncio.to_thread(do_translate)
+
+    async def translate_image_with_cache_data(self, image_input: Union[str, np.ndarray],
                                        target_language: str = "zh",
                                        file_path_for_cache: Optional[str] = None,
                                        page_num_for_cache: Optional[int] = None,
@@ -850,7 +866,7 @@ class ImageTranslator:
 
             # OCR识别
             log.info("开始OCR识别...")
-            ocr_results = self.ocr_manager.recognize_image_data_sync(
+            ocr_results = await self.ocr_manager.recognize_image_data(
                 image_data,
                 file_path_for_cache=current_file_path_for_cache,
                 page_num_for_cache=page_num_for_cache,
@@ -904,15 +920,25 @@ class ImageTranslator:
 
             # 翻译文本
             log.info(f"开始翻译 {len(harmonized_texts)} 个文本片段...")
-            translated_texts = []
 
-            for text in harmonized_texts:
-                if self.cancel_flag.is_set():
-                    log.info("翻译被取消")
-                    return None
+            async def do_translation_loop():
+                translated = []
+                for text in harmonized_texts:
+                    if self.cancel_flag.is_set():
+                        log.info("翻译被取消")
+                        # Can't return from here, so we raise an exception to stop
+                        raise asyncio.CancelledError("Translation was cancelled")
+                    
+                    # Each translation is an IO call, run in a thread
+                    translated_text = await asyncio.to_thread(self.translator.translate, text, target_lang=target_language)
+                    translated.append(translated_text)
+                return translated
 
-                translated_text = self.translator.translate(text, target_lang=target_language)
-                translated_texts.append(translated_text)
+            try:
+                translated_texts = await do_translation_loop()
+            except asyncio.CancelledError:
+                log.info("翻译循环已取消")
+                return None
 
             translation_data["translated_texts"] = translated_texts
 

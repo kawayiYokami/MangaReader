@@ -1,44 +1,43 @@
-<!-- HTML头部组件 -->
+<!-- HTML头部组件 - 全面优化加载顺序 -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>漫画翻译工具 - Web UI</title>
-<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
 
-    <!-- Element Plus CSS -->
+    <!-- 1. 资源预连接和预加载 (高优先级) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="https://unpkg.com/element-plus/dist/index.css" as="style">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" as="style">
+
+    <!-- 2. 渲染阻塞的CSS (顺序: 框架 -> 字体 -> 自定义) -->
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-
-<!-- Google Fonts - Noto Sans SC (Regular 400, Medium 500) -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
-    <!-- 自定义主题 -->
-<!-- Material Symbols - Rounded -->
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
     <link rel="stylesheet" href="/static/css/modern-theme.css">
 
-    <!-- Vue 3 -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-
-    <!-- Element Plus JS -->
-    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
-
-    <!-- Element Plus Icons -->
-    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.js"></script>
-
-    <!-- Axios -->
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-
-    <!-- 前端文件处理库 -->
-    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-
-    <!-- 主题管理器 -->
-    <script src="/static/js/theme-manager.js"></script>
-
-    <!-- 应用模块 -->
-    <script src="/static/js/app-data.js"></script>
-    <script src="/static/js/utils.js"></script>
-    <script src="/static/js/manga-browser.js"></script>
-    <script src="/static/js/cache-management.js"></script>
-    <script src="/static/js/translation.js"></script>
-    <script src="/static/js/compression.js"></script>
+    <!-- 3. 推迟加载的JavaScript (defer保证不阻塞渲染，并按顺序执行) -->
+    <!-- 核心库 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js" defer></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js" defer></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.js" defer></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js" defer></script>
+    
+    <!-- 工具库 -->
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js" defer></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js" defer></script>
+    
+    <!-- 应用核心模块 -->
+    <script src="/static/js/theme-manager.js" defer></script>
+    <script src="/static/js/app-data.js" defer></script>
+    
+    <!-- 应用功能模块 -->
+    <script src="/static/js/utils.js?v={{ cache_buster }}" defer></script>
+    <script src="/static/js/manga-browser-base.js?v={{ cache_buster }}" defer></script>
+    <script src="/static/js/desktop-browser.js?v={{ cache_buster }}" defer></script>
+    <script src="/static/js/cache-management.js?v={{ cache_buster }}" defer></script>
+    <script src="/static/js/translation.js" defer></script>
+    <script src="/static/js/compression.js?v={{ cache_buster }}" defer></script>
+    <script src="/static/js/compression_vue.js?v={{ cache_buster }}" defer></script>
 </head>

@@ -174,6 +174,7 @@ class Config:
             80,  # 默认 WebP 质量为 80
             validator=RangeValidator(0, 100)  # WebP 质量范围 0-100
         )
+        self.manga_dir = ConfigItem("Manga", "MangaDirectory", "")
 
         # ==================== 页面尺寸分析设置 ====================
         self.enable_dimension_analysis = ConfigItem("Manga", "EnableDimensionAnalysis", True)
@@ -191,6 +192,11 @@ class Config:
         self.thumbnail_output_height = RangeConfigItem("ThumbnailCache", "OutputHeight", 342, validator=RangeValidator(100, 1024))
         self.thumbnail_quality = RangeConfigItem("ThumbnailCache", "Quality", 75, validator=RangeValidator(10, 100))
         self.thumbnail_max_size_mb = RangeConfigItem("ThumbnailCache", "MaxSizeMB", 500, validator=RangeValidator(50, 10240))
+
+        # ==================== 页面缓存设置 ====================
+        self.page_cache_quality = RangeConfigItem("PageCache", "Quality", 85, validator=RangeValidator(10, 100))
+        self.page_cache_max_size_mb = RangeConfigItem("PageCache", "MaxSizeMB", 2048, validator=RangeValidator(100, 20480))
+        self.page_cache_standard_height = RangeConfigItem("PageCache", "StandardHeight", 3000, validator=RangeValidator(800, 4000))
 
         # ==================== MangaManager 状态 ====================
         self.current_page = ConfigItem("Manager", "CurrentPage", 0)

@@ -38,16 +38,11 @@
         <!-- 标签 -->
         <div class="manga-tags" v-if="getOtherTags(manga.tags).length > 0">
             <span class="tag"
-                  v-for="tag in getOtherTags(manga.tags).slice(0, 2)"
+                  v-for="tag in getOtherTags(manga.tags)"
                   :key="tag.full"
-                  @click.stop="onTagClick(tag.full)"
+                  @click.stop="onTagClick(tag.full, manga)"
                   :class="{ 'is-active': filterOptions.tags.includes(tag.full) }"
                   v-text="tag.display"></span>
-            <span class="tag more-tag"
-                  v-if="getOtherTags(manga.tags).length > 2"
-                  @click.stop="showAllTags(manga)">
-                +<span v-text="getOtherTags(manga.tags).length - 2"></span>
-            </span>
         </div>
     </div>
 </article>

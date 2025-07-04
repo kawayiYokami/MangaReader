@@ -119,7 +119,7 @@ async def set_current_manga(
         session_id = get_session_id_from_header(x_session_id)
         manager = get_viewer_manager(session_id)
         
-        result = manager.set_current_manga(request.manga_path, request.page)
+        result = await manager.set_current_manga(request.manga_path, request.page)
         
         if result["success"]:
             result["session_id"] = session_id
@@ -143,7 +143,7 @@ async def get_page_images(
         session_id = get_session_id_from_header(x_session_id)
         manager = get_viewer_manager(session_id)
         
-        result = manager.get_page_images(
+        result = await manager.get_page_images(
             page=request.page,
             display_mode=request.display_mode,
             translation_enabled=request.translation_enabled
@@ -151,7 +151,7 @@ async def get_page_images(
         
         if result["success"]:
             result["session_id"] = session_id
-            log.debug(f"会话 {session_id}: 获取页面图像成功 页面={request.page}")
+            log.debug(f"会话 {session_id}: 获取页面图像成功 req_page={request.page}")
         else:
             log.warning(f"会话 {session_id}: 获取页面图像失败 {result['message']}")
         

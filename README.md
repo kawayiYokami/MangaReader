@@ -1,10 +1,6 @@
 # Manga Manager & Reader - 漫画管理器与阅读器
 
-[
-![Python-Version](https://img.shields.io/badge/python-3.11+-blue.svg)
-](https://www.python.org/) [
-![License](https://img.shields.io/badge/license-GPL--3.0-brightgreen.svg)
-](LICENSE)
+[![Python-Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/) [![License](https://img.shields.io/badge/license-GPL--3.0-brightgreen.svg)](LICENSE)
 
 一款专为漫画收藏爱好者设计的本地管理器与阅读器。它能自动扫描、解析和组织您的漫画收藏，通过强大的元数据和标签系统提供极致的浏览体验，并集成了可选的翻译功能。
 
@@ -33,6 +29,33 @@
 - **自定义字体渲染**: 用户可选择任意字体回填翻译文本，达到最佳显示效果。
 - **批量图像压缩**: 支持将处理后的图片保存为 `WEBP` 格式，有效减小存储体积。
 
+## 🏗️ 项目结构
+
+```
+.
+├── core/                # 核心业务逻辑
+│   ├── manga/           # 漫画管理、解析、元数据
+│   ├── ocr/             # OCR文本识别
+│   ├── translation/     # 翻译引擎集成
+│   ├── image/           # 图像处理与压缩
+│   └── cache/           # 缓存管理
+│
+├── web/                 # Web应用 (FastAPI)
+│   ├── api/             # API路由
+│   ├── static/          # CSS, JavaScript
+│   ├── templates/       # Jinja2模板
+│   └── websocket/       # WebSocket通信
+│
+├── utils/               # 通用工具模块
+├── font/                # 自定义字体
+├── tests/               # 测试代码
+│
+├── web_main.py          # Web UI 启动脚本
+├── desktop_main.py      # 桌面应用启动脚本
+├── pyproject.toml       # 项目配置文件 (依赖、打包)
+└── README.md            # 项目说明
+```
+
 ## 🚀 快速开始
 
 ### 环境要求
@@ -43,17 +66,38 @@
 
 ### 安装
 
-1.  **克隆项目仓库**: `git clone https://github.com/kawayiYokami/MangaReader.git && cd MangaReader`
-2.  **创建并激活虚拟环境**: `uv venv --python 3.11` 然后激活 (`source .venv/bin/activate` 或 `.\.venv\Scripts\activate.bat`)
-3.  **安装依赖**: `uv pip sync requirements.txt`
+1.  **克隆项目仓库**:
+    ```bash
+    git clone https://github.com/kawayiYokami/MangaReader.git
+    cd MangaReader
+    ```
+2.  **安装 `uv` (如果尚未安装)**:
+    ```bash
+    pip install uv
+    ```
+3.  **创建并激活虚拟环境**:
+    ```bash
+    uv venv
+    ```
+    - 在 Windows 上激活: `.\.venv\Scripts\activate`
+    - 在 macOS/Linux 上激活: `source .venv/bin/activate`
 
-### 运行程序
+4.  **安装项目依赖**:
+    ```bash
+    uv pip install .
+    ```
+
+5.  **下载/更新 OCR 依赖 (仅限 Windows)**:
+    双击运行根目录下的 `update_ocr_font.bat` 脚本。这将自动下载或更新 OCR 功能所需的文件。
+
+## 运行程序
 
 您可以选择以下任一方式运行本应用：
 
-#### 方式一：运行Web UI (推荐)
+### 方式一：运行网页版 (Web UI)
 
-功能全面，适合绝大多数用户。
+功能全面，适合绝大多数用户，推荐使用此方式。
+
 ```bash
 python web_main.py
 ```
@@ -66,9 +110,10 @@ python web_main.py
 - `--kill-port`: 自动杀死占用端口的进程
 - `--debug`: 启用调试模式
 
-#### 方式二：运行桌面应用
+### 方式二：运行桌面应用
 
-打包了Web UI，提供更原生的文件操作体验。
+打包了Web UI，提供更原生的文件操作体验（如通过对话框选择目录）。
+
 ```bash
 python desktop_main.py
 ```
@@ -85,8 +130,4 @@ python desktop_main.py
 6.  **(可选)配置翻译**: 如果需要翻译功能，请进入 `设置` 页面，填入翻译服务提供商的 `API Key`。
 
 ## 🙏 致谢
-本项目的 OCR 功能依赖于优秀的 [OnnxOCR](https://github.com/jingsongliujing/OnnxOCR) 项目。
-如果您觉得它对您有帮助，请给原作者 [jingsonglijunjing/OnnxOCR](https://github.com/jingsongliujing/OnnxOCR) 点个 Star ⭐ 支持一下！
-
-## 📜 许可证
-本项目采用 [GNU General Public License v3.0](LICENSE) 授权。
+本项目的 OCR 功能依赖于优秀的 [![Python-Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/) [![License](https://img.shields.io/badge/license-GPL--3.0-brightgreen.svg)](LICENSE) 授权。

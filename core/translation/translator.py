@@ -31,7 +31,7 @@ class BaseTranslator(ABC):
 
         translator_name = self.__class__.__name__.replace("Translator", "").replace("Deep", "")
         cache_key = self.translation_cache_manager.generate_key(
-            original_text=clean_text, target_lang=target_lang, translator_type=translator_name
+            text=clean_text, target_lang=target_lang, translator_type=translator_name
         )
 
         cached_result = self.translation_cache_manager.get(cache_key)
@@ -45,10 +45,9 @@ class BaseTranslator(ABC):
                 if google_api_result and isinstance(google_api_result, dict) and "text" in google_api_result and google_api_result["text"]:
                     log.info(f"Google翻译成功替换敏感缓存: '{clean_text[:30]}...' -> '{google_api_result['text'][:30]}...'")
                     self.translation_cache_manager.set(
-                        key=cache_key, 
-                        data=google_api_result["text"], 
-                        is_sensitive=False, 
-                        original_text=clean_text
+                        key=cache_key,
+                        data=google_api_result["text"],
+                        is_sensitive=False
                     )
                     return google_api_result["text"]
                 else:
@@ -66,10 +65,9 @@ class BaseTranslator(ABC):
                 is_sensitive = translation_api_result.get("is_sensitive", False)
                 
                 self.translation_cache_manager.set(
-                    key=cache_key, 
-                    data=translated_text_api, 
-                    is_sensitive=is_sensitive,
-                    original_text=clean_text
+                    key=cache_key,
+                    data=translated_text_api,
+                    is_sensitive=is_sensitive
                 )
                 log.debug(f"已翻译并缓存: '{clean_text[:30]}...' -> '{translated_text_api[:30]}...'. 敏感: {is_sensitive}")
                 return translated_text_api
@@ -113,7 +111,7 @@ class ZhipuTranslator(BaseTranslator):
                 continue
 
             cache_key = self.translation_cache_manager.generate_key(
-                original_text=text, target_lang=target_lang, translator_type=translator_name
+                text=text, target_lang=target_lang, translator_type=translator_name
             )
             cached_result = self.translation_cache_manager.get(cache_key)
 
@@ -152,12 +150,12 @@ class ZhipuTranslator(BaseTranslator):
                         elif isinstance(translated_item_or_signal, str):
                             results[original_list_index] = translated_item_or_signal
                             current_cache_key = self.translation_cache_manager.generate_key(
-                                original_text=original_text_for_item, target_lang=target_lang, translator_type=translator_name
+                                text=original_text_for_item, target_lang=target_lang, translator_type=translator_name
                             )
                             self.translation_cache_manager.set(
-                                current_cache_key, translated_item_or_signal, is_sensitive=False, original_text=original_text_for_item
+                                key=current_cache_key, data=translated_item_or_signal, is_sensitive=False
                             )
-                        else: 
+                        else:
                             log.warning(f"批量API翻译失败 for '{original_text_for_item[:30]}...'. 将尝试智谱单条翻译。")
                             retry_with_zhipu_single_map[original_list_index] = original_text_for_item
                 else: 
@@ -195,11 +193,11 @@ class ZhipuTranslator(BaseTranslator):
                     results[original_list_idx] = google_translated_text
                     if is_sensitive_reason:
                         original_translator_cache_key = self.translation_cache_manager.generate_key(
-                            original_text=text_to_google_translate, target_lang=target_lang, translator_type="Zhipu"
+                            text=text_to_google_translate, target_lang=target_lang, translator_type="Zhipu"
                         )
                         log.info(f"批量: 使用Google结果更新原Zhipu缓存键 '{original_translator_cache_key}' for '{text_to_google_translate[:30]}...', 标记为敏感: True")
                         self.translation_cache_manager.set(
-                            original_translator_cache_key, google_translated_text, is_sensitive=True, original_text=text_to_google_translate
+                            key=original_translator_cache_key, data=google_translated_text, is_sensitive=True
                         )
                 else:
                     log.warning(f"批量: Google翻译最终失败 for '{text_to_google_translate[:30]}...'")

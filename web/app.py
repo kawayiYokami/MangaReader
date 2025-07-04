@@ -6,6 +6,7 @@ FastAPI应用的主入口，集成所有API路由和WebSocket处理。
 """
 
 import sys # 保留 sys 以便未来可能的调试或特定检查
+import time
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -39,6 +40,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# =================================================
 
 # --- 修改开始: 简化路径设置，依赖 __file__ 和 PyInstaller 的数据结构 ---
 # Path(__file__) 在开发时指向 web/app.py
@@ -87,12 +91,43 @@ core_interface = None
 async def startup_event():
     """应用启动时的初始化"""
     global core_interface
+    import asyncio
+    from web.websocket.handlers import broadcast_manga_list_update
 
     log.info("Web应用启动中...")
 
     # 初始化Core接口
     core_interface = get_core_interface()
     log.info("Core接口初始化完成")
+
+    # --- 异步事件监听器 ---
+    async def manga_update_listener():
+        log.info("启动 MangaManager 事件监听器...")
+        manga_manager = core_interface.manga_manager
+        while True:
+            try:
+                # 等待来自 MangaManager 的事件
+                event = await manga_manager.update_queue.get()
+                log.info(f"收到 MangaManager 事件: {event}")
+
+                if event['type'] == 'data_loaded':
+                    await broadcast_manga_list_update(event['data'])
+                
+                # 可以在这里处理其他类型的事件...
+
+                manga_manager.update_queue.task_done()
+            except asyncio.CancelledError:
+                log.info("MangaManager 事件监听器被取消。")
+                break
+            except Exception as e:
+                log.error(f"处理 MangaManager 事件时出错: {e}", exc_info=True)
+                # 等待一秒钟，避免在出错时快速循环
+                await asyncio.sleep(1)
+
+    # 启动后台任务来监听事件
+    asyncio.create_task(manga_update_listener())
+    log.info("MangaManager 事件监听任务已在后台启动。")
+    # --------------------
 
     log.info("Web应用启动完成")
 
@@ -126,23 +161,38 @@ async def root(request: Request):
     is_mobile = any(keyword in user_agent for keyword in ["mobi", "android", "iphone"])
 
     if is_mobile:
-        log.info(f"检测到移动设备, User-Agent: {user_agent}. 重定向到移动版主页。")
-        return RedirectResponse(url="/dev/mobile-home")
+        # 重定向到专门的移动端主页
+        return RedirectResponse(url="/mobile")
 
-    # 桌面设备逻辑
-    log.info(f"检测到桌面设备, User-Agent: {user_agent}. 提供桌面版主页。")
+    # 桌面设备逻辑 (PyWebView 或 桌面浏览器)
+    headers = request.headers
+    sec_ch_ua = headers.get("sec-ch-ua", "")
+    is_pywebview = "WebView2" in sec_ch_ua
+    
     theme_value = config.themeMode.value
-    if hasattr(theme_value, 'value'):  # 如果是枚举类型
+    if hasattr(theme_value, 'value'):
         initial_theme = theme_value.value
-    else:  # 如果是字符串
+    else:
         initial_theme = str(theme_value).lower()
-    return templates.TemplateResponse("index.html", {"request": request, "initial_theme": initial_theme})
+        
+    context = {
+        "request": request,
+        "initial_theme": initial_theme,
+        "is_pywebview": is_pywebview, # 只需区分是否为 PyWebView
+        "cache_buster": int(time.time())
+    }
+    return templates.TemplateResponse("index.html", context)
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """提供网站图标"""
+    return FileResponse(static_dir / "favicon.ico")
 
 @app.get("/viewer.html", response_class=HTMLResponse)
 async def manga_viewer():
-    """漫画查看器页面"""
+    """漫画查看器页面 (桌面版)"""
     viewer_html_path = templates_dir / "viewer.html"
-    log.info(f"尝试打开 viewer.html at: {viewer_html_path}")
+    log.info(f"提供桌面版 viewer.html at: {viewer_html_path}")
     if not viewer_html_path.exists():
         log.error(f"viewer.html 未找到 at {viewer_html_path}")
         return HTMLResponse(content="Error: viewer.html not found.", status_code=404)
@@ -154,20 +204,20 @@ async def cache_management(request: Request):
     """缓存管理页面"""
     return templates.TemplateResponse("index.html", {"request": request})
 
-@app.get("/dev/viewer-mobile", response_class=HTMLResponse)
-async def dev_viewer_mobile():
-    """[仅供开发] 移动端查看器的独立入口"""
-    mobile_viewer_path = templates_dir / "viewer_mobile.html"
-    if not mobile_viewer_path.exists():
-        return HTMLResponse(content="Error: viewer_mobile.html not found.", status_code=404)
-    return FileResponse(mobile_viewer_path)
+@app.get("/viewer_mobile.html", response_class=HTMLResponse)
+async def manga_viewer_mobile(request: Request):
+    """移动端查看器的独立入口"""
+    log.info("Providing mobile viewer: viewer_mobile.html")
+    return templates.TemplateResponse("viewer_mobile.html", {"request": request})
 
-@app.get("/test-viewer", response_class=HTMLResponse)
-@app.get("/dev/mobile-home", response_class=HTMLResponse)
-async def dev_mobile_home(request: Request):
-    """[仅供开发] 移动端主页的独立入口"""
-    # 主页需要被Jinja2渲染以处理 include 标签
-    return templates.TemplateResponse("index_mobile.html", {"request": request})
+@app.get("/mobile", response_class=HTMLResponse)
+async def mobile_home(request: Request):
+    """移动端主页的唯一入口"""
+    context = {
+        "request": request,
+        "cache_buster": int(time.time())
+    }
+    return templates.TemplateResponse("index_mobile.html", context)
 
 async def test_viewer_page(request: Request):
     """翻译工厂架构测试页面"""

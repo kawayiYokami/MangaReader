@@ -9,10 +9,12 @@ import threading
 import time
 from typing import Optional, Dict, Any, Tuple
 from enum import Enum
+import cv2
+import numpy as np
 
 from core.core_cache.cache_key_generator import get_cache_key_generator
 from core.translation.realtime_translator import get_realtime_translator
-from core.manga.manga_model import MangaLoader
+from core.manga.data_source import DataSourceFactory
 from core.core_cache.persistent_translation_cache import get_persistent_translation_cache
 from core.config import config
 from utils import manga_logger as log
@@ -25,9 +27,6 @@ class PageStatus(Enum):
     TRANSLATING = "translating"  # 翻译中
     TRANSLATED = "translated"    # 已翻译
     FAILED = "failed"           # 翻译失败
-
-
-
 
 
 class TranslationFactory:
@@ -57,9 +56,8 @@ class TranslationFactory:
         self.page_status: Dict[str, PageStatus] = {}
         self.status_lock = threading.RLock()
 
-        # 翻译器和漫画加载器
+        # 翻译器
         self.translator = get_realtime_translator()
-        self.manga_loader = MangaLoader()
 
         # 初始化翻译器配置
         self._init_translator_config()
@@ -213,18 +211,23 @@ class TranslationFactory:
 
             log.info(f"翻译工厂: 开始翻译 {manga_path}:{page_index}")
 
-            # 加载漫画和图像
-            manga = self.manga_loader.load_manga(manga_path)
-            if not manga:
-                raise Exception(f"无法加载漫画: {manga_path}")
+            # 使用DataSource加载图像数据
+            data_source = DataSourceFactory.create(manga_path)
+            if not data_source:
+                raise Exception(f"无法为路径创建数据源: {manga_path}")
 
-            image = self.manga_loader.get_page_image(manga, page_index)
-            if image is None:
-                raise Exception(f"无法获取页面图像: {page_index}")
+            image_data = data_source.get_page_image_data(page_index)
+            if not image_data:
+                raise Exception(f"无法获取页面 {page_index} 的图像数据")
+
+            nparr = np.frombuffer(image_data, np.uint8)
+            image_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if image_np is None:
+                raise Exception(f"无法使用 cv2 解码图像数据: {page_index}")
 
             # 执行翻译
             translation_result = self.translator.translate_image_with_cache_data(
-                image=image,
+                image=image_np,
                 target_language="zh",
                 file_path_for_cache=manga_path,
                 page_num_for_cache=page_index

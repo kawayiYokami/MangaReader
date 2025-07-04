@@ -1,9 +1,14 @@
 import os
 import json
 import sqlite3
-from typing import Any, List, Optional, Dict, Tuple # Added Dict, Tuple, sqlite3
+import asyncio
+from typing import Any, List, Optional, Dict, Tuple, TYPE_CHECKING # Added Dict, Tuple, sqlite3
 from utils import manga_logger as log
 from core.core_cache.cache_interface import CacheInterface
+
+if TYPE_CHECKING:
+    from core.manga.manga_model import MangaInfo
+
 
 # Cache directory and database file name
 CACHE_DIR = "app/config"
@@ -18,7 +23,7 @@ class MangaListCacheManager(CacheInterface):
     def __init__(self, db_path: str = DB_PATH):
         """初始化缓存管理器"""
         self.db_path = db_path
-        self.conn: Optional[sqlite3.Connection] = None
+        # self.conn is no longer used. Each thread will have its own connection.
         self._ensure_cache_dir_exists()
         self._init_db()
         log.info(f"MangaListCacheManager 初始化完成，数据库路径: {self.db_path}")
@@ -38,178 +43,217 @@ class MangaListCacheManager(CacheInterface):
                 log.error(f"创建缓存目录 {directory} 失败: {e}")
                 raise
 
-    def _connect(self) -> sqlite3.Connection:
-        """连接到 SQLite 数据库"""
-        if self.conn is None or self._is_connection_closed():
-            try:
-                self.conn = sqlite3.connect(self.db_path)
-                self.conn.row_factory = sqlite3.Row # Access columns by name
-            except sqlite3.Error as e:
-                log.error(f"连接到数据库 {self.db_path} 失败: {e}")
-                raise
-        return self.conn
-
-    def _is_connection_closed(self) -> bool:
-        """检查数据库连接是否已关闭"""
-        if self.conn is None:
-            return True
-        try:
-            self.conn.execute("SELECT 1").fetchone()
-            return False
-        except (sqlite3.ProgrammingError, sqlite3.OperationalError): # Connection closed or unusable
-            return True
-
     def _init_db(self):
-        """初始化数据库和表"""
+        """
+        初始化数据库和所有需要的表。
+        此操作在启动时执行，可以是同步的。
+        """
         try:
-            conn = self._connect()
-            cursor = conn.cursor()
-            cursor.execute(f"""
-            CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-                library_id TEXT PRIMARY KEY,
-                manga_data TEXT NOT NULL,
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # 1. 漫画主表
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mangas (
+                file_path TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                last_modified REAL NOT NULL,
+                total_pages INTEGER,
+                file_size INTEGER,
+                file_type TEXT,
+                is_valid BOOLEAN,
+                pages_json TEXT,
+                page_dimensions_json TEXT,
+                dimension_variance REAL,
+                is_likely_manga BOOLEAN
             )
             """)
-            conn.commit()
-            log.info(f"漫画列表缓存数据库表 '{TABLE_NAME}' 已准备就绪")
+
+            # 2. 标签表
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            )
+            """)
+
+            # 3. 漫画与标签的关联表
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS manga_tags (
+                manga_path TEXT,
+                tag_id INTEGER,
+                PRIMARY KEY (manga_path, tag_id),
+                FOREIGN KEY (manga_path) REFERENCES mangas (file_path) ON DELETE CASCADE,
+                FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE
+            )
+            """)
+            log.info("结构化的漫画缓存数据库表已准备就绪。")
         except sqlite3.Error as e:
-            log.error(f"初始化数据库表 {TABLE_NAME} 失败: {e}")
+            log.error(f"初始化数据库表失败: {e}")
 
-    def generate_key(self, *args, **kwargs) -> str:
-        """
-        对于统一漫画库缓存，键是固定的。
-        忽略所有参数，始终返回代表主库的唯一键。
-        """
-        return LIBRARY_KEY
 
-    def get(self, key: str) -> Optional[List[Dict[str, Any]]]:
+    async def add_or_update_manga_batch(self, mangas: List['MangaInfo']):
         """
-        获取主漫画库的缓存。
-        注意：'key' 参数被忽略，因为此缓存只管理一个单一的实体。
+        批量添加或更新漫画到数据库。
+        使用事务以确保操作的原子性和性能。
+        在独立的线程中运行以避免阻塞事件循环。
         """
-        # 始终使用固定的库键
-        library_key = LIBRARY_KEY
+        from core.manga.manga_model import MangaInfo # 避免循环导入
+
+        def _db_operation():
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    
+                    all_tags = set()
+                    for manga in mangas:
+                        log.info(f"[CacheManager] Preparing to cache '{manga.file_path}' with last_modified: {manga.last_modified}")
+                        all_tags.update(manga.tags)
+                    
+                    if all_tags:
+                        cursor.executemany("INSERT OR IGNORE INTO tags (name) VALUES (?)", [(tag,) for tag in all_tags])
+                        
+                    manga_data_to_upsert = [
+                        (
+                            m.file_path, m.title, m.last_modified, m.total_pages, m.file_size, m.file_type,
+                            m.is_valid,
+                            json.dumps(m.pages) if m.pages else None,
+                            json.dumps(m.page_dimensions) if m.page_dimensions else None,
+                            m.dimension_variance, m.is_likely_manga
+                        ) for m in mangas
+                    ]
+                    
+                    manga_sql = """
+                    INSERT INTO mangas (
+                        file_path, title, last_modified, total_pages, file_size, file_type,
+                        is_valid, pages_json, page_dimensions_json, dimension_variance, is_likely_manga
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(file_path) DO UPDATE SET
+                        title = excluded.title, last_modified = excluded.last_modified,
+                        total_pages = excluded.total_pages, file_size = excluded.file_size,
+                        file_type = excluded.file_type, is_valid = excluded.is_valid,
+                        pages_json = excluded.pages_json, page_dimensions_json = excluded.page_dimensions_json,
+                        dimension_variance = excluded.dimension_variance, is_likely_manga = excluded.is_likely_manga;
+                    """
+                    cursor.executemany(manga_sql, manga_data_to_upsert)
+
+                    manga_paths = [m.file_path for m in mangas]
+                    placeholders = ','.join('?' for _ in manga_paths)
+                    cursor.execute(f"DELETE FROM manga_tags WHERE manga_path IN ({placeholders})", manga_paths)
+                    
+                    tag_to_id_map = {row['name']: row['id'] for row in cursor.execute("SELECT id, name FROM tags")}
+                    
+                    manga_tags_to_insert = []
+                    for manga in mangas:
+                        for tag_name in manga.tags:
+                            if tag_id := tag_to_id_map.get(tag_name):
+                                manga_tags_to_insert.append((manga.file_path, tag_id))
+                    
+                    if manga_tags_to_insert:
+                        cursor.executemany("INSERT INTO manga_tags (manga_path, tag_id) VALUES (?, ?)", manga_tags_to_insert)
+
+                log.info(f"成功批量添加/更新 {len(mangas)} 本漫画到数据库。")
+            except sqlite3.Error as e:
+                log.error(f"批量更新漫画时发生数据库错误: {e}", exc_info=True)
         
-        try:
-            conn = self._connect()
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT manga_data FROM {TABLE_NAME} WHERE library_id = ?", (library_key,))
-            row = cursor.fetchone()
-            if row:
-                manga_data_json = row["manga_data"]
-                return json.loads(manga_data_json)
-            log.info(f"漫画库缓存未找到 (键: {library_key})")
-            return None
-        except sqlite3.Error as e:
-            log.error(f"从漫画列表缓存获取数据失败 (键: {library_key}): {e}")
-            return None
-        except json.JSONDecodeError as e:
-            log.error(f"解析缓存的漫画列表数据失败 (键: {library_key}): {e}")
-            return None
+        await asyncio.to_thread(_db_operation)
 
-    def set(self, key: str, data: List[Any], **kwargs) -> None:
-        """
-        更新主漫画库的缓存。
-        注意：'key' 参数被忽略，因为此缓存只管理一个单一的实体。
-        """
-        library_key = LIBRARY_KEY # 始终使用固定的库键
+    async def get_manga_list_for_display(self, sort_by="last_modified DESC", tag_filters: List[str] = None) -> List[Dict]:
+        """一个非常高效的查询，直接返回前端所需的数据字典列表"""
+        def _db_operation():
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    base_sql = """
+                    SELECT
+                        m.file_path, m.title, m.last_modified, m.total_pages, m.file_size, m.file_type,
+                        GROUP_CONCAT(t.name) as tags
+                    FROM mangas m
+                    LEFT JOIN manga_tags mt ON m.file_path = mt.manga_path
+                    LEFT JOIN tags t ON mt.tag_id = t.id
+                    """
+                    params = []
+                    
+                    if tag_filters:
+                        placeholders = ','.join('?' for _ in tag_filters)
+                        base_sql += f"""
+                        WHERE m.file_path IN (
+                            SELECT manga_path FROM manga_tags
+                            JOIN tags ON manga_tags.tag_id = tags.id
+                            WHERE tags.name IN ({placeholders})
+                            GROUP BY manga_path
+                            HAVING COUNT(DISTINCT tags.name) = ?
+                        )
+                        """
+                        params.extend(tag_filters)
+                        params.append(len(tag_filters))
 
-        serializable_list: List[Dict[str, Any]] = []
-        for manga_item in data:
-            if isinstance(manga_item, dict):
-                serializable_list.append(manga_item)
-            elif hasattr(manga_item, "file_path") and hasattr(manga_item, "last_modified"):
-                # 确保所有值都是JSON可序列化的
-                dimension_variance = getattr(manga_item, "dimension_variance", None)
-                is_likely_manga = getattr(manga_item, "is_likely_manga", None)
+                    base_sql += " GROUP BY m.file_path"
 
-                # 处理特殊的数值类型
-                if dimension_variance is not None:
-                    try:
-                        dimension_variance = float(dimension_variance)
-                    except (TypeError, ValueError):
-                        dimension_variance = None
+                    allowed_orders = ["last_modified DESC", "last_modified ASC", "title ASC", "title DESC", "file_size DESC", "file_size ASC"]
+                    if sort_by in allowed_orders:
+                        base_sql += f" ORDER BY {sort_by}"
 
-                # 确保布尔值是标准Python布尔类型
-                if is_likely_manga is not None:
-                    is_likely_manga = bool(is_likely_manga)
+                    cursor = conn.cursor()
+                    cursor.execute(base_sql, params)
+                    rows = cursor.fetchall()
 
-                manga_info = {
-                    "file_path": manga_item.file_path,
-                    "title": getattr(manga_item, "title", os.path.basename(manga_item.file_path)),
-                    "tags": list(getattr(manga_item, "tags", [])),
-                    "total_pages": getattr(manga_item, "total_pages", 0),
-                    "is_valid": bool(getattr(manga_item, "is_valid", False)),
-                    "last_modified": manga_item.last_modified,
-                    "pages": getattr(manga_item, "pages", []),
-                    "is_translated": bool(getattr(manga_item, "is_translated", False)),
-                    # 页面尺寸分析相关数据
-                    "page_dimensions": getattr(manga_item, "page_dimensions", []),
-                    "dimension_variance": dimension_variance,
-                    "is_likely_manga": is_likely_manga
-                }
-                serializable_list.append(manga_info)
-            else:
-                log.warning(f"无法序列化漫画项目: {manga_item} (库: {library_key})")
+                    result = []
+                    for row in rows:
+                        row_dict = dict(row)
+                        row_dict['tags'] = row_dict['tags'].split(',') if row_dict['tags'] else []
+                        result.append(row_dict)
+                    return result
+            except sqlite3.Error as e:
+                log.error(f"从数据库获取漫画列表时出错: {e}", exc_info=True)
+                return []
         
-        try:
-            manga_data_json = json.dumps(serializable_list, ensure_ascii=False)
-            conn = self._connect()
-            cursor = conn.cursor()
-            cursor.execute(f"""
-            INSERT OR REPLACE INTO {TABLE_NAME} (library_id, manga_data, last_updated)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-            """, (library_key, manga_data_json))
-            conn.commit()
-            log.info(f"已更新主漫画库缓存，共 {len(serializable_list)} 本漫画")
-        except sqlite3.Error as e:
-            log.error(f"设置主漫画库缓存失败 (键: {library_key}): {e}")
-        except TypeError as e: # Error during json.dumps
-            log.error(f"序列化主漫画库数据失败 (键: {library_key}): {e}")
+        return await asyncio.to_thread(_db_operation)
 
-    def delete(self, key: str) -> None:
-        """
-        删除主漫画库的缓存。
-        注意：'key' 参数被忽略，此操作将始终删除主库。
-        """
-        library_key = LIBRARY_KEY
-        try:
-            conn = self._connect()
-            cursor = conn.cursor()
-            cursor.execute(f"DELETE FROM {TABLE_NAME} WHERE library_id = ?", (library_key,))
-            conn.commit()
-            if cursor.rowcount > 0:
-                log.info(f"已删除主漫画库缓存 (键: {library_key})")
-            else:
-                log.info(f"尝试删除主漫画库缓存，但缓存不存在。")
-        except sqlite3.Error as e:
-            log.error(f"删除主漫画库缓存失败 (键: {library_key}): {e}")
+    async def get_manga_count(self) -> int:
+        """获取数据库中漫画的总数"""
+        def _db_operation():
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT COUNT(*) FROM mangas")
+                    count = cursor.fetchone()[0]
+                    return count if count is not None else 0
+            except sqlite3.Error as e:
+                log.error(f"获取漫画总数时出错: {e}", exc_info=True)
+                return 0
+        
+        return await asyncio.to_thread(_db_operation)
 
-    def clear(self) -> None:
-        """清空所有漫画列表缓存"""
-        try:
-            conn = self._connect()
-            cursor = conn.cursor()
-            cursor.execute(f"DELETE FROM {TABLE_NAME}")
-            conn.commit()
-            log.info(f"漫画列表缓存表 '{TABLE_NAME}' 已清空")
-        except sqlite3.Error as e:
-            log.error(f"清空漫画列表缓存失败: {e}")
+    async def get_all_tags(self) -> List[str]:
+        """从 tags 表中获取所有不重复的标签"""
+        def _db_operation():
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT name FROM tags ORDER BY name")
+                    return [row['name'] for row in cursor.fetchall()]
+            except sqlite3.Error as e:
+                log.error(f"获取所有标签时出错: {e}", exc_info=True)
+                return []
+        
+        return await asyncio.to_thread(_db_operation)
 
-    def get_all_entries_for_display(self) -> List[Dict[str, Any]]:
-        """
-        获取主漫画库的缓存条目信息，用于在界面中显示。
-        """
-        try:
-            conn = self._connect()
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT library_id, last_updated FROM {TABLE_NAME}")
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
-        except sqlite3.Error as e:
-            log.error(f"获取所有漫画列表缓存条目失败: {e}")
-            return []
+    async def clear(self) -> None:
+        """清空所有漫画相关的表"""
+        def _db_operation():
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.execute("DELETE FROM manga_tags")
+                    conn.execute("DELETE FROM tags")
+                    conn.execute("DELETE FROM mangas")
+                log.info("所有漫画缓存表已清空。")
+            except sqlite3.Error as e:
+                log.error(f"清空漫画缓存表时发生错误: {e}")
+        
+        await asyncio.to_thread(_db_operation)
 
     def get_cache_size_bytes(self) -> int:
         """
@@ -229,35 +273,72 @@ class MangaListCacheManager(CacheInterface):
             return 0
 
     def close(self) -> None:
-        """关闭数据库连接。"""
-        if self.conn:
+        """
+        关闭缓存资源。对于当前的实现，连接是按需创建和销毁的，
+        因此这个方法可以为空，但必须存在以满足接口契约。
+        """
+        pass
+
+    # --- Methods from CacheInterface that are no longer applicable ---
+    # The following methods are part of the CacheInterface contract but are
+    # not semantically applicable to this specialized repository. They are
+    # implemented to raise NotImplementedError to prevent accidental use.
+
+    def generate_key(self, *args, **kwargs) -> str:
+        """This method is not applicable to MangaListCacheManager."""
+        raise NotImplementedError("MangaListCacheManager does not use generated keys.")
+
+    def get(self, key: str) -> Optional[Any]:
+        """Use specific getter methods like get_manga_by_path() instead."""
+        raise NotImplementedError("Generic 'get' is not supported. Use specific repository methods.")
+
+    def set(self, key: str, data: Any, **kwargs) -> None:
+        """Use specific methods like add_or_update_manga_batch() instead."""
+        raise NotImplementedError("Generic 'set' is not supported. Use specific repository methods.")
+
+    def delete(self, key: str) -> None:
+        """Deletion should be handled by specific methods, e.g., by manga path."""
+        raise NotImplementedError("Generic 'delete' by key is not supported.")
+
+    async def get_manga_by_path(self, file_path: str) -> Optional['MangaInfo']:
+        """通过路径高效获取单个漫画的完整信息"""
+        from core.manga.manga_model import MangaInfo
+
+        def _db_operation():
             try:
-                self.conn.close()
-                self.conn = None
-                log.info("漫画列表缓存数据库连接已关闭")
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    sql = """
+                    SELECT
+                        m.*,
+                        GROUP_CONCAT(t.name) as tags
+                    FROM mangas m
+                    LEFT JOIN manga_tags mt ON m.file_path = mt.manga_path
+                    LEFT JOIN tags t ON mt.tag_id = t.id
+                    WHERE m.file_path = ?
+                    GROUP BY m.file_path
+                    """
+                    cursor = conn.cursor()
+                    cursor.execute(sql, (file_path,))
+                    row = cursor.fetchone()
+
+                    if not row:
+                        return None
+                    
+                    manga_data = dict(row)
+                    
+                    pages_json = manga_data.pop('pages_json', None)
+                    page_dimensions_json = manga_data.pop('page_dimensions_json', None)
+                    
+                    manga_data['pages'] = json.loads(pages_json) if pages_json else []
+                    manga_data['page_dimensions'] = json.loads(page_dimensions_json) if page_dimensions_json else []
+                    
+                    tags_str = manga_data.get('tags')
+                    manga_data['tags'] = set(tags_str.split(',')) if tags_str else set()
+
+                    return MangaInfo(**manga_data)
             except sqlite3.Error as e:
-                log.error(f"关闭漫画列表数据库连接失败: {e}")
+                log.error(f"从数据库获取漫画 '{file_path}' 时出错: {e}", exc_info=True)
+                return None
 
-    def __del__(self):
-        self.close()
-
-    def is_manga_modified(self, file_path: str) -> bool:
-        """检查指定漫画文件相对于缓存中的记录是否已被修改。"""
-        if not os.path.exists(file_path):
-            return True  # 文件不存在，视为已修改
-
-        try:
-            current_mtime = os.path.getmtime(file_path)
-        except OSError:
-            log.warning(f"无法获取文件修改时间: {file_path}，视为已修改")
-            return True
-
-        cached_library = self.get(LIBRARY_KEY)
-        if cached_library:
-            for manga_info in cached_library:
-                if manga_info.get("file_path") == file_path:
-                    # 找到记录，比较修改时间
-                    return current_mtime > manga_info.get("last_modified", 0)
-        
-        # 如果缓存中没有找到该文件，视为新文件/已修改
-        return True
+        return await asyncio.to_thread(_db_operation)

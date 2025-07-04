@@ -4,6 +4,40 @@ window.UtilsMethods = {
 
     handleMenuSelect(key) {
         this.activeMenu = key;
+
+        // 模块懒加载调度中心
+        // 检查模块是否已定义且尚未初始化
+        if (this.moduleInitialized.hasOwnProperty(key) && !this.moduleInitialized[key]) {
+            console.log(`[LazyLoad] 首次初始化模块: ${key}`);
+
+            // 执行对应模块的初始化逻辑
+            switch (key) {
+                case 'cache':
+                    if (this.initCacheManagement) {
+                        console.log('[LazyLoad] 调用 initCacheManagement()');
+                        this.initCacheManagement();
+                    }
+                    break;
+                case 'translation':
+                    // 翻译模块的初始化逻辑（如果存在）
+                    // 暂时没有，留作扩展点
+                    break;
+                case 'compression':
+                    // 压缩模块的初始化逻辑（如果存在）
+                    // 暂时没有，留作扩展点
+                    break;
+                case 'settings':
+                    // 设置模块需要加载字体
+                    if (this.fetchAvailableFonts) {
+                        console.log('[LazyLoad] 调用 fetchAvailableFonts() 用于设置页面');
+                        this.fetchAvailableFonts();
+                    }
+                    break;
+            }
+
+            // 将标志位置为true，防止重复初始化
+            this.moduleInitialized[key] = true;
+        }
     },
 
     // ==================== WebSocket 连接管理 ====================
@@ -67,12 +101,26 @@ window.UtilsMethods = {
         console.log('处理缓存事件:', event);
 
         // 如果是漫画列表缓存更新事件
-        if (event.cache_type === 'manga_list' && event.event_type === 'cleared') {
-            console.log('漫画列表缓存已清空，刷新漫画浏览页面');
-
-            // 如果当前在漫画浏览页面，刷新数据
-            if (this.activeMenu === 'manga-browser' && this.loadInitialData) {
-                this.loadInitialData();
+        if (event.cache_type === 'manga_list') {
+            // 检查事件类型
+            if (event.event_type === 'updated' && event.data) {
+                // 确保数据存在且格式正确
+                if (Array.isArray(event.data.manga_list) && Array.isArray(event.data.tags)) {
+                    console.log('通过WebSocket更新漫画列表和标签');
+                    this.mangaList = event.data.manga_list;
+                    this.tags = event.data.tags;
+                } else {
+                    console.warn('收到格式不正确的漫画列表更新事件，将完全刷新');
+                    if (this.activeMenu === 'manga-browser' && this.loadInitialData) {
+                        this.loadInitialData();
+                    }
+                }
+            } else if (event.event_type === 'cleared') {
+                console.log('漫画列表缓存已清空，刷新漫画浏览页面');
+                // 如果当前在漫画浏览页面，刷新数据
+                if (this.activeMenu === 'manga-browser' && this.loadInitialData) {
+                    this.loadInitialData();
+                }
             }
         }
     },
@@ -119,29 +167,14 @@ window.UtilsMethods = {
         return !!window.PYWEBVIEW_DESKTOP || (!!window.pywebview && !!window.pywebview.api);
     },
 
-    // 检测并设置桌面模式标识
+    // 检测并设置桌面模式标识（简化版）
     detectAndSetDesktopMode() {
-        const checks = {
-            pywebview: typeof window.pywebview !== 'undefined',
-            userAgent: window.navigator.userAgent.includes('pywebview'),
-            hostname: window.location.hostname === '127.0.0.1',
-            protocol: window.location.protocol === 'http:',
-            port: window.location.port === '8082', // 桌面版专用端口
-            localStorage: localStorage.getItem('DESKTOP_MODE') === 'true'
-        };
-
-        // 如果检测到桌面环境，设置持久化标识
-        if (checks.pywebview || checks.userAgent || (checks.hostname && checks.protocol && checks.port)) {
-            localStorage.setItem('DESKTOP_MODE', 'true');
-            localStorage.setItem('DESKTOP_MODE_TIMESTAMP', Date.now().toString());
-            console.log('🖥️ 检测到桌面模式，已设置持久化标识');
-
-            // 设置全局标识
-            window.DESKTOP_MODE = true;
-        } else if (checks.localStorage) {
-            // 如果localStorage中有桌面模式标识，恢复全局标识
-            window.DESKTOP_MODE = true;
-            console.log('🖥️ 从localStorage恢复桌面模式标识');
+        // 直接读取由后端注入的、100%可靠的状态
+        if (window.IS_DESKTOP_MODE === true) {
+            this.isDesktopMode = true;
+            console.log('🖥️ 后端确认桌面模式，已激活桌面功能');
+        } else {
+            console.log('🌐 后端确认非桌面模式');
         }
     },
 
@@ -275,36 +308,33 @@ window.UtilsMethods = {
 
             if (response.data && response.data.success) {
                 // **重要**: 确保直接更新 AppData 中的数组，而不是替换整个 translationSettings 对象
-                // this.availableFonts 实际上是 window.AppData.availableFonts (来自 setup 中的 toRefs)
-                // 但为了更明确，直接操作 window.AppData
-                // **重要**: 确保直接更新 AppData 中的数组，而不是替换整个 translationSettings 对象
                 const fetchedFonts = response.data.fonts || [];
                 // 添加检查，确保 availableFonts 是数组再调用 splice
-                if (!Array.isArray(window.AppData.availableFonts)) {
-                    // console.warn('[fetchAvailableFonts] window.AppData.availableFonts was not an array! Initializing to [].'); // 移除调试日志
-                    window.AppData.availableFonts = [];
+                if (!Array.isArray(this.translationSettings.availableFonts)) {
+                    // console.warn('[fetchAvailableFonts] this.translationSettings.availableFonts was not an array! Initializing to [].'); // 移除调试日志
+                    this.translationSettings.availableFonts = [];
                 }
                 // 使用 splice 清空并插入新元素，以触发变更检测
-                window.AppData.availableFonts.splice(0, window.AppData.availableFonts.length, ...fetchedFonts);
-                console.log('[fetchAvailableFonts] 通过 splice 更新后的 AppData.availableFonts:', window.AppData.availableFonts); // 添加日志确认
+                this.translationSettings.availableFonts.splice(0, this.translationSettings.availableFonts.length, ...fetchedFonts);
+                console.log('[fetchAvailableFonts] 通过 splice 更新后的 AppData.availableFonts:', this.translationSettings.availableFonts); // 添加日志确认
 
                 // --- 现有逻辑，用于设置默认字体 ---
-                const currentFont = window.AppData.translationSettings.font_name; // 使用修正后的键名
-                const foundFont = window.AppData.availableFonts.find(f => f.file_name === currentFont);
+                const currentFont = this.translationSettings.font_name; // 使用修正后的键名
+                const foundFont = this.translationSettings.availableFonts.find(f => f.file_name === currentFont);
                 if (foundFont) {
                     console.log(`[fetchAvailableFonts] 当前字体 ${currentFont} 在列表中找到.`);
                     // font_name 已经是正确的了，无需重新设置
-                } else if (window.AppData.availableFonts.length > 0) {
-                    const defaultFont = window.AppData.availableFonts[0].file_name;
+                } else if (this.translationSettings.availableFonts.length > 0) {
+                    const defaultFont = this.translationSettings.availableFonts[0].file_name;
                     console.log(`[fetchAvailableFonts] 当前字体无效或未设置, 设置为默认字体: ${defaultFont}`);
-                    window.AppData.translationSettings.font_name = defaultFont; // 使用修正后的键名
+                    this.translationSettings.font_name = defaultFont; // 使用修正后的键名
                     // 异步更新后端设置 - 使用 snake_case
                     this.updateSetting('font_name', defaultFont).then(() => {
                          console.log(`[fetchAvailableFonts] 后端字体设置已更新为: ${defaultFont}`);
                     });
                 } else {
                     console.log('[fetchAvailableFonts] 没有可用的字体，清空字体设置.');
-                    window.AppData.translationSettings.font_name = ''; // 使用修正后的键名
+                    this.translationSettings.font_name = ''; // 使用修正后的键名
                 }
                 // --- 结束：现有逻辑 ---
 
@@ -312,12 +342,12 @@ window.UtilsMethods = {
                  // 处理 API 请求成功但返回 success: false 的情况
                  console.error('[fetchAvailableFonts] API 请求成功但返回失败状态:', response.data);
                  ElMessage.error('获取可用字体失败: ' + (response.data.message || '未知错误'));
-                 window.AppData.availableFonts = []; // 确保在失败时清空
+                 this.translationSettings.availableFonts = []; // 确保在失败时清空
             }
         } catch (error) {
             console.error('[fetchAvailableFonts] API 请求失败:', error); // Log 4: API Error
             this.handleError(error, '获取可用字体');
-            window.AppData.availableFonts = []; // 确保在失败时清空
+            this.translationSettings.availableFonts = []; // 确保在失败时清空
         }
     },
 

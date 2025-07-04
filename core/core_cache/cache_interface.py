@@ -8,9 +8,10 @@ class CacheInterface(ABC):
     """
 
     @abstractmethod
-    def generate_key(self, *args, **kwargs) -> str:
+    def generate_key(self, **kwargs) -> str:
         """
         根据特定缓存类型所需的信息生成唯一的键。
+        所有参数都应作为关键字参数传递。
         """
         pass
 

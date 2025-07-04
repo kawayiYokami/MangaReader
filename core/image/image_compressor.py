@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import List, Dict, Any, Callable, Optional
 import threading
 import warnings
-from PIL import Image
 import numpy as np
 import io
 
@@ -306,19 +305,24 @@ class ImageCompressor:
             return False
 
     def _read_image_robustly(self, img_path: str) -> Optional[np.ndarray]:
-        """健壮地读取图片文件，抑制iCCP警告，并在cv2失败时回退到Pillow"""
+        """健壮地读取图片文件，抑制iCCP警告。"""
         try:
+            # 统一使用OpenCV读取，移除Pillow回退
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, message=".*iCCP.*")
                 img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
-                if img is not None:
-                    if len(img.shape) == 2: img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-                    return img
 
-            log.warning(f"OpenCV无法读取 {img_path}, 尝试使用Pillow回退...")
-            with Image.open(img_path) as pil_img:
-                pil_img = pil_img.convert('RGBA') if pil_img.mode == 'P' else pil_img
-                return cv2.cvtColor(np.array(pil_img.convert('RGB')), cv2.COLOR_RGB2BGR)
+            if img is None:
+                log.warning(f"OpenCV无法读取 {img_path}")
+                return None
+
+            # 保持原有的通道转换逻辑，确保输出是BGR
+            if len(img.shape) == 2:
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            elif img.shape[2] == 4: # 如果是BGRA, 转换为BGR
+                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                
+            return img
 
         except Exception as e:
             log.error(f"读取图片时发生意外错误 {img_path}: {e}")

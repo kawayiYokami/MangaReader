@@ -3,56 +3,117 @@
 {% include 'components/layout/mobile-head.html' %}
 
 <body class="mobile-body">
-    <div id="app">
-        <!-- 移动版漫画浏览器 -->
-        {% include 'components/pages/manga-browser_mobile.html' %}
-    </div>
+    <script>
+        window.IS_PYWEBVIEW = false;
+        window.initialTheme = 'auto';
+    </script>
 
-    <!-- 移动端专属脚本和样式 -->
-    <link rel="stylesheet" href="/static/css/mobile/browser.css">
-    <script src="/static/js/mobile/manga-browser.js?v=3"></script>
+    <div id="app">
+        <!-- 固定的顶部导航栏 -->
+        <header class="mobile-header">
+            <el-input
+                v-model="searchQuery"
+                placeholder="搜索..."
+                prefix-icon="Search"
+                clearable>
+            </el-input>
+            <el-button 
+                @click="toggleRandomMode"
+                :class="{ 'is-active': isRandomMode }"
+                text 
+                circle>
+                <span class="material-symbols-rounded">shuffle</span>
+            </el-button>
+            <el-button 
+                @click="isFilterDrawerVisible = true"
+                :class="{ 'is-active': filterOptions.tags.length > 0 }"
+                text 
+                circle>
+                <span class="material-symbols-rounded">filter_list</span>
+            </el-button>
+        </header>
+
+        <!-- 主内容区域 -->
+        <main class="mobile-main-content">
+            {% include 'components/pages/manga-browser_mobile_content.html' %}
+        </main>
+
+        <!-- 底部导航栏 -->
+        <footer class="bottom-nav">
+             <div class="nav-item" :class="{ 'active': activeMenu === 'browse' }" @click="activeMenu = 'browse'">
+                <span class="material-symbols-rounded">explore</span>
+                <span>浏览</span>
+            </div>
+            <div class="nav-item" :class="{ 'active': activeMenu === 'settings' }" @click="activeMenu = 'settings'">
+                <span class="material-symbols-rounded">settings</span>
+                <span>设置</span>
+            </div>
+        </footer>
+
+        <!-- 过滤面板 -->
+        <div v-if="isFilterDrawerVisible" class="filter-panel-overlay" @click.self="isFilterDrawerVisible = false">
+            <div class="filter-panel">
+                <div class="panel-header">
+                    <h3 class="panel-title">标签筛选</h3>
+                    <el-button @click="isFilterDrawerVisible = false" text circle>
+                        <span class="material-symbols-rounded">close</span>
+                    </el-button>
+                </div>
+                <div class="panel-content">
+                    {% raw %}>
+                    <div v-if="Object.keys(tagsByCategory).length > 0" class="accordion-filter">
+                        <div v-for="(tags, category) in tagsByCategory" :key="category" class="accordion-item">
+                            <div class="accordion-header" @click="toggleAccordion(category)">
+                                <span class="header-title">{{ category }} ({{ tags.length }})</span>
+                                <span class="material-symbols-rounded" :class="{ 'is-active': activeAccordion === category }">
+                                    expand_more
+                                </span>
+                            </div>
+                            <div v-show="activeAccordion === category" class="accordion-content">
+                                <div class="tag-list">
+                                    <span v-for="tag in tags"
+                                          :key="tag.full"
+                                          class="tag"
+                                          :class="{ 'is-active': filterOptions.tags.includes(tag.full) }"
+                                          @click="onTagClick(tag.full)"
+                                          v-text="tag.display">
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="empty-state-in-drawer">
+                        <el-empty description="没有可用的标签"></el-empty>
+                    </div>
+                    {% endraw %}>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const { createApp } = Vue;
-        const { ElMessage, ElMessageBox, ElLoading, ElDrawer, ElIcon } = ElementPlus;
-
         document.addEventListener('DOMContentLoaded', function () {
-            if (!window.AppData || !window.MangaBrowserMethods) {
-                console.error('❌ 核心JS模块未加载');
-                return;
-            }
-
-            const app = createApp({
-                data() {
-                    return window.AppData;
-                },
-                computed: window.AppComputed || {},
-                mounted() {
-                    if (window.AppLifecycle && window.AppLifecycle.mounted) {
-                        window.AppLifecycle.mounted.call(this);
+            try {
+                const app = createApp({
+                    data() { return window.AppData; },
+                    computed: window.AppComputed || {},
+                    mounted() {
+                        if (window.AppLifecycle && window.AppLifecycle.mounted) {
+                            window.AppLifecycle.mounted.call(this);
+                        }
+                    },
+                    methods: {
+                        ...(window.UtilsMethods || {}),
+                        ...(window.MangaBrowserMethodsBase || {}),
+                        ...(window.MangaBrowserMobileMethods || {}),
+                        ...(window.CacheManagementMethods || {}),
                     }
-                },
-                methods: {
-                    ...(window.UtilsMethods || {}),
-                    ...(window.MangaBrowserMethods || {}),
-                    ...(window.CacheManagementMethods || {}),
-                    ...(window.TranslationMethods || {}),
-                    ...(window.CompressionMethods || {}),
-                }
-            });
-
-            app.use(ElementPlus);
-            
-            // 注册图标
-            if (window.ElementPlusIconsVue) {
-                for (const [key, component] of Object.entries(window.ElementPlusIconsVue)) {
-                    app.component(key, component);
-                }
-            }
-
-            app.mount('#app');
+                });
+                app.use(ElementPlus);
+                app.mount('#app');
+            } catch (error) { console.error('Vue应用启动失败:', error); }
         });
     </script>
 </body>
-
 </html>

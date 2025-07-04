@@ -11,6 +11,7 @@ from pydantic import BaseModel
 import os
 import time
 import tempfile
+import asyncio
 from pathlib import Path
 from functools import wraps
 
@@ -173,84 +174,74 @@ async def perform_ocr(
 @router.post("/translate-text")
 async def translate_text(
     text: str,
-    request: TranslationRequest
+    target_lang: str = "zh",
+    engine: str = "智谱"
 ):
     """翻译文本"""
     try:
-        # 获取翻译器
-        translator = TranslatorFactory.create_translator(request.translator_engine)
+        # 导入翻译器
+        from core.translation.image_translator import get_image_translator
         
-        # 执行翻译
-        translated_text = translator.translate(
+        image_translator = get_image_translator()
+        
+        # 使用 image_translator 中已经异步化的 translate_text 方法
+        translated_text = await image_translator.translate_text(
             text=text,
-            target_lang=request.target_lang
+            target_language=target_lang
         )
         
-        return TranslationResult(
-            original_text=text,
-            translated_text=translated_text,
-            source_lang=request.source_lang,
-            target_lang=request.target_lang,
-            confidence=1.0  # 根据实际翻译器返回调整
-        )
+        return {
+            "success": True,
+            "original_text": text,
+            "translated_text": translated_text,
+            "target_lang": target_lang
+        }
         
     except Exception as e:
-        log.error(f"文本翻译失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"文本翻译失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"文本翻译失败: {e}")
 
 @router.post("/translate-image")
 async def translate_image(
     file: UploadFile = File(...),
-    request: TranslationRequest = Depends(),
-    page_num: int = 0
+    target_lang: str = "zh"
 ):
-    """翻译图片中的文字"""
+    """翻译单张图片中的文字"""
+    import cv2
+    import numpy as np
+    from fastapi.responses import Response
+    from core.translation.image_translator import get_image_translator
+
     try:
-        # 验证文件类型
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="只支持图片文件")
+
+        content = await file.read()
+        nparr = np.frombuffer(content, np.uint8)
+        image_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if image_np is None:
+            raise HTTPException(status_code=400, detail="无法解码图片")
+
+        image_translator = get_image_translator()
         
-        # 保存临时文件
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
-        
-        try:
-            # 创建图片翻译器
-            image_translator = ImageTranslator()
-            
-            # 执行翻译
-            result_image_path = image_translator.translate_image(
-                image_path=temp_file_path,
-                page_num=page_num,
-                source_lang=request.source_lang,
-                target_lang=request.target_lang,
-                translator_engine=request.translator_engine
-            )
-            
-            # 读取结果图片
-            with open(result_image_path, 'rb') as result_file:
-                result_content = result_file.read()
-            
-            # 清理结果文件
-            os.unlink(result_image_path)
-            
-            return {
-                "success": True,
-                "message": "图片翻译完成",
-                "image_data": result_content.hex()  # 返回十六进制编码的图片数据
-            }
-            
-        finally:
-            # 清理临时文件
-            os.unlink(temp_file_path)
-            
+        result_image_np = await image_translator.translate_image(
+            image_input=image_np,
+            target_language=target_lang
+        )
+
+        # 将结果图片编码为WebP格式以便传输
+        success, buffer = cv2.imencode(".webp", result_image_np)
+        if not success:
+            raise HTTPException(status_code=500, detail="翻译结果图片编码失败")
+
+        return Response(content=buffer.tobytes(), media_type="image/webp")
+
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"图片翻译失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"图片翻译失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"图片翻译失败: {str(e)}")
 
 @router.post("/translate-manga-async")
 async def translate_manga_async(
@@ -316,93 +307,93 @@ _translation_tasks = {}
 _translation_threads = {}  # 存储翻译线程，用于强制终止
 
 def _execute_translation_task(task_id, temp_file_path, target_lang, translator_engine, webp_quality):
-    """执行翻译任务"""
+    """执行翻译任务的同步包裹器"""
     try:
-        task = _translation_tasks[task_id]
+        # 使用 asyncio.run 在新线程中运行异步任务
+        asyncio.run(_async_execute_translation_task(task_id, temp_file_path, target_lang, translator_engine, webp_quality))
+    except Exception as e:
+        log.error(f"翻译任务 {task_id} 的同步包裹器异常: {e}", exc_info=True)
+        task = _translation_tasks.get(task_id, {})
+        task["status"] = "error"
+        task["error"] = str(e)
+    finally:
+        # 确保临时文件最终被清理
+        if os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+                log.info(f"清理临时文件: {temp_file_path}")
+            except OSError as e:
+                log.error(f"清理临时文件失败: {e}")
 
-        # 检查任务是否被取消
+async def _async_execute_translation_task(task_id, temp_file_path, target_lang, translator_engine, webp_quality):
+    """异步执行翻译任务的核心逻辑"""
+    from core.translation.image_translator import get_image_translator, set_current_translation_process
+    import threading
+    import os
+    import zipfile
+    import shutil
+
+    task = _translation_tasks[task_id]
+    extract_dir = tempfile.mkdtemp(prefix="extract-")
+    output_dir = tempfile.mkdtemp(prefix="output-")
+
+    try:
         if task.get("cancelled", False):
-            log.info(f"任务 {task_id} 已被取消")
+            log.info(f"任务 {task_id} 在开始前已被取消")
             task["status"] = "cancelled"
             return
 
-        from core.translation.image_translator import get_image_translator, set_current_translation_process
-        import threading
-        import os
-
-        # 设置当前翻译进程信息
         process_info = {
-            "task_id": task_id,
-            "thread_id": threading.get_ident(),
-            "process_id": os.getpid(),
-            "file_name": task["file_name"],
-            "start_time": task["start_time"]
+            "task_id": task_id, "thread_id": threading.get_ident(), "process_id": os.getpid(),
+            "file_name": task["file_name"], "start_time": task["start_time"]
         }
         set_current_translation_process(process_info)
-
         task["progress"] = 10
 
         image_translator = get_image_translator()
 
-        # 解压ZIP文件到临时目录
-        import zipfile
-        extract_dir = tempfile.mkdtemp()
-
-        try:
+        def extract_sync():
             with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                # 获取所有图片文件
-                image_files = []
-                for member_info in zip_ref.infolist():
-                    if member_info.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')):
-                        # 解压图片文件
-                        zip_ref.extract(member_info, extract_dir)
-                        image_files.append(os.path.join(extract_dir, member_info.filename))
+                return [
+                    os.path.join(extract_dir, member_info.filename)
+                    for member_info in zip_ref.infolist()
+                    if member_info.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'))
+                    and not member_info.is_dir() and zip_ref.extract(member_info, extract_dir)
+                ]
+        
+        image_files = await asyncio.to_thread(extract_sync)
 
-            if not image_files:
-                raise Exception("压缩包中未找到图片文件")
+        if not image_files:
+            raise Exception("压缩包中未找到图片文件")
 
-            # 排序图片文件
-            image_files.sort()
-            task["progress"] = 30
+        image_files.sort()
+        task["progress"] = 30
 
-            # 准备输出路径
-            output_dir = tempfile.mkdtemp()
-            output_paths = []
-            for i, img_path in enumerate(image_files):
-                output_filename = f"page_{i+1:03d}_translated.webp"
-                output_path = os.path.join(output_dir, output_filename)
-                output_paths.append(output_path)
+        output_paths = [os.path.join(output_dir, f"page_{i+1:03d}_translated.webp") for i, _ in enumerate(image_files)]
+        task["progress"] = 50
 
-            task["progress"] = 50
+        await image_translator.batch_translate_images_optimized(
+            image_inputs=image_files,
+            output_paths=output_paths,
+            target_language=target_lang
+        )
 
-            # 执行批量翻译
-            result = image_translator.batch_translate_images_optimized(
-                image_inputs=image_files,
-                output_paths=output_paths,
-                target_language=target_lang
-            )
-
-            task["progress"] = 100
-            task["status"] = "completed"
-            task["output_files"] = output_paths
-
-        finally:
-            # 清理解压目录
-            import shutil
-            if os.path.exists(extract_dir):
-                shutil.rmtree(extract_dir)
+        task["progress"] = 100
+        task["status"] = "completed"
+        task["output_files"] = output_paths
+        task["output_dir"] = output_dir # 保存输出目录以便后续清理
 
     except Exception as e:
-        log.error(f"翻译任务 {task_id} 执行失败: {e}")
+        log.error(f"异步翻译任务 {task_id} 执行失败: {e}", exc_info=True)
         task["status"] = "error"
         task["error"] = str(e)
     finally:
-        # 清理进程信息
         set_current_translation_process(None)
-
-        # 清理临时文件
-        if os.path.exists(temp_file_path):
-            os.unlink(temp_file_path)
+        # 清理解压目录
+        if os.path.exists(extract_dir):
+            await asyncio.to_thread(shutil.rmtree, extract_dir, ignore_errors=True)
+        
+        # 注意：输出目录 (output_dir) 需要在下载后清理，这里不清理
 
 @router.get("/task-status/{task_id}")
 async def get_task_status(task_id: str):
@@ -484,109 +475,10 @@ async def cancel_task(task_id: str):
 @router.post("/translate-manga")
 async def translate_manga(
     file: UploadFile = File(...),
-    source_lang: str = "auto",
-    target_lang: str = "zh-CN",
-    translator_engine: str = "智谱",
-    webp_quality: int = 100
+    target_lang: str = "zh"
 ):
-    """翻译漫画文件（保持兼容性）"""
-    try:
-        # 验证文件类型
-        allowed_extensions = ['.zip', '.cbz', '.cbr']
-        file_extension = Path(file.filename).suffix.lower()
-
-        if file_extension not in allowed_extensions:
-            raise HTTPException(
-                status_code=400,
-                detail=f"不支持的文件格式。支持的格式: {', '.join(allowed_extensions)}"
-            )
-
-        # 保存临时文件
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
-
-        try:
-            # 获取全局图片翻译器实例
-            from core.translation.image_translator import get_image_translator, set_current_translation_process
-            import threading
-            import os
-
-            # 设置当前翻译进程信息
-            process_info = {
-                "thread_id": threading.get_ident(),
-                "process_id": os.getpid(),
-                "file_name": file.filename,
-                "start_time": time.time()
-            }
-            set_current_translation_process(process_info)
-
-            image_translator = get_image_translator()
-
-            # 解压ZIP文件到临时目录
-            import zipfile
-            extract_dir = tempfile.mkdtemp()
-
-            try:
-                with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
-                    # 获取所有图片文件
-                    image_files = []
-                    for member_info in zip_ref.infolist():
-                        if member_info.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')):
-                            # 解压图片文件
-                            zip_ref.extract(member_info, extract_dir)
-                            image_files.append(os.path.join(extract_dir, member_info.filename))
-
-                if not image_files:
-                    raise HTTPException(status_code=400, detail="压缩包中未找到图片文件")
-
-                # 排序图片文件
-                image_files.sort()
-
-                # 准备输出路径
-                output_dir = tempfile.mkdtemp()
-                output_paths = []
-                for i, img_path in enumerate(image_files):
-                    output_filename = f"page_{i+1:03d}_translated.webp"
-                    output_path = os.path.join(output_dir, output_filename)
-                    output_paths.append(output_path)
-
-                # 执行批量翻译
-                result = image_translator.batch_translate_images_optimized(
-                    image_inputs=image_files,
-                    output_paths=output_paths,
-                    target_language=target_lang
-                )
-
-                # batch_translate_images_optimized返回的是numpy数组列表
-                return {
-                    "success": True,
-                    "message": "漫画翻译完成",
-                    "output_files": output_paths,  # 返回输出文件路径
-                    "processed_pages": len(image_files),
-                    "total_pages": len(image_files)
-                }
-
-            finally:
-                # 清理解压目录
-                import shutil
-                if os.path.exists(extract_dir):
-                    shutil.rmtree(extract_dir)
-
-        finally:
-            # 清理进程信息
-            set_current_translation_process(None)
-
-            # 清理临时文件
-            if os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"漫画翻译失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """(已废弃) 同步翻译漫画文件 - 功能已合并到 /translate-manga-async"""
+    raise HTTPException(status_code=410, detail="此同步API已废弃，请使用 /api/translation/translate-manga-async 异步接口。")
 
 @router.get("/history")
 async def get_translation_history():
@@ -710,117 +602,6 @@ async def download_translation_batch(
         log.error(f"批量下载翻译任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/compress-lossless")
-async def compress_lossless(
-    request: LosslessCompressionRequest,
-    http_request: Request,
-    interface: CoreInterface = Depends(get_interface)
-):
-    """无损压缩漫画文件为WebP格式"""
-    try:
-        from core.image.image_compressor import get_image_compressor
-        from fastapi.responses import FileResponse
-
-        # 调试信息：记录请求参数
-        log.info(f"🔧 [调试] 收到压缩请求:")
-        log.info(f"  - 文件路径: {request.file_path}")
-        log.info(f"  - WebP质量: {request.webp_quality}")
-        log.info(f"  - 文件存在: {os.path.exists(request.file_path) if request.file_path else 'None'}")
-
-        # 直接使用前端提供的文件路径
-        actual_file_path = request.file_path
-
-        # 验证文件路径
-        if not actual_file_path:
-            log.error(f"🔧 [调试] 文件路径为空")
-            raise HTTPException(status_code=400, detail="文件路径不能为空")
-
-        if not os.path.exists(actual_file_path):
-            log.error(f"🔧 [调试] 文件不存在: {actual_file_path}")
-            raise HTTPException(status_code=404, detail=f"文件不存在: {actual_file_path}")
-
-        if not os.path.isfile(actual_file_path):
-            log.error(f"🔧 [调试] 路径不是文件: {actual_file_path}")
-            raise HTTPException(status_code=400, detail=f"路径不是文件: {actual_file_path}")
-
-        log.info(f"🔧 [调试] 文件路径验证通过: {actual_file_path}")
-
-        # 获取压缩器实例
-        compressor = get_image_compressor()
-        log.info(f"🔧 [调试] 压缩器状态: {compressor.get_compression_status()}")
-
-        # 检查是否正在压缩
-        if compressor.is_compressing:
-            log.warning(f"🔧 [调试] 压缩器正忙，拒绝请求")
-            raise HTTPException(status_code=409, detail="压缩器正忙，请稍后再试")
-
-        log.info("开始执行漫画压缩")
-
-        # 执行压缩（Web版本仅支持下载模式）
-        result = compressor.compress_manga_file(
-            file_path=actual_file_path,
-            webp_quality=request.webp_quality,
-            preserve_original_names=request.preserve_original_names
-        )
-
-        if not result["success"]:
-            log.error(f"压缩失败: {result['message']}")
-            raise HTTPException(status_code=500, detail=result["message"])
-
-        # Web版本仅支持下载模式
-        temp_file = result["temp_file"]
-        download_name = result["download_name"]
-
-        log.info(f"压缩完成，生成文件: {download_name}")
-
-        return FileResponse(
-            path=temp_file,
-            filename=download_name,
-            media_type='application/zip'
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"无损压缩失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/compression-status")
-async def get_compression_status():
-    """获取压缩状态"""
-    try:
-        from core.image.image_compressor import get_image_compressor
-
-        compressor = get_image_compressor()
-        status = compressor.get_compression_status()
-
-        return {
-            "success": True,
-            "is_compressing": status["is_compressing"],
-            "current_task": status["current_task"]
-        }
-
-    except Exception as e:
-        log.error(f"获取压缩状态失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/cancel-compression")
-async def cancel_compression():
-    """取消压缩操作"""
-    try:
-        from core.image.image_compressor import get_image_compressor
-
-        compressor = get_image_compressor()
-        compressor.cancel_compression()
-
-        return {
-            "success": True,
-            "message": "取消压缩请求已发送"
-        }
-
-    except Exception as e:
-        log.error(f"取消压缩失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cancel-translation")
 async def cancel_translation():

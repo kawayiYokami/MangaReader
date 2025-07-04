@@ -33,6 +33,7 @@ body {
 
 .image-container-scrolling {
     /* 恢复为唯一的滚动容器 */
+    width: 100vw; /* 核心修复：确保容器占据整个屏幕宽度 */
     height: 100vh;
     overflow-y: scroll;
 }

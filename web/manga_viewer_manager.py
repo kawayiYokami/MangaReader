@@ -8,9 +8,10 @@
 """
 
 import threading
+import asyncio
 import uuid
 from typing import Dict, List, Optional, Tuple, Any
-from PIL import Image
+from core.image import processor
 import io
 from enum import Enum
 from pathlib import Path
@@ -18,6 +19,12 @@ import base64
 
 from core.translation.translation_factory import get_translation_factory, PageStatus
 from core.core_cache.cache_key_generator import get_cache_key_generator
+from core.core_cache.page_cache import get_page_cache
+from core.manga.precache_manager import (
+    precache_manager, POLICY_PENDING, POLICY_CACHED, POLICY_NOT_REQUIRED
+)
+from core.core_cache.cache_factory import get_cache_factory_instance
+from core.manga.data_source import _get_image_dimensions_fast
 from core.config import config
 from web.core_interface import get_core_interface
 from utils import manga_logger as log
@@ -76,6 +83,9 @@ class MangaViewerManager:
         self.key_generator = get_cache_key_generator()
         self.translation_factory = get_translation_factory()
         self.core_interface = get_core_interface()
+        self.page_cache = get_page_cache()
+        self.precache_manager = precache_manager # 旧的管理器，主要用于访问常量
+        self.policy_manager = get_cache_factory_instance().get_manager('page_policy')
         
         # 会话内存缓存 (缓存元组: (image_data, width, height))
         self.original_cache: Dict[str, Tuple[str, int, int]] = {}  # 原图缓存
@@ -99,13 +109,14 @@ class MangaViewerManager:
         
         log.info(f"漫画查看管理器创建: 会话ID={self.session_id}")
     
-    def set_current_manga(self, manga_path: str, page: int = 0) -> Dict[str, Any]:
+    async def set_current_manga(self, manga_path: str, page: int = 0, force_rescan: bool = False) -> Dict[str, Any]:
         """
         设置当前查看的漫画
         
         Args:
             manga_path: 漫画文件路径
             page: 起始页面
+            force_rescan: 是否强制重新扫描漫画库
             
         Returns:
             操作结果
@@ -121,7 +132,7 @@ class MangaViewerManager:
                 log.info(f"会话 {self.session_id}: 切换漫画，清空缓存")
             
             # 获取漫画信息
-            manga_info = self._get_manga_info(manga_path)
+            manga_info = await self._get_manga_info(manga_path, force_rescan=force_rescan)
             if not manga_info:
                 return {"success": False, "message": "无法获取漫画信息"}
             
@@ -131,6 +142,13 @@ class MangaViewerManager:
             self.total_pages = manga_info["total_pages"]
             
             log.info(f"会话 {self.session_id}: 设置当前漫画 {manga_path}, 页面 {self.current_page}")
+            
+            # V5 核心逻辑: 检查是否存在页面策略，如果不存在，则启动后台分析
+            # 注意：这里需要 await，因为 get_policy 是异步的
+            policy = await self.policy_manager.get_policy(manga_path, 0)
+            if policy is None:
+                log.info(f"'{manga_path}' 首次打开，启动后台页面分析任务。")
+                asyncio.create_task(self._analyze_and_create_policies_async(manga_path))
             
             return {
                 "success": True,
@@ -142,8 +160,8 @@ class MangaViewerManager:
             log.error(f"设置当前漫画失败: {e}")
             return {"success": False, "message": str(e)}
     
-    def get_page_images(self, page: int, display_mode: str = "single", 
-                       translation_enabled: bool = False) -> Dict[str, Any]:
+    async def get_page_images(self, page: int, display_mode: str = "single",
+                           translation_enabled: bool = False) -> Dict[str, Any]:
         """
         获取页面图像（主要接口）
         
@@ -172,7 +190,7 @@ class MangaViewerManager:
             # 加载当前页面
             current_images = []
             for page_idx in current_pages:
-                image_info = self._get_page_image(page_idx, translation_enabled)
+                image_info = await self._get_page_image(page_idx, translation_enabled)
                 if image_info:
                     image_data, width, height = image_info
                     current_images.append({
@@ -199,40 +217,150 @@ class MangaViewerManager:
             log.error(f"获取页面图像失败: {e}")
             return {"success": False, "message": str(e)}
     
-    def _get_page_image(self, page_index: int, use_translation: bool) -> Optional[Tuple[str, int, int]]:
+    async def _get_page_image(self, page_index: int, use_translation: bool) -> Optional[Tuple[str, int, int]]:
         """获取单个页面图像及其尺寸"""
         try:
             if use_translation:
-                return self._get_translated_page(page_index)
+                return await self._get_translated_page(page_index)
             else:
-                return self._get_original_page(page_index)
+                return await self._get_original_page(page_index)
         except Exception as e:
             log.error(f"获取页面图像失败 (页面 {page_index}): {e}")
             return None
 
-    def _get_original_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
-        """获取原图页面及其尺寸"""
-        cache_key = self.key_generator.generate_original_key(self.current_manga_path, page_index)
+    async def _get_original_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
+        """
+        获取原图页面及其尺寸, 实现V5架构中的“按需分析+预缓存”策略。
+        """
+        policy_str = await self.policy_manager.get_policy(self.current_manga_path, page_index)
+        log.debug(f"Page {page_index} policy: {policy_str}")
 
-        with self.cache_lock:
-            if cache_key in self.original_cache:
-                log.debug(f"会话原图缓存命中: {cache_key}")
-                return self.original_cache[cache_key]
+        # Case 1: 策略已明确为 CACHED，尝试从持久化缓存获取
+        if policy_str == POLICY_CACHED:
+            cached_page_bytes = self.page_cache.get_page(self.current_manga_path, page_index)
+            if cached_page_bytes:
+                log.debug(f"PageCache HIT (Policy: CACHED): {self.current_manga_path} [Page {page_index}]")
+                try:
+                    img = processor.read_image(cached_page_bytes)
+                    if img is None: raise ValueError("解码缓存的JPEG失败")
+                    encoded_str = base64.b64encode(cached_page_bytes).decode('utf-8')
+                    return f"data:image/jpeg;base64,{encoded_str}", img.shape[1], img.shape[0]
+                except Exception as e:
+                    log.warning(f"无法解码缓存页面 '{self.current_manga_path}' [Page {page_index}], 将其策略重置为PENDING并重新生成。")
+                    await self.policy_manager.set_policy(self.current_manga_path, page_index, POLICY_PENDING)
+                    policy_str = POLICY_PENDING # 更新状态以便进入Case 3
+            else:
+                log.warning(f"策略为CACHED但缓存文件丢失 for '{self.current_manga_path}' [Page {page_index}], 将其策略重置为PENDING。")
+                await self.policy_manager.set_policy(self.current_manga_path, page_index, POLICY_PENDING)
+                policy_str = POLICY_PENDING # 更新状态以便进入Case 3
 
+        # Case 2: 策略已明确为 NOT_REQUIRED，直接获取原图，不缓存
+        if policy_str == POLICY_NOT_REQUIRED:
+            log.debug(f"Policy '{policy_str}': Direct fetch for {self.current_manga_path} [Page {page_index}]")
+            return await self.core_interface.get_manga_page(self.current_manga_path, page_index, use_cache=False)
+
+        # Case 3: 策略是 PENDING 或 None (表示需要分析和缓存)
+        # 立即获取原图返回给前端，然后启动后台任务生成缓存
+        log.debug(f"Policy is '{policy_str}': Returning original image and starting background cache generation for {self.current_manga_path} [Page {page_index}]")
+        
+        original_image_info = await self.core_interface.get_manga_page(self.current_manga_path, page_index, use_cache=True)
+        if not original_image_info:
+            log.error(f"无法获取页面 {page_index} 的原始图像信息。")
+            return None
+        
+        # 对于 policy is None 的情况，我们需要进行一次即时分析来决定是否启动缓存任务
+        if policy_str is None:
+            log.debug(f"即时分析页面 {page_index} 以决定是否需要缓存...")
+            image_data_str, _, _ = original_image_info
+            header, encoded = image_data_str.split(",", 1)
+            image_bytes = base64.b64decode(encoded)
+            dims = _get_image_dimensions_fast(image_bytes)
+            if dims and dims[1] > config.page_cache_standard_height.value:
+                 # 只有在需要缩放时才启动后台缓存任务
+                 asyncio.create_task(self._generate_page_cache_async(self.current_manga_path, page_index, original_image_info))
+        else: # policy_str == POLICY_PENDING
+             asyncio.create_task(self._generate_page_cache_async(self.current_manga_path, page_index, original_image_info))
+        
+        # 立即返回原始（可能已通过核心缓存缩放的）图像
+        return original_image_info
+
+    async def _generate_page_cache_async(self, manga_path: str, page_index: int, image_info_tuple: Tuple[str, int, int]):
+        """
+        [后台任务] 生成页面的标准尺寸缓存，并更新其策略为 'CACHED'。
+        """
         try:
-            image_info = self.core_interface.get_manga_page(self.current_manga_path, page_index)
-            if image_info:
-                with self.cache_lock:
-                    self.original_cache[cache_key] = image_info
-                    self.loaded_pages.add(page_index)
-                log.info(f"会话 {self.session_id}: 加载原图页面 {page_index}")
-                return image_info
+            image_data_str, _, _ = image_info_tuple
+            standard_height = config.page_cache_standard_height.value
+
+            log.debug(f"后台任务: 开始为页面 {page_index} 生成标准尺寸缓存。")
+            header, encoded = image_data_str.split(",", 1)
+            image_bytes = base64.b64decode(encoded)
+            img = processor.read_image(image_bytes)
+
+            if img is None: raise ValueError("从base64解码图像失败")
+            
+            # 如果图像本身已经小于或等于标准高度，则无需缩放，直接缓存
+            if img.shape[0] <= standard_height:
+                 scaled_image_bytes = processor.write_image(img, ext='.jpg', quality=config.page_cache_quality.value)
+            else:
+                scale = standard_height / img.shape[0]
+                new_width = int(img.shape[1] * scale)
+                scaled_img = processor.resize(img, (new_width, standard_height))
+                if scaled_img is None: raise ValueError("图像缩放失败")
+
+                scaled_image_bytes = processor.write_image(scaled_img, ext='.jpg', quality=config.page_cache_quality.value)
+            
+            if not scaled_image_bytes: raise ValueError("编码为JPEG失败")
+
+            # 存入PageCache
+            self.page_cache.store_page(manga_path, page_index, scaled_image_bytes)
+            
+            # 更新数据库中的策略
+            await self.policy_manager.update_policy_to_cached(manga_path, page_index)
+            log.info(f"后台任务: 成功为 '{manga_path}' [Page {page_index}] 生成缓存并更新策略为 CACHED。")
+
         except Exception as e:
-            log.error(f"获取原图页面失败: {e}")
+            log.error(f"后台任务: 生成标准尺寸缓存失败 (页面 {page_index}): {e}", exc_info=True)
 
-        return None
+    async def _analyze_and_create_policies_async(self, manga_path: str):
+        """
+        [后台任务] V5核心逻辑: 分析整本漫画的所有页面，并批量生成和存储预缓存策略。
+        """
+        try:
+            log.info(f"后台分析任务开始: {manga_path}")
+            
+            # 1. 获取所有页面的原始尺寸
+            dimensions = await self.core_interface.get_all_page_dimensions(manga_path)
+            if not dimensions:
+                log.warning(f"无法获取 '{manga_path}' 的页面尺寸，分析任务中止。")
+                return
 
-    def _get_translated_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
+            # 2. 生成策略列表
+            policies = []
+            threshold = config.page_cache_standard_height.value
+            for i, dim in enumerate(dimensions):
+                if dim and dim[1] > threshold:
+                    policy_status = POLICY_PENDING
+                else:
+                    policy_status = POLICY_NOT_REQUIRED
+                
+                policies.append({
+                    "manga_path": manga_path,
+                    "page_index": i,
+                    "policy": policy_status,
+                    "width": dim[0] if dim else 0,
+                    "height": dim[1] if dim else 0,
+                })
+            
+            # 3. 批量写入数据库
+            if policies:
+                await self.policy_manager.set_policies_batch(policies)
+                log.info(f"后台分析任务完成: 为 '{manga_path}' 批量设置了 {len(policies)} 条页面策略。")
+
+        except Exception as e:
+            log.error(f"后台分析任务失败: {manga_path}, 错误: {e}", exc_info=True)
+
+    async def _get_translated_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
         """获取翻译页面及其尺寸"""
         translator_id = config.translator_type.value
         cache_key = self.key_generator.generate_translation_key(
@@ -242,55 +370,64 @@ class MangaViewerManager:
         with self.cache_lock:
             if cache_key in self.translated_cache:
                 log.debug(f"会话翻译缓存命中: {cache_key}")
-                cached_data, width, height = self.translated_cache[cache_key]
-                encoded_data = base64.b64encode(cached_data).decode('utf-8')
-                return f"data:image/webp;base64,{encoded_data}", width, height
+                return self.translated_cache[cache_key]
 
         try:
-            translated_data = self.translation_factory.get_translated_page(
+            # 获取原始翻译图像
+            translated_data_bytes = self.translation_factory.get_translated_page(
                 self.current_manga_path, page_index, translator_id
             )
 
-            if translated_data:
-                # 从图片字节流中解析尺寸
-                img = Image.open(io.BytesIO(translated_data))
-                width, height = img.size
-
-                with self.cache_lock:
-                    self.translated_cache[cache_key] = (translated_data, width, height)
-                    self.loaded_pages.add(page_index)
-                
-                log.info(f"会话 {self.session_id}: 加载翻译页面 {page_index}")
-                encoded_data = base64.b64encode(translated_data).decode('utf-8')
-                return f"data:image/webp;base64,{encoded_data}", width, height
-            else:
+            if not translated_data_bytes:
                 log.info(f"翻译失败或超时，返回原图: {page_index}")
-                return self._get_original_page(page_index)
+                return await self._get_original_page(page_index)
+
+            img = processor.read_image(translated_data_bytes)
+            if img is None:
+                raise ValueError("解码翻译图像失败")
+
+            # 直接编码为WebP，不再进行缩放
+            final_image_bytes = processor.write_image(img, ext=".webp", quality=85)
+            if not final_image_bytes:
+                raise ValueError("编码翻译图像为WEBP失败")
+
+            # 生成base64 data URL
+            encoded_data = base64.b64encode(final_image_bytes).decode('utf-8')
+            image_data_url = f"data:image/webp;base64,{encoded_data}"
+            
+            final_image_info = (image_data_url, img.shape[1], img.shape[0])
+
+            with self.cache_lock:
+                self.translated_cache[cache_key] = final_image_info
+                self.loaded_pages.add(page_index)
+            
+            log.debug(f"会话 {self.session_id}: 加载翻译页面 {page_index}")
+            return final_image_info
 
         except Exception as e:
             log.error(f"获取翻译页面失败: {e}")
-            return self._get_original_page(page_index)
+            return await self._get_original_page(page_index)
     
     def _preload_pages_async(self, page_indices: List[int], use_translation: bool):
         """异步预载页面"""
-        def preload_worker():
+        async def preload_worker():
             for page_idx in page_indices:
                 if page_idx not in self.preloaded_pages:
                     try:
-                        self._get_page_image(page_idx, use_translation)
+                        await self._get_page_image(page_idx, use_translation)
                         self.preloaded_pages.add(page_idx)
                         log.debug(f"预载页面完成: {page_idx}")
                     except Exception as e:
                         log.warning(f"预载页面失败 {page_idx}: {e}")
         
-        # 在后台线程中执行预载
-        threading.Thread(target=preload_worker, daemon=True).start()
+        # 在事件循环中创建后台任务
+        asyncio.create_task(preload_worker())
     
-    def _get_manga_info(self, manga_path: str) -> Optional[Dict[str, Any]]:
+    async def _get_manga_info(self, manga_path: str, force_rescan: bool = False) -> Optional[Dict[str, Any]]:
         """获取漫画信息"""
         try:
             # 通过核心接口获取漫画列表
-            manga_list = self.core_interface.get_manga_list()
+            manga_list = await self.core_interface.get_manga_list()
             for manga in manga_list:
                 if manga.file_path == manga_path:
                     return {
@@ -325,7 +462,7 @@ class MangaViewerManager:
             self.translated_cache.clear()
             self.loaded_pages.clear()
             self.preloaded_pages.clear()
-        log.info(f"会话 {self.session_id}: 缓存已清空")
+        log.debug(f"会话 {self.session_id}: 缓存已清空")
     
     def get_session_info(self) -> Dict[str, Any]:
         """获取会话信息"""
