@@ -6,7 +6,7 @@ from typing import Any, List, Optional, Dict
 from utils import manga_logger as log
 from .cache_interface import CacheInterface
 
-# Cache directory and database file name
+# 缓存目录和数据库文件名
 CACHE_DIR = "app/config"
 DB_NAME = "translation_cache.db"
 DB_PATH = os.path.join(CACHE_DIR, DB_NAME)
@@ -26,7 +26,7 @@ class TranslationCacheManager(CacheInterface):
     def _ensure_cache_dir_exists(self):
         """确保缓存目录存在"""
         directory = os.path.dirname(self.db_path)
-        if not os.path.exists(directory):
+        if directory and not os.path.exists(directory):
             try:
                 os.makedirs(directory)
             except OSError as e:
@@ -110,6 +110,7 @@ class TranslationCacheManager(CacheInterface):
             cursor.execute(f"SELECT value FROM {TABLE_NAME} WHERE key = ?", (key,))
             row = cursor.fetchone()
             if row:
+                # 数据以JSON编码的字符串形式存储。我们需要对其进行解码。
                 return json.loads(row["value"])
             return None
         except sqlite3.Error as e:
@@ -123,6 +124,7 @@ class TranslationCacheManager(CacheInterface):
     def set(self, key: str, data: Any, is_sensitive: bool = False, **kwargs):
         """设置缓存数据"""
         try:
+            # 缓存管理器负责序列化。
             value_json = json.dumps(data, ensure_ascii=False)
             conn = self._connect()
             cursor = conn.cursor()

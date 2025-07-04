@@ -154,12 +154,21 @@ window.AppData = {
     translationSettings: {
         sourceLang: 'auto',
         targetLang: 'zh-CN',
-        translator_type: '智谱', // 重命名以匹配后端
+        translator_type: '智谱',
         zhipuApiKey: '',
         zhipuModel: 'glm-4-flash',
         googleApiKey: '',
-        font_name: '', // 重命名以匹配后端
-        availableFonts: [], // 用于存储字体列表
+        openaiApiKey: '',
+        openaiApiBaseUrl: '',
+        openaiModel: 'gpt-4o',
+        geminiApiKey: '',
+        geminiModel: 'gemini-1.5-flash',
+        font_name: '',
+        availableFonts: [],
+        availableTranslators: [], // 用于存储翻译器选项
+        openaiModels: [],
+        geminiModels: [],
+        modelsLoading: false // 用于显示加载状态
     },
 
     // 系统设置数据

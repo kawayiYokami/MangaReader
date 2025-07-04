@@ -3,7 +3,7 @@ name = "MangaReader"
 version = "0.1.0"
 description = "本子浏览器"
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11,<3.14"
 authors = [
   { name = "kawayiYokami" }
 ]
@@ -11,6 +11,7 @@ license = { file = "LICENSE" }
 keywords = ["manga", "reader", "translation", "comic", "image-processing"]
 classifiers = [
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
     "Topic :: Multimedia :: Graphics :: Viewers"

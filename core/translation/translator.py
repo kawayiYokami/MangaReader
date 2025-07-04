@@ -1,417 +1,369 @@
-# core/translator.py
+# core/translation/translator.py
 import json
-import os
+import asyncio
 import requests
-import time
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional 
-from utils import manga_logger as log 
-from core.core_cache.cache_factory import get_cache_factory_instance 
-from core.core_cache.cache_interface import CacheInterface 
+from typing import Dict, Any, List, Optional
 
-# 导入deep_translator库
-from deep_translator import GoogleTranslator
+from utils import manga_logger as log
+from core.core_cache.cache_factory import get_cache_factory_instance
+from core.core_cache.cache_interface import CacheInterface
+from .llm_prompt_handler import LLMPromptHandler
+from ..data_models import TranslationResult
+
 
 class BaseTranslator(ABC):
+    """所有翻译器的抽象基类。"""
+
     def __init__(self):
-        self.translation_cache_manager: CacheInterface = get_cache_factory_instance().get_manager("translation")
+        self.cache: CacheInterface = get_cache_factory_instance().get_manager("translation")
+
+    def _clean_text(self, text: str) -> str:
+        if not text:
+            return ""
+        cleaned = ' '.join(text.strip().split())
+        return ''.join(c for c in cleaned if c.isprintable())
 
     @abstractmethod
-    def _translate_text(self, text: str, target_lang: str) -> Optional[Dict[str, Any]]:
+    async def _translate_batch_api(
+        self, texts: List[str], target_lang: str, cancel_flag: Optional[asyncio.Event], system_prompt: Optional[str] = None
+    ) -> Dict[str, TranslationResult]:
         """
-        实际执行翻译的抽象方法。
-        Returns: 一个包含 'text' 和 'is_sensitive' 的字典，或 None。
+        批量文本的实际API调用实现。
+        每个具体的翻译器类都必须实现此方法。
+        它应该返回一个将原始文本映射到其 TranslationResult 对象的字典。
+        在API失败时，它必须引发异常。
         """
         pass
 
-    def translate(self, text: str, target_lang: str ="en") -> str:
-        if not text: return ""
-        clean_text = self._clean_text(text)
-        if not clean_text: return ""
+    async def translate_batch(
+        self, texts: List[str], target_lang: str, cancel_flag: Optional[asyncio.Event] = None, system_prompt: Optional[str] = None
+    ) -> Dict[str, TranslationResult]:
+        """
+        带缓存的通用批量翻译逻辑。
+        此方法由所有翻译器共享，返回从原始文本到TranslationResult的映射。
+        """
+        if not texts:
+            return {}
 
-        translator_name = self.__class__.__name__.replace("Translator", "").replace("Deep", "")
-        cache_key = self.translation_cache_manager.generate_key(
-            text=clean_text, target_lang=target_lang, translator_type=translator_name
-        )
+        original_texts_map = {self._clean_text(text): text for text in texts}
+        clean_texts = list(original_texts_map.keys())
 
-        cached_result = self.translation_cache_manager.get(cache_key)
+        final_results: Dict[str, TranslationResult] = {}
+        uncached_texts = []
+        translator_name = self.__class__.__name__
 
-        if cached_result is not None and isinstance(cached_result, dict) and "text" in cached_result:
-            if cached_result.get('is_sensitive', False):
-                log.info(f"缓存命中但标记为敏感: '{clean_text[:30]}...' (键: {cache_key}). 将使用Google翻译尝试替换。")
-                google_translator = GoogleDeepTranslator() 
-                google_api_result = google_translator._translate_text(clean_text, target_lang) 
-
-                if google_api_result and isinstance(google_api_result, dict) and "text" in google_api_result and google_api_result["text"]:
-                    log.info(f"Google翻译成功替换敏感缓存: '{clean_text[:30]}...' -> '{google_api_result['text'][:30]}...'")
-                    self.translation_cache_manager.set(
-                        key=cache_key,
-                        data=google_api_result["text"],
-                        is_sensitive=False
-                    )
-                    return google_api_result["text"]
-                else:
-                    log.warning(f"Google翻译替换敏感缓存失败 for '{clean_text[:30]}...'. 返回原始敏感缓存文本。")
-                    return cached_result["text"] 
+        for text in clean_texts:
+            cache_key = self.cache.generate_key(text=text, target_lang=target_lang, translator_type=translator_name)
+            cached_data = self.cache.get(cache_key)
+            if cached_data and isinstance(cached_data, dict):
+                try:
+                    # 从缓存的字典重建TranslationResult对象
+                    final_results[text] = TranslationResult(**cached_data)
+                except TypeError:
+                    log.warning(f"缓存中 '{text}' 的数据格式不正确，将重新翻译。数据: {cached_data}")
+                    uncached_texts.append(text)
             else:
-                log.debug(f"缓存命中 (不敏感): '{clean_text[:30]}...' -> {target_lang} 使用 {translator_name}")
-                return cached_result["text"]
-        else:
-            log.debug(f"缓存未命中: '{clean_text[:30]}...' -> {target_lang} 使用 {translator_name}。调用API...")
-            translation_api_result = self._translate_text(clean_text, target_lang) 
+                uncached_texts.append(text)
 
-            if translation_api_result and isinstance(translation_api_result, dict) and "text" in translation_api_result:
-                translated_text_api = translation_api_result["text"]
-                is_sensitive = translation_api_result.get("is_sensitive", False)
-                
-                self.translation_cache_manager.set(
-                    key=cache_key,
-                    data=translated_text_api,
-                    is_sensitive=is_sensitive
-                )
-                log.debug(f"已翻译并缓存: '{clean_text[:30]}...' -> '{translated_text_api[:30]}...'. 敏感: {is_sensitive}")
-                return translated_text_api
-            else:
-                log.warning(f"翻译失败: '{clean_text[:30]}...' 使用 {translator_name}")
-                return f"[Translation Failed: {clean_text}]"
+        cached_count = len(final_results)
+        if uncached_texts:
+            log.info(f"{translator_name}: 在缓存中找到 {cached_count} 条。正在翻译 {len(uncached_texts)} 条新文本。")
 
-    def _clean_text(self, text: str) -> str:
-        if not text: return ""
-        cleaned = ' '.join(text.strip().split())
-        cleaned = ''.join(c for c in cleaned if c.isprintable())
-        return cleaned
+        if not uncached_texts:
+            return {original_texts_map[clean]: result for clean, result in final_results.items()}
+
+        try:
+            if cancel_flag and cancel_flag.is_set():
+                raise asyncio.CancelledError("翻译任务在API调用前被取消。")
+
+            api_results = await self._translate_batch_api(uncached_texts, target_lang, cancel_flag, system_prompt)
+
+            for text, result in api_results.items():
+                if not isinstance(result, TranslationResult):
+                    log.error(f"API为文本 '{text}' 返回了无效的类型: {type(result)}。已跳过。")
+                    final_results[text] = TranslationResult(text=text, translated=False)
+                    continue
+
+                final_results[text] = result
+                # 将新的、包含更丰富信息的结果对象转换为字典后再存入缓存
+                cache_key = self.cache.generate_key(text=text, target_lang=target_lang, translator_type=translator_name)
+                self.cache.set(key=cache_key, data=result.to_dict(), is_sensitive=False)
+
+        except Exception as e:
+            log.error(f"{translator_name} API调用失败: {e}", exc_info=True)
+            # 对于失败的API调用，将未缓存的文本视为未翻译
+            for text in uncached_texts:
+                if text not in final_results:
+                     final_results[text] = TranslationResult(text=text, translated=False)
+
+        # 构建最终的映射，确保所有原始文本都有一个结果
+        # 注意：这里的 't' 是原始文本，'self._clean_text(t)' 是清理后的文本
+        return {t: final_results.get(self._clean_text(t), TranslationResult(text=t, translated=False)) for t in texts}
+
 
 class ZhipuTranslator(BaseTranslator):
-    def __init__(self, api_key, model="glm-4-flash-250414"):
+    """使用智谱（GLM）API的翻译器。"""
+
+    def __init__(self, api_key: str, model: str = "glm-4-flash"):
         super().__init__()
         self.api_key = api_key
         self.model = model
         self.api_base_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-        self.batch_size = 20
-        log.debug(f"智谱翻译器已初始化，批量大小: {self.batch_size}")
+        log.debug(f"ZhipuTranslator已使用模型 {self.model} 初始化")
 
-    def translate_batch(self, texts: List[str], target_lang: str ="en", cancel_flag=None) -> List[str]:
-        if not texts: return []
+    @staticmethod
+    def list_models(api_key: str, **kwargs) -> List[str]:
+        # 智谱的API不提供模型列表接口，因此返回一个硬编码的列表
+        log.warning("Zhipu `list_models` is a placeholder and returns a fixed list.")
+        return ["glm-4-flash", "glm-4", "glm-3-turbo"]
 
-        # 检查取消标志
-        if cancel_flag and cancel_flag.is_set():
-            log.warning("🛑 智谱翻译器：收到取消信号，停止批量翻译")
-            raise RuntimeError("翻译已被用户取消")
-
-        clean_texts = [self._clean_text(text) for text in texts]
-        results = [None] * len(clean_texts)
-        uncached_texts_map = {}
-        retry_with_zhipu_single_map = {}
-        google_translate_texts_map = {}
-        translator_name = "Zhipu"
-
-        for i, text in enumerate(clean_texts):
-            if not text:
-                results[i] = ""
-                continue
-
-            cache_key = self.translation_cache_manager.generate_key(
-                text=text, target_lang=target_lang, translator_type=translator_name
-            )
-            cached_result = self.translation_cache_manager.get(cache_key)
-
-            if cached_result is not None and isinstance(cached_result, dict) and "text" in cached_result:
-                if cached_result.get('is_sensitive', False):
-                    log.info(f"批量缓存命中 (智谱键) 但标记为敏感: '{text[:30]}...'. 将尝试智谱单条翻译。")
-                    retry_with_zhipu_single_map[i] = text 
-                else:
-                    log.debug(f"批量缓存命中 (智谱键, 不敏感): '{text[:30]}...'")
-                    results[i] = cached_result["text"]
-            else:
-                log.debug(f"批量缓存未命中 (智谱): '{text[:30]}...'. 准备调用智谱API...")
-                uncached_texts_map[i] = text
+    async def _translate_batch_api(
+        self, texts: List[str], target_lang: str, cancel_flag: Optional[asyncio.Event], system_prompt: Optional[str] = None
+    ) -> Dict[str, TranslationResult]:
+        if not system_prompt:
+            raise ValueError("LLM翻译器需要一个系统提示词。")
         
-        if uncached_texts_map:
-            uncached_items = list(uncached_texts_map.items())
-            for i_batch_start in range(0, len(uncached_items), self.batch_size):
-                # 检查取消标志
-                if cancel_flag and cancel_flag.is_set():
-                    log.warning("🛑 智谱翻译器：在批量处理中收到取消信号")
-                    raise RuntimeError("翻译已被用户取消")
+        results: Dict[str, TranslationResult] = {}
+        for packed_prompt in texts:
+            if cancel_flag and cancel_flag.is_set():
+                raise asyncio.CancelledError("翻译任务被取消。")
 
-                current_batch_items = uncached_items[i_batch_start : i_batch_start + self.batch_size]
-                batch_texts_to_translate = [item[1] for item in current_batch_items]
-                batch_original_indices = [item[0] for item in current_batch_items]
+            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            
+            # 方案验证成功：将用户提示词封装在Markdown代码块中
+            content_with_markdown = f"```json\n{packed_prompt}\n```"
+            
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": content_with_markdown}
+                ],
+                "temperature": 0.1,
+                "response_format": {"type": "json_object"}
+            }
 
-                translated_sub_batch_results = self._translate_batch_api(batch_texts_to_translate, target_lang, cancel_flag)
-                
-                if translated_sub_batch_results and len(translated_sub_batch_results) == len(batch_texts_to_translate):
-                    for j, translated_item_or_signal in enumerate(translated_sub_batch_results):
-                        original_list_index = batch_original_indices[j]
-                        original_text_for_item = batch_texts_to_translate[j]
-                        if isinstance(translated_item_or_signal, str) and translated_item_or_signal == "__USE_GOOGLE_TRANSLATOR__":
-                            log.info(f"批量API指示 '{original_text_for_item[:30]}...' 敏感，将尝试智谱单条翻译。")
-                            retry_with_zhipu_single_map[original_list_index] = original_text_for_item
-                        elif isinstance(translated_item_or_signal, str):
-                            results[original_list_index] = translated_item_or_signal
-                            current_cache_key = self.translation_cache_manager.generate_key(
-                                text=original_text_for_item, target_lang=target_lang, translator_type=translator_name
-                            )
-                            self.translation_cache_manager.set(
-                                key=current_cache_key, data=translated_item_or_signal, is_sensitive=False
-                            )
-                        else:
-                            log.warning(f"批量API翻译失败 for '{original_text_for_item[:30]}...'. 将尝试智谱单条翻译。")
-                            retry_with_zhipu_single_map[original_list_index] = original_text_for_item
-                else: 
-                    log.warning(f"智谱批量API调用失败 for sub-batch starting with '{batch_texts_to_translate[0][:30]}...'. 将对该批次所有文本尝试智谱单条翻译。")
-                    for idx, text_to_retry_single in zip(batch_original_indices, batch_texts_to_translate):
-                        retry_with_zhipu_single_map[idx] = text_to_retry_single
-                
-                if (i_batch_start // self.batch_size + 1) < ((len(uncached_items) + self.batch_size - 1) // self.batch_size): time.sleep(1)
-
-        if retry_with_zhipu_single_map:
-            log.info(f"开始对 {len(retry_with_zhipu_single_map)} 条文本进行智谱单条重试...")
-            for original_list_idx, text_to_retry in retry_with_zhipu_single_map.items():
-                if results[original_list_idx] is not None: continue 
-
-                log.debug(f"智谱单条重试 for '{text_to_retry[:30]}...' (原索引: {original_list_idx})")
-                single_translation_text = self.translate(text_to_retry, target_lang) # BaseTranslator.translate handles API and caching
-                
-                if not single_translation_text.startswith("[Translation Failed:"):
-                    results[original_list_idx] = single_translation_text
-                else: 
-                    log.warning(f"智谱单条重试（通过 self.translate）最终失败 for '{text_to_retry[:30]}...'.")
-                    results[original_list_idx] = single_translation_text 
-
-
-        if google_translate_texts_map: 
-            log.info(f"开始对 {len(google_translate_texts_map)} 条文本进行Google翻译 (translate_batch)...")
-            google_items_to_translate = list(google_translate_texts_map.items())
-            google_translator_instance = GoogleDeepTranslator()
-            for original_list_idx, (text_to_google_translate, is_sensitive_reason) in google_items_to_translate:
-                if results[original_list_idx] is not None: continue 
-
-                google_translated_text = google_translator_instance.translate(text_to_google_translate, target_lang)
-                
-                if not google_translated_text.startswith("[Translation Failed:"):
-                    results[original_list_idx] = google_translated_text
-                    if is_sensitive_reason:
-                        original_translator_cache_key = self.translation_cache_manager.generate_key(
-                            text=text_to_google_translate, target_lang=target_lang, translator_type="Zhipu"
-                        )
-                        log.info(f"批量: 使用Google结果更新原Zhipu缓存键 '{original_translator_cache_key}' for '{text_to_google_translate[:30]}...', 标记为敏感: True")
-                        self.translation_cache_manager.set(
-                            key=original_translator_cache_key, data=google_translated_text, is_sensitive=True
-                        )
-                else:
-                    log.warning(f"批量: Google翻译最终失败 for '{text_to_google_translate[:30]}...'")
-                    results[original_list_idx] = google_translated_text 
-
-        final_results = [res if res is not None else f"[Translation Failed: {clean_texts[i]}]" for i, res in enumerate(results)]
-        return final_results
-
-    def _translate_batch_api(self, texts: List[str], target_lang: str, cancel_flag=None) -> List[Optional[str]]:
-        if not texts: return []
-
-        # 检查取消标志
-        if cancel_flag and cancel_flag.is_set():
-            log.warning("🛑 智谱API请求前检查：收到取消信号")
-            raise RuntimeError("翻译已被用户取消")
-
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        lang_map = {"zh": "中文", "zh-cn": "中文", "en": "英文", "ja": "日文", "ko": "韩文"}
-        target_lang_name = lang_map.get(target_lang.lower(), target_lang)
-
-        system_prompt_content = (
-            f"你是一个专业的漫画翻译专家。请将用户提供的每一行文本独立翻译成{target_lang_name}。"
-            "严格按照原始文本的顺序逐行翻译，每行翻译结果占一行。"
-            "不要添加任何额外的解释、编号、或者与翻译无关的内容。"
-            "尽可能以轻小说的口吻进行翻译，名字必须使用常见的轻小说明明不允许翻译成英文名。"
-            "如果某行文本由于内容限制无法翻译，请针对该行明确输出特殊标记：[UNTRANSLATABLE_CONTENT]"
-        )
-
-        user_prompt_content = "\n".join(texts)
-
-        messages = [
-            {"role": "system", "content": system_prompt_content},
-            {"role": "user", "content": user_prompt_content}
-        ]
-        payload = {"model": self.model, "messages": messages, "temperature": 0.1}
-
-        log.debug(f"智谱批量API请求 ({len(texts)}条): 模型={self.model}, 目标语言={target_lang_name}")
-
-        try:
-            # 使用更短的超时时间，并在循环中检查取消标志
-            import threading
-            import time
-
-            response_container = [None]
-            exception_container = [None]
-
-            def make_request():
-                try:
-                    response_container[0] = requests.post(
+            loop = asyncio.get_running_loop()
+            try:
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: requests.post(
                         self.api_base_url,
                         headers=headers,
-                        json=payload,
-                        timeout=10  # 缩短超时时间
+                        json=payload, # 使用 `json` 参数自动处理序列化
+                        timeout=45
                     )
-                except Exception as e:
-                    exception_container[0] = e
-
-            # 在单独线程中发送请求
-            request_thread = threading.Thread(target=make_request)
-            request_thread.daemon = True
-            request_thread.start()
-
-            # 轮询检查取消标志和请求完成状态
-            max_wait_time = 45  # 最大等待45秒
-            check_interval = 0.5  # 每0.5秒检查一次
-            elapsed_time = 0
-
-            while request_thread.is_alive() and elapsed_time < max_wait_time:
-                # 检查取消标志
-                if cancel_flag and cancel_flag.is_set():
-                    log.warning("🛑 智谱API请求中收到取消信号，停止等待")
-                    raise RuntimeError("翻译已被用户取消")
-
-                time.sleep(check_interval)
-                elapsed_time += check_interval
-
-            # 等待线程完成（如果还在运行）
-            request_thread.join(timeout=1.0)
-
-            # 检查是否超时
-            if request_thread.is_alive():
-                log.error("智谱API请求超时")
-                raise requests.exceptions.Timeout("智谱API请求超时")
-
-            # 检查是否有异常
-            if exception_container[0]:
-                raise exception_container[0]
-
-            # 获取响应
-            response = response_container[0]
-            if response is None:
-                raise RuntimeError("智谱API请求失败：无响应")
-            
-            if response.status_code == 400:
-                try:
-                    error_json = response.json()
-                    error_info = error_json.get("error", {})
-                    log.warning(f"智谱API返回400错误: Code={error_info.get('code')}, Message={error_info.get('message')}")
-                    if error_info.get("code") == "1301": 
-                        log.warning("智谱API指示批量内容敏感 (1301)。")
-                        return ["__USE_GOOGLE_TRANSLATOR__"] * len(texts)
-                except json.JSONDecodeError:
-                    log.error(f"智谱API返回400，但响应不是有效JSON: {response.text}")
-                return [None] * len(texts) 
-
-            response.raise_for_status() 
-            
-            result = response.json()
-            if result and result.get("choices") and result["choices"][0].get("message"):
-                translated_content = result["choices"][0]["message"]["content"].strip()
-                translated_lines = translated_content.split('\n')
-                
-                if len(translated_lines) == len(texts):
-                    processed_translations = []
-                    for i, line in enumerate(translated_lines):
-                        clean_line = line.strip()
-                        if clean_line == "[UNTRANSLATABLE_CONTENT]":
-                            log.warning(f"智谱API标记第 {i+1} 条文本 '{texts[i][:30]}...' 为不可翻译。")
-                            processed_translations.append("__USE_GOOGLE_TRANSLATOR__") 
-                        elif not clean_line: 
-                            log.warning(f"智谱API返回第 {i+1} 条文本 '{texts[i][:30]}...' 的翻译为空。")
-                            processed_translations.append(None)
-                        else:
-                            processed_translations.append(clean_line)
-                    return processed_translations
-                else:
-                    log.warning(f"智谱批量翻译返回的行数 ({len(translated_lines)}) 与请求的文本数量 ({len(texts)}) 不匹配。")
-                    log.debug(f"智谱原始输出:\n{translated_content}")
-                    if len(texts) == 1 and len(translated_lines) >= 1:
-                        log.info("单条文本批量请求，但返回多行，取第一行。")
-                        first_line_clean = translated_lines[0].strip()
-                        if first_line_clean == "[UNTRANSLATABLE_CONTENT]": return ["__USE_GOOGLE_TRANSLATOR__"]
-                        return [first_line_clean if first_line_clean else None]
-                    return [None] * len(texts) 
-            else:
-                log.warning(f"智谱API响应格式不符合预期: {result}")
-                return [None] * len(texts)
-        except requests.exceptions.Timeout:
-            log.error(f"智谱批量API请求超时 ({len(texts)}条)。")
-            return [None] * len(texts)
-        except requests.exceptions.RequestException as e:
-            log.error(f"智谱批量API请求失败 ({len(texts)}条): {e}")
-            return [None] * len(texts)
-        except json.JSONDecodeError as e:
-            log.error(f"解析智谱API响应JSON失败: {e}. Response text: {response.text if 'response' in locals() else 'N/A'}")
-            return [None] * len(texts)
-        except Exception as e:
-            log.error(f"智谱 _translate_batch_api 未知错误: {e}")
-            return [None] * len(texts)
-
-    def _translate_text(self, text: str, target_lang: str) -> Optional[Dict[str, Any]]:
-        if not text: return None
+                )
+                response.raise_for_status()
+                response_json = response.json()
+                # 返回的文本是LLM生成的JSON字符串，由上层业务逻辑解包
+                translated_content_str = response_json["choices"][0]["message"]["content"]
+                results[packed_prompt] = TranslationResult(text=translated_content_str, translated=True)
+            except Exception as e:
+                log.error(f"调用智谱API时出错: {e}", exc_info=True)
+                results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False)
         
-        log.debug(f"单文本 (_translate_text): 调用智谱批量API翻译 '{text[:30]}...'")
-        api_results = self._translate_batch_api([text], target_lang)
+        return results
 
-        if not api_results or api_results[0] is None:
-            log.warning(f"单文本: 智谱API翻译失败 for '{text[:30]}...'. 将使用Google翻译。")
-            google_translator = GoogleDeepTranslator()
-            google_result_dict = google_translator._translate_text(text, target_lang) 
-            if google_result_dict and google_result_dict["text"]:
-                return {"text": google_result_dict["text"], "is_sensitive": False} 
-            return None 
 
-        first_result = api_results[0]
-
-        if first_result == "__USE_GOOGLE_TRANSLATOR__":
-            log.warning(f"单文本: 智谱API指示 '{text[:30]}...' 敏感. 将使用Google翻译 (标记敏感).")
-            google_translator = GoogleDeepTranslator()
-            google_result_dict = google_translator._translate_text(text, target_lang) 
-            if google_result_dict and google_result_dict["text"]:
-                return {"text": google_result_dict["text"], "is_sensitive": True}
-            return None 
-        
-        if isinstance(first_result, str):
-            log.info(f"单文本: 智谱API翻译成功 '{text[:30]}...' -> '{first_result[:30]}...'")
-            return {"text": first_result, "is_sensitive": False}
-        
-        log.error(f"单文本: 未知智谱API结果类型 for '{text[:30]}...': {first_result}")
-        return None
-
-class GoogleDeepTranslator(BaseTranslator):
-    def __init__(self, api_key=None):
+class OpenAITranslator(BaseTranslator):
+    """使用OpenAI（GPT）API的翻译器。"""
+    def __init__(self, api_key: str, model: str = "gpt-4o", api_base_url: Optional[str] = None):
         super().__init__()
-        self.api_key = api_key 
+        self.api_key = api_key
+        self.model = model
+        self.api_base_url = api_base_url or "https://api.openai.com/v1"
+        log.debug(f"OpenAITranslator已使用模型 {self.model} 和基础URL {self.api_base_url} 初始化")
 
-    def _translate_text(self, text: str, target_lang: str) -> Optional[Dict[str, Any]]:
-        if not text: return None
+    @staticmethod
+    def list_models(api_key: str, api_base_url: Optional[str] = None) -> List[str]:
+        if not api_key: raise ValueError("列出OpenAI模型需要API密钥。")
+        url = f"{(api_base_url or 'https://api.openai.com/v1').rstrip('/')}/models"
+        headers = {"Authorization": f"Bearer {api_key}"}
         try:
-            dt_target_lang = target_lang
-            if target_lang.lower() in ["zh", "zh-cn", "zh-hans"]: dt_target_lang = "zh-CN"
-            elif target_lang.lower() in ["zh-tw", "zh-hant"]: dt_target_lang = "zh-TW"
-            
-            log.debug(f"GoogleDeepTranslator: Translating '{text[:30]}...' to {dt_target_lang}")
-            translator = GoogleTranslator(source="auto", target=dt_target_lang)
-            translated_text = translator.translate(text)
-            
-            if translated_text:
-                log.debug(f"GoogleDeepTranslator: Success '{text[:30]}...' -> '{translated_text[:30]}...'")
-                return {"text": translated_text, "is_sensitive": False} 
-            else:
-                log.warning(f"GoogleDeepTranslator: Translation returned empty for '{text[:30]}...'")
-                return None
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            return sorted([m['id'] for m in data.get('data', []) if 'gpt' in m['id'] and 'instruct' not in m['id']], reverse=True)
         except Exception as e:
-            log.error(f"GoogleDeepTranslator: Error translating '{text[:30]}...': {e}")
-            return None
+            log.error(f"获取OpenAI模型失败：{e}", exc_info=True)
+            raise ValueError(f"连接到OpenAI API失败：{e}")
+
+    async def _translate_batch_api(
+        self, texts: List[str], target_lang: str, cancel_flag: Optional[asyncio.Event], system_prompt: Optional[str] = None
+    ) -> Dict[str, TranslationResult]:
+        if not system_prompt:
+            raise ValueError("LLM翻译器需要一个系统提示词。")
+
+        api_url = f"{self.api_base_url.rstrip('/')}/chat/completions"
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        results: Dict[str, TranslationResult] = {}
+
+        for packed_prompt in texts:
+            if cancel_flag and cancel_flag.is_set():
+                raise asyncio.CancelledError("翻译任务被取消。")
+
+            # 方案验证成功：将用户提示词封装在Markdown代码块中
+            content_with_markdown = f"```json\n{packed_prompt}\n```"
+            
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": content_with_markdown}
+                ],
+                "temperature": 0.1,
+                "response_format": {"type": "json_object"}
+            }
+
+            # --- 增加详细日志 ---
+            log.debug(f"即将发送到 OpenAI API 的 Payload (请求体):\n{json.dumps(payload, indent=2, ensure_ascii=False)}")
+            
+            loop = asyncio.get_running_loop()
+            try:
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: requests.post(
+                        api_url,
+                        headers=headers,
+                        json=payload, # 使用 `json` 参数自动处理序列化
+                        timeout=45
+                    )
+                )
+                response.raise_for_status()
+                response_json = response.json()
+
+                # --- 增加详细日志 ---
+                log.debug(f"从 OpenAI API 收到的原始响应:\n{json.dumps(response_json, indent=2, ensure_ascii=False)}")
+                
+                translated_content_str = response_json["choices"][0]["message"]["content"]
+                results[packed_prompt] = TranslationResult(text=translated_content_str, translated=True)
+            except Exception as e:
+                log.error(f"调用OpenAI API时出错: {e}", exc_info=True)
+                results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False)
+        
+        return results
+
+
+class GeminiTranslator(BaseTranslator):
+    """使用谷歌Gemini API的翻译器。"""
+    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+        super().__init__()
+        self.api_key = api_key
+        self.model = model
+        self.api_base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+        log.debug(f"GeminiTranslator已使用模型 {self.model} 初始化")
+
+    @staticmethod
+    def list_models(api_key: str, **kwargs) -> List[str]:
+        if not api_key: raise ValueError("列出Gemini模型需要API密钥。")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+            return sorted([m['name'].replace('models/', '') for m in data.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])])
+        except Exception as e:
+            log.error(f"获取Gemini模型失败：{e}", exc_info=True)
+            raise ValueError(f"连接到Gemini API失败：{e}")
+
+    async def _translate_batch_api(
+        self, texts: List[str], target_lang: str, cancel_flag: Optional[asyncio.Event], system_prompt: Optional[str] = None
+    ) -> Dict[str, TranslationResult]:
+        if not system_prompt:
+            raise ValueError("LLM翻译器需要一个系统提示词。")
+
+        api_url = f"{self.api_base_url}/{self.model}:generateContent?key={self.api_key}"
+        headers = {'Content-Type': 'application/json'}
+        results: Dict[str, TranslationResult] = {}
+        
+        # Gemini API的特定JSON结构
+        generation_config = {"temperature": 0.2, "response_mime_type": "application/json"}
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
+
+        for packed_prompt in texts:
+            if cancel_flag and cancel_flag.is_set():
+                raise asyncio.CancelledError("翻译任务被取消。")
+
+            # 方案验证成功：将用户提示词封装在Markdown代码块中
+            content_with_markdown = f"```json\n{packed_prompt}\n```"
+
+            payload = {
+                "contents": [
+                    # Gemini API的系统提示词是作为独立部分发送的
+                    {"parts": [{"text": system_prompt}]},
+                    {"parts": [{"text": content_with_markdown}]}
+                ],
+                "generationConfig": generation_config,
+                "safetySettings": safety_settings
+            }
+
+            loop = asyncio.get_running_loop()
+            try:
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: requests.post(
+                        api_url,
+                        headers=headers,
+                        json=payload, # 使用 `json` 参数自动处理序列化
+                        timeout=60
+                    )
+                )
+                response.raise_for_status()
+                response_json = response.json()
+                translated_content_str = response_json["candidates"][0]["content"]["parts"][0]["text"]
+                results[packed_prompt] = TranslationResult(text=translated_content_str, translated=True)
+            except Exception as e:
+                log.error(f"调用Gemini API时出错: {e}", exc_info=True)
+                results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False)
+        
+        return results
+
 
 class TranslatorFactory:
-    @staticmethod
-    def create_translator(translator_type, api_key=None, model=None, **kwargs):
+    """
+    一个支持延迟加载和实例缓存的翻译器工厂。
+    在初始化时接收所有配置，但只在首次请求时创建翻译器实例。
+    """
+    def __init__(self, **kwargs):
+        self.configs = kwargs
+        self._instances: Dict[str, BaseTranslator] = {}
+
+    def get_translator(self, translator_type: str) -> BaseTranslator:
+        """根据类型获取翻译器实例，如果不存在则创建并缓存。"""
+        if translator_type not in self._instances:
+            log.info(f"翻译器 '{translator_type}' 不在缓存中。正在创建新实例...")
+            translator = self._create_translator(translator_type)
+            self._instances[translator_type] = translator
+        
+        return self._instances[translator_type]
+
+    def _create_translator(self, translator_type: str) -> BaseTranslator:
+        """根据类型创建新的翻译器实例。"""
         if translator_type == "智谱":
-            if not api_key: raise ValueError("ZhipuTranslator requires an API key.")
-            return ZhipuTranslator(api_key=api_key, model=model or "glm-4-flash-250414")
-        elif translator_type == "Google":
-            return GoogleDeepTranslator(api_key=api_key) 
+            api_key = self.configs.get("zhipu_api_key")
+            model = self.configs.get("zhipu_model")
+            if not api_key: raise ValueError("智谱翻译器需要API密钥。")
+            return ZhipuTranslator(api_key=api_key, model=model or "glm-4-flash")
+
+        elif translator_type == "OpenAI":
+            api_key = self.configs.get("openai_api_key")
+            model = self.configs.get("openai_model")
+            api_base_url = self.configs.get("openai_api_base_url")
+            if not api_key: raise ValueError("OpenAI翻译器需要API密钥。")
+            return OpenAITranslator(api_key=api_key, model=model or "gpt-4o", api_base_url=api_base_url)
+
+        elif translator_type == "Gemini":
+            api_key = self.configs.get("gemini_api_key")
+            model = self.configs.get("gemini_model")
+            if not api_key: raise ValueError("Gemini翻译器需要API密钥。")
+            return GeminiTranslator(api_key=api_key, model=model or "gemini-1.5-flash")
+
         else:
-            raise ValueError(f"Unknown translator type: {translator_type}")
+            raise ValueError(f"未知的翻译器类型: {translator_type}")

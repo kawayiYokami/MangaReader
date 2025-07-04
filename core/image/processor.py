@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 # --- 类型别名 ---
 ImageType = np.ndarray  # 标准内部图像表示
 
-# --- 统一 I/O ---
+# --- 统一输入输出 ---
 
 def read_image(source: Union[str, bytes]) -> Optional[ImageType]:
     """
@@ -38,7 +38,7 @@ def read_image(source: Union[str, bytes]) -> Optional[ImageType]:
         if img is None:
             from io import BytesIO
             from PIL import Image
-            log.warning(f"OpenCV无法解码图像，尝试使用Pillow...")
+            log.warning(f"OpenCV could not decode image, trying with Pillow...")
             try:
                 if isinstance(source, str):
                      # 如果是从路径来的，我们已经读取了字节
@@ -90,7 +90,7 @@ def write_image(image: ImageType, ext: str = '.jpg', quality: int = 85) -> Optio
 
         success, buffer = cv2.imencode(clean_ext, image, params)
         if not success:
-            log.warning(f"cv2.imencode 编码为 {clean_ext} 失败。")
+            log.warning(f"cv2.imencode failed to encode to {clean_ext}.")
             return None
         return buffer.tobytes()
     except Exception as e:

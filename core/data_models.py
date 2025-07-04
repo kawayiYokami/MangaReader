@@ -1,5 +1,6 @@
 # core/data_models.py
 from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
 
 class OCRResult:
     """OCR识别结果数据类"""
@@ -28,7 +29,7 @@ class OCRResult:
                     self.ocr_results.append(OCRResult(**res_data))
                 elif isinstance(res_data, OCRResult):
                     self.ocr_results.append(res_data)
-                # else: # 可以选择性地处理或记录列表中的其他类型
+                # else: # 否则：可以选择性地处理或记录列表中的其他类型
 
         # 处理 kwargs 中可能存在的、尚未被显式参数处理的属性
         remaining_kwargs = kwargs.copy()
@@ -90,3 +91,14 @@ class OCRResult:
                 else:
                     data[key] = value
         return data
+
+
+@dataclass
+class TranslationResult:
+    """封装翻译结果，包含文本和是否经过翻译的标志"""
+    text: str          # 翻译后的文本，或者在未翻译时为原文
+    translated: bool   # 标志，为 True 表示 text 是译文，为 False 表示是原文
+
+    def to_dict(self) -> Dict[str, Any]:
+        """将对象转换为可序列化的字典。"""
+        return {'text': self.text, 'translated': self.translated}

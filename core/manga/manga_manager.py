@@ -167,14 +167,14 @@ class MangaManager:
     def _load_single_manga(self, path: str) -> MangaInfo | None:
         """使用新架构加载单个漫画"""
         try:
-            log.info(f"[_load_single_manga] Received path: '{path}'")
+            log.info(f"[_load_single_manga] 收到路径: '{path}'")
             data_source = DataSourceFactory.create(path)
             if not data_source:
                 log.error(f"[_load_single_manga] DataSourceFactory failed to create a source for path: {path}")
                 return None
             
             properties = data_source.get_properties()
-            log.info(f"[_load_single_manga] Properties received from data source: {properties}")
+            log.info(f"[_load_single_manga] 从数据源收到的属性: {properties}")
 
             if not properties:
                 log.warning(f"数据源无效，跳过: {path}")

@@ -18,6 +18,7 @@ from enum import Enum
 from core.ocr.ocr_manager import OCRResult
 from core.config import config
 from utils import manga_logger as log
+from ..data_models import TranslationResult
 
 
 class TextDirection(Enum):
@@ -80,11 +81,11 @@ class MangaTextReplacer:
         font_name = config.font_name.value
         if font_name:
             font_path = os.path.join(self.font_dir, font_name)
-            if os.path.exists(font_path):
-                log.debug(f"使用配置的字体: {font_path}")
-                return font_path
-            else:
-                log.warning(f"配置的字体不存在: {font_path}")
+            # if os.path.exists(font_path):
+            #     log.debug(f"使用配置的字体: {font_path}")
+            #     return font_path
+            # else:
+            #     log.warning(f"配置的字体不存在: {font_path}")
 
         # 如果配置的字体不可用，尝试使用系统字体
         # 首先使用项目字体目录中的字体
@@ -110,7 +111,7 @@ class MangaTextReplacer:
         
         for font_path in system_fonts:
             if os.path.exists(font_path):
-                log.info(f"使用系统字体: {font_path}")
+                # log.info(f"使用系统字体: {font_path}")
                 return font_path
         
         log.warning("未找到合适的字体文件，将使用PIL默认字体")
@@ -127,13 +128,13 @@ class MangaTextReplacer:
             if font_path:
                 try:
                     font = ImageFont.truetype(font_path, size)
-                    log.debug(f"成功加载字体: {font_path} (大小: {size}px)")
+                    # log.debug(f"成功加载字体: {font_path} (大小: {size}px)")
                 except Exception as e:
-                    log.error(f"加载字体 {font_path} 失败: {e}")
+                    # log.error(f"加载字体 {font_path} 失败: {e}")
                     font = ImageFont.load_default()
             else:
                 font = ImageFont.load_default()
-                log.warning("使用PIL默认字体")
+                # log.warning("使用PIL默认字体")
             
             self.font_cache[cache_key] = font
             return font
@@ -160,60 +161,116 @@ class MangaTextReplacer:
         chinese_chars = sum(1 for char in text if '\u4e00' <= char <= '\u9fff')
         return chinese_chars > len(text) * 0.3
     
-    def _calculate_optimal_font_size(self, text: str, bbox: List[List[int]], 
-                                   direction: TextDirection, 
-                                   line_spacing: float = 1.2,
-                                   column_count: int = 1) -> int:
-        """计算最优字体大小
-        
-        Args:
-            text: 要显示的文本
-            bbox: 文本框坐标
-            direction: 文本方向
-            line_spacing: 行间距倍数
-            column_count: 文本框的列数
-            
-        Returns:
-            计算出的最优字体大小
-        """
+    def _estimate_original_font_size(self, bbox: List[List[int]],
+                                     direction: TextDirection,
+                                     line_or_column_count: int) -> int:
+        """根据原文的属性估算其字体大小"""
         points = np.array(bbox)
         width = np.max(points[:, 0]) - np.min(points[:, 0])
         height = np.max(points[:, 1]) - np.min(points[:, 1])
+
+        if line_or_column_count <= 0:
+            line_or_column_count = 1
+
+        # 为行/列间距留出一些余地，使用1.1作为系数
+        spacing_factor = 1.1
+
+        if direction == TextDirection.VERTICAL:
+            # 垂直文本，字体大小主要由宽度和列数决定
+            estimated_size = width / (line_or_column_count * spacing_factor)
+            log.debug(f"估算原文垂直字号: width({width}) / (cols({line_or_column_count}) * factor({spacing_factor})) = {estimated_size}")
+        else:
+            # 水平文本，字体大小主要由高度和行数决定
+            estimated_size = height / (line_or_column_count * spacing_factor)
+            log.debug(f"估算原文水平字号: height({height}) / (lines({line_or_column_count}) * factor({spacing_factor})) = {estimated_size}")
         
-        # 预留边距
-        available_width = width * 0.9
-        available_height = height * 0.9
+        final_size = max(8, int(estimated_size))
+        log.debug(f"最终估算基准字号 (不小于8): {final_size}")
+        return final_size
+
+    def _calculate_adaptive_font_size(self, text: str,
+                                      max_width: int, max_height: int,
+                                      base_font_size: int,
+                                      direction: TextDirection,
+                                      line_or_column_count: int,
+                                      line_spacing: float = 1.2) -> int:
+        """
+        以基准字体大小为基础，进行双向搜索，找到最佳字体大小。
+        1. 向上搜索：尝试放大字体以填充空间。
+        2. 向下搜索：如果放大后或基准大小本身就溢出，则缩小字体以确保能放下。
+        """
+        log.debug(f"开始双向计算自适应字体: text='{text[:20]}...', max_w={max_width}, max_h={max_height}, base_size={base_font_size}, dir={direction.value}, count={line_or_column_count}")
+
+        # --- Helper function to check if a font size overflows ---
+        def does_it_overflow(size):
+            if size <= 0: return True
+            font = self._get_font(size)
+            if direction == TextDirection.HORIZONTAL:
+                lines, line_height = self._wrap_text_for_box(text, max_width, max_height, size, line_spacing)
+                rendered_height = len(lines) * line_height - (line_height * (1 - line_spacing) if len(lines) > 1 else 0)
+                if rendered_height > max_height: return True
+                if any(font.getbbox(line)[2] - font.getbbox(line)[0] > max_width for line in lines): return True
+            else: # VERTICAL
+                char_bbox = font.getbbox("中")
+                char_height = (char_bbox[3] - char_bbox[1]) * line_spacing
+                char_width = char_bbox[2] - char_bbox[0]
+                single_col_width = max_width / line_or_column_count
+                chars_per_col = math.ceil(len(text) / line_or_column_count)
+                total_height = chars_per_col * char_height
+                if total_height > max_height or char_width > single_col_width: return True
+            return False
+
+        # --- Phase 1: Upward search to find the largest possible font size ---
+        log.info(f"  (Phase 1) 向上搜索最大可用字号...")
+        low = base_font_size
+        high = min(max_height, int(max_width / (line_or_column_count if direction == TextDirection.VERTICAL else 1)) * 2) # A reasonable upper bound
+        high = max(low, high) # Ensure high is not smaller than low
         
-        if direction == TextDirection.HORIZONTAL:
-            # 水平文本：根据列宽计算
-            column_width = available_width / column_count
-            # 每列中的平均字符数
-            chars_per_column = len(text) / column_count
-            # 根据列宽和字符数估算字体大小
-            font_size = int(column_width / (chars_per_column * 0.8))  # 0.8是字符宽度比例因子
+        best_fit_size = base_font_size
+
+        # Check if base_font_size is already overflowing
+        if does_it_overflow(base_font_size):
+            log.warning(f"  => 基准字号 {base_font_size} 已溢出, 直接进入向下搜索阶段。")
+        else:
+            # Binary search for the largest size that does NOT overflow
+            best_fit_size = low
+            while low <= high:
+                mid = (low + high) // 2
+                if mid <= 0: break
+                
+                if not does_it_overflow(mid):
+                    best_fit_size = mid # This size fits, try even larger
+                    low = mid + 1
+                else:
+                    high = mid - 1 # This size is too big
+            log.info(f"  => 向上搜索完成, 找到最佳填充字号: {best_fit_size}")
+
+
+        # --- Phase 2: Downward search (if needed) to ensure the text fits ---
+        # This is a fallback, especially if the upward search resulted in an overflowing size
+        # or if the initial base_font_size was already too large.
+        if does_it_overflow(best_fit_size):
+            log.warning(f"  (Phase 2) 字号 {best_fit_size} 仍然溢出, 开始向下搜索以保证内容完整。")
+            low = 6
+            high = best_fit_size
+            final_size = low
+
+            while low <= high:
+                mid = (low + high) // 2
+                if mid <= 0: break
+
+                if not does_it_overflow(mid):
+                    final_size = mid # It fits, try larger to find the boundary
+                    low = mid + 1
+                else:
+                    high = mid - 1 # It overflows, must be smaller
             
-            # 验证高度是否合适
-            estimated_lines = max(1, math.ceil(chars_per_column / (column_width / font_size if font_size > 0 else 1)))
-            max_font_size_by_height = int(available_height / (estimated_lines * line_spacing))
-            
-            # 取较小值确保不会溢出
-            font_size = min(font_size, max_font_size_by_height)
-            
-        else:  # 垂直文本
-            # 垂直文本：根据列数和总高度计算
-            column_width = available_width / column_count
-            chars_per_column = math.ceil(len(text) / column_count)  # 向上取整，确保有足够空间
-            
-            # 先根据高度计算每个字符可用的空间
-            font_size = int(available_height / chars_per_column if chars_per_column > 0 else available_height)
-            
-            # 然后验证列宽是否合适
-            max_font_size_by_width = int(column_width * 0.95)  # 留一点边距
-            font_size = min(font_size, max_font_size_by_width)
-        
-        # 确保字体大小在合理范围内
-        return max(8, min(font_size, 1000))  # 恢复合理的字体大小范围
-    
+            best_fit_size = final_size
+            log.info(f"  => 向下搜索完成, 最终确定的安全字号为: {best_fit_size}")
+
+        log.info(f"最终自适应字号确定为: {best_fit_size}")
+        return best_fit_size
+
     def _split_text_to_lines(self, text: str, max_width: int, font_size: int) -> List[str]:
         """将文本分割为多行"""
         if not text.strip():
@@ -316,33 +373,41 @@ class MangaTextReplacer:
                 
         return columns
 
-    def create_manga_replacements(self, ocr_results: List[OCRResult], 
-                                translations: Dict[str, str],
-                                target_language: str = "zh") -> List[MangaTextReplacement]:
+    def create_manga_replacements(self, ocr_results: List[OCRResult],
+                                  translation_map: Dict[str, TranslationResult],
+                                  target_language: str = "zh") -> List[MangaTextReplacement]:
         """
-        创建漫画文本替换信息列表
-        
+        创建漫画文本替换信息列表。
+        现在它接收一个包含 TranslationResult 对象的字典，并会检查 `translated` 标志。
+
         Args:
             ocr_results: OCR识别结果列表 (每个OCRResult代表一个独立的文本块)
-            translations: 翻译结果字典 {原文: 译文}
+            translation_map: 翻译结果字典 {原文: TranslationResult}
             target_language: 目标语言代码
-            
+
         Returns:
             漫画文本替换信息列表
         """
         replacements = []
-        
+
         for ocr_item in ocr_results:
             original_text = ocr_item.text.strip()
-            translated_text = translations.get(original_text)
-            
-            if not translated_text:
-                translated_text = self._find_fuzzy_translation(original_text, translations)
-            
-            if not translated_text:
-                # 如果找不到翻译，可以考虑是否跳过，或者使用原文
-                # log.warning(f"未找到原文 '{original_text}' 的翻译，跳过此文本块。")
+            translation_result = translation_map.get(original_text)
+
+            if not translation_result:
+                # 尝试模糊匹配，因为某些文本在清理后可能键值不同
+                translation_result = self._find_fuzzy_translation(original_text, translation_map)
+
+            if not translation_result:
+                log.warning(f"未找到原文 '{original_text}' 的翻译，跳过此文本块。")
                 continue
+
+            # **核心逻辑：如果LLM决定不翻译，我们就跳过这个文本块。**
+            if not translation_result.translated:
+                log.debug(f"文本 '{original_text}' 被标记为无需翻译，已跳过。")
+                continue
+
+            translated_text = translation_result.text
 
             # 确定原始方向
             if ocr_item.direction == 'vertical':
@@ -355,18 +420,38 @@ class MangaTextReplacer:
             target_direction = self._determine_target_direction(
                 original_text, translated_text, target_language, original_direction
             )
-            
+
             points = np.array(ocr_item.bbox)
             width = np.max(points[:, 0]) - np.min(points[:, 0])
             height = np.max(points[:, 1]) - np.min(points[:, 1])
-            
-            # column_count 现在基于 ocr_item.ocr_results (如果它是合并的结果)
-            column_count = ocr_item.merged_count if ocr_item.merged_count and ocr_item.merged_count > 0 else 1
-            
-            font_size = self._calculate_optimal_font_size(
-                translated_text, ocr_item.bbox, target_direction,
-                column_count=column_count
+
+            # 区分行数和列数
+            line_count = 1
+            column_count = 1
+            if target_direction == TextDirection.HORIZONTAL:
+                line_count = ocr_item.merged_count if ocr_item.merged_count and ocr_item.merged_count > 0 else 1
+            else: # VERTICAL
+                column_count = ocr_item.merged_count if ocr_item.merged_count and ocr_item.merged_count > 0 else 1
+
+            log.info(f"--- 开始处理文本框: original_text='{original_text[:20]}...' ---")
+            log.debug(f"原始方向: {original_direction.value}, 目标方向: {target_direction.value}, 原始合并数: {ocr_item.merged_count}")
+            # 1. 估算原文的基准字体大小
+            base_font_size = self._estimate_original_font_size(
+                ocr_item.bbox,
+                original_direction,
+                line_or_column_count=ocr_item.merged_count if ocr_item.merged_count and ocr_item.merged_count > 0 else 1
             )
+            
+            # 2. 基于基准大小，为译文计算自适应字体大小
+            font_size = self._calculate_adaptive_font_size(
+                text=translated_text,
+                max_width=int(width),
+                max_height=int(height),
+                base_font_size=base_font_size,
+                direction=target_direction,
+                line_or_column_count=line_count if target_direction == TextDirection.HORIZONTAL else column_count
+            )
+            log.info(f"最终确定字体大小: {font_size}")
             
             alignment = self._determine_alignment(target_direction, target_language)
             line_spacing, char_spacing = self._calculate_spacing(
@@ -390,20 +475,19 @@ class MangaTextReplacer:
                 stroke_width=2
             )
             replacements.append(replacement)
-        
-        log.info(f"创建了 {len(replacements)} 个漫画文本替换")
+            
         return replacements
     
-    def _find_fuzzy_translation(self, original_text: str, 
-                               translations: Dict[str, str]) -> Optional[str]:
-        """模糊匹配翻译结果"""
+    def _find_fuzzy_translation(self, original_text: str,
+                                  translation_map: Dict[str, TranslationResult]) -> Optional[TranslationResult]:
+        """模糊匹配翻译结果，返回 TranslationResult 对象。"""
         cleaned_original = ''.join(c for c in original_text if c.isalnum())
-        
-        for key, value in translations.items():
+
+        for key, result in translation_map.items():
             cleaned_key = ''.join(c for c in key if c.isalnum())
             if cleaned_original == cleaned_key:
-                return value
-        
+                return result
+
         return None
     
     def _determine_target_direction(self, original_text: str, translated_text: str,
@@ -681,28 +765,28 @@ class MangaTextReplacer:
             
         return processed_image
 
-    def process_manga_image(self, image: np.ndarray, 
-                            structured_texts: List[OCRResult], # 修改类型注解
-                            translations: Dict[str, str],
+    def process_manga_image(self, image: np.ndarray,
+                            structured_texts: List[OCRResult],
+                            translation_map: Dict[str, TranslationResult],
                             target_language: str = "zh",
                             inpaint_background: bool = True) -> np.ndarray:
         """
         处理漫画图像：基于结构化文本的翻译和智能文本替换
-        
+
         Args:
             image: 原始图像数据
             structured_texts: OCR识别结果列表 (每个OCRResult代表一个独立的文本块)
-            translations: 翻译结果字典 {原文: 译文}
+            translation_map: 翻译结果字典 {原文: TranslationResult}
             target_language: 目标语言代码
             inpaint_background: 是否修复背景
-            
+
         Returns:
             处理后的图像
         """
         # 直接使用 create_manga_replacements 来生成替换列表
         replacements = self.create_manga_replacements(
-            ocr_results=structured_texts, 
-            translations=translations, 
+            ocr_results=structured_texts,
+            translation_map=translation_map,
             target_language=target_language
         )
         

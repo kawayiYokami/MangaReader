@@ -207,7 +207,7 @@ async def cache_management(request: Request):
 @app.get("/viewer_mobile.html", response_class=HTMLResponse)
 async def manga_viewer_mobile(request: Request):
     """移动端查看器的独立入口"""
-    log.info("Providing mobile viewer: viewer_mobile.html")
+    log.info("提供移动版查看器: viewer_mobile.html")
     return templates.TemplateResponse("viewer_mobile.html", {"request": request})
 
 @app.get("/mobile", response_class=HTMLResponse)
@@ -271,7 +271,7 @@ try:
     log.info("WebSocket路由注册完成")
 except ImportError as e:
     log.warning(f"WebSocket模块未找到: {e}")
-    print(f"警告: WebSocket模块未找到: {e}")
+    print(f"Warning: WebSocket module not found: {e}")
 
 def get_core_interface_instance():
     """获取全局Core接口实例"""

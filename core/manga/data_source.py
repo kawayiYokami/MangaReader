@@ -105,7 +105,7 @@ class FolderDataSource(DataSource):
                 'pages': image_files,
                 'file_type': 'folder'
             }
-            log.info(f"[DataSource-Folder] Properties for '{self.path}': last_modified={props['last_modified']}")
+            log.info(f"[数据源-文件夹] '{self.path}' 的属性: last_modified={props['last_modified']}")
             return props
         except Exception as e:
             log.error(f"处理文件夹数据源时出错 {self.path}: {e}")
@@ -171,7 +171,7 @@ class ZipDataSource(DataSource):
                 'pages': image_files,
                 'file_type': 'zip'
             }
-            log.info(f"[DataSource-ZIP] Properties for '{self.path}': last_modified={props['last_modified']}")
+            log.info(f"[数据源-ZIP] '{self.path}' 的属性: last_modified={props['last_modified']}")
             return props
         except Exception as e:
             log.error(f"处理ZIP数据源时出错 {self.path}: {e}")

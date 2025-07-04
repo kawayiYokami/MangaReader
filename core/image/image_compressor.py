@@ -9,7 +9,7 @@ import zipfile
 import cv2
 import shutil
 from pathlib import Path
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any, Callable, Optional, Tuple
 import threading
 import warnings
 import numpy as np
@@ -120,7 +120,7 @@ class ImageCompressor:
         如果操作失败或被取消，则返回 None。
         """
         if self.is_cancellation_requested():
-            log.warning("操作在开始前已取消")
+            log.warning("Operation cancelled before starting.")
             return None
 
         try:
@@ -192,7 +192,7 @@ class ImageCompressor:
                         extracted_path = zip_ref.extract(member_info, path=extract_dir)
                         image_files.append(extracted_path)
                     except Exception as extract_error:
-                        log.warning(f"解压文件 '{decoded_filename}' 失败: {extract_error}")
+                        log.warning(f"Failed to extract file '{decoded_filename}': {extract_error}")
         
         except Exception as e:
             raise Exception(f"打开或读取zip文件失败: {e}")
@@ -204,7 +204,7 @@ class ImageCompressor:
         log.debug(f"在 {Path(file_path).name} 中找到 {len(image_files)} 个图片文件")
         return image_files
 
-    def _convert_images(self, image_files: List[str], output_dir: str, webp_quality: int, preserve_original_names: bool) -> (List[str], List[str]):
+    def _convert_images(self, image_files: List[str], output_dir: str, webp_quality: int, preserve_original_names: bool) -> Tuple[List[str], List[str]]:
         """转换图片为WebP格式（多线程），返回成功和失败的文件列表。"""
         import multiprocessing
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -243,7 +243,7 @@ class ImageCompressor:
         try:
             img = self._read_image_robustly(img_path)
             if img is None:
-                log.warning(f"无法读取图片 {img_path}，已跳过")
+                log.warning(f"Could not read image {img_path}, skipping.")
                 return None
 
             output_filename = f"{Path(img_path).stem}.webp" if preserve_original_names else f"page_{index+1:03d}.webp"
@@ -256,7 +256,7 @@ class ImageCompressor:
             log.error(f"处理图片时发生错误 {img_path}: {e}")
             return None
 
-    def _convert_images_single_thread(self, image_files: List[str], output_dir: str, webp_quality: int, preserve_original_names: bool) -> (List[str], List[str]):
+    def _convert_images_single_thread(self, image_files: List[str], output_dir: str, webp_quality: int, preserve_original_names: bool) -> Tuple[List[str], List[str]]:
         """单线程转换图片，返回成功和失败的文件列表。"""
         converted_files = []
         bad_files = []
@@ -313,7 +313,7 @@ class ImageCompressor:
                 img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
 
             if img is None:
-                log.warning(f"OpenCV无法读取 {img_path}")
+                log.warning(f"OpenCV could not read {img_path}")
                 return None
 
             # 保持原有的通道转换逻辑，确保输出是BGR

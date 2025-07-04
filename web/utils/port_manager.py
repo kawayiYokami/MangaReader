@@ -166,12 +166,12 @@ class PortManager:
             if success:
                 log.info(f"成功杀死进程 {process_name} (PID: {pid})，释放端口 {port}")
             else:
-                log.error(f"杀死进程失败: {result.stderr}")
+                log.error(f"Failed to kill process: {result.stderr}")
             
             return success
             
         except Exception as e:
-            log.error(f"杀死端口 {port} 进程时出错: {e}")
+            log.error(f"Error killing process for port {port}: {e}")
             return False
     
     @staticmethod

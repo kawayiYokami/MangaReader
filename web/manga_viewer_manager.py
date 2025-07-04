@@ -86,7 +86,7 @@ class MangaViewerManager:
         self.page_cache = get_page_cache()
         self.precache_manager = precache_manager # 旧的管理器，主要用于访问常量
         self.policy_manager = get_cache_factory_instance().get_manager('page_policy')
-        
+
         # 会话内存缓存 (缓存元组: (image_data, width, height))
         self.original_cache: Dict[str, Tuple[str, int, int]] = {}  # 原图缓存
         self.translated_cache: Dict[str, Tuple[bytes, int, int]] = {}  # 翻译图缓存
@@ -233,35 +233,35 @@ class MangaViewerManager:
         获取原图页面及其尺寸, 实现V5架构中的“按需分析+预缓存”策略。
         """
         policy_str = await self.policy_manager.get_policy(self.current_manga_path, page_index)
-        log.debug(f"Page {page_index} policy: {policy_str}")
+        log.debug(f"页面 {page_index} 的策略: {policy_str}")
 
-        # Case 1: 策略已明确为 CACHED，尝试从持久化缓存获取
+        # 情况1：策略明确为已缓存，尝试从持久化缓存中获取
         if policy_str == POLICY_CACHED:
             cached_page_bytes = self.page_cache.get_page(self.current_manga_path, page_index)
             if cached_page_bytes:
-                log.debug(f"PageCache HIT (Policy: CACHED): {self.current_manga_path} [Page {page_index}]")
+                log.debug(f"页面缓存命中（策略：CACHED）：{self.current_manga_path} [页面 {page_index}]")
                 try:
                     img = processor.read_image(cached_page_bytes)
-                    if img is None: raise ValueError("解码缓存的JPEG失败")
+                    if img is None: raise ValueError("无法解码缓存的JPEG")
                     encoded_str = base64.b64encode(cached_page_bytes).decode('utf-8')
                     return f"data:image/jpeg;base64,{encoded_str}", img.shape[1], img.shape[0]
                 except Exception as e:
-                    log.warning(f"无法解码缓存页面 '{self.current_manga_path}' [Page {page_index}], 将其策略重置为PENDING并重新生成。")
+                    log.warning(f"Failed to decode cached page '{self.current_manga_path}' [Page {page_index}], resetting policy to PENDING and regenerating.")
                     await self.policy_manager.set_policy(self.current_manga_path, page_index, POLICY_PENDING)
-                    policy_str = POLICY_PENDING # 更新状态以便进入Case 3
+                    policy_str = POLICY_PENDING # 更新状态以便进入情况3
             else:
-                log.warning(f"策略为CACHED但缓存文件丢失 for '{self.current_manga_path}' [Page {page_index}], 将其策略重置为PENDING。")
+                log.warning(f"Policy is CACHED but cache file is missing for '{self.current_manga_path}' [Page {page_index}], resetting policy to PENDING.")
                 await self.policy_manager.set_policy(self.current_manga_path, page_index, POLICY_PENDING)
-                policy_str = POLICY_PENDING # 更新状态以便进入Case 3
+                policy_str = POLICY_PENDING # 更新状态以便进入情况3
 
-        # Case 2: 策略已明确为 NOT_REQUIRED，直接获取原图，不缓存
+        # 情况2：策略明确为不需要，直接获取原图，不缓存
         if policy_str == POLICY_NOT_REQUIRED:
-            log.debug(f"Policy '{policy_str}': Direct fetch for {self.current_manga_path} [Page {page_index}]")
+            log.debug(f"策略 '{policy_str}': 直接获取 {self.current_manga_path} [页面 {page_index}]")
             return await self.core_interface.get_manga_page(self.current_manga_path, page_index, use_cache=False)
 
-        # Case 3: 策略是 PENDING 或 None (表示需要分析和缓存)
+        # 情况3：策略是 PENDING 或 None（表示需要分析和缓存）
         # 立即获取原图返回给前端，然后启动后台任务生成缓存
-        log.debug(f"Policy is '{policy_str}': Returning original image and starting background cache generation for {self.current_manga_path} [Page {page_index}]")
+        log.debug(f"策略是 '{policy_str}': 返回原图并为 {self.current_manga_path} [页面 {page_index}] 启动后台缓存生成")
         
         original_image_info = await self.core_interface.get_manga_page(self.current_manga_path, page_index, use_cache=True)
         if not original_image_info:

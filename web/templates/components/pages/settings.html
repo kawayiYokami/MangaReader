@@ -67,8 +67,12 @@
                     </div>
                 </template>
                 <el-select v-model="translationSettings.translator_type" placeholder="选择翻译引擎" @change="onTranslationEngineChange" :disabled="!isLocalAccess">
-                    <el-option label="Google" value="Google"></el-option>
-                    <el-option label="智谱" value="智谱"></el-option>
+                    <el-option
+                        v-for="translator in translationSettings.availableTranslators"
+                        :key="translator.value"
+                        :label="translator.label"
+                        :value="translator.value">
+                    </el-option>
                 </el-select>
             </el-form-item>
 
@@ -109,6 +113,93 @@
                         </div>
                     </template>
                     <el-input v-model="translationSettings.googleApiKey" type="password" show-password placeholder="请输入Google API密钥 (可选)" @change="onGoogleApiKeyChange" :disabled="!isLocalAccess"></el-input>
+                </el-form-item>
+            </div>
+
+            <!-- OpenAI 设置 -->
+            <div v-if="translationSettings.translator_type === 'OpenAI'">
+                <el-form-item>
+                    <template #label>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span>OpenAI API密钥</span>
+                            <p class="setting-description">请输入您的OpenAI API密钥。</p>
+                        </div>
+                    </template>
+                    <el-input v-model="translationSettings.openaiApiKey" type="password" show-password placeholder="请输入OpenAI API密钥" @change="onOpenaiApiKeyChange" :disabled="!isLocalAccess"></el-input>
+                </el-form-item>
+                <el-form-item>
+                    <template #label>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span>API Base URL (可选)</span>
+                            <p class="setting-description">如果您使用代理或兼容服务，请在此处指定API的基础URL。</p>
+                        </div>
+                    </template>
+                    <el-input v-model="translationSettings.openaiApiBaseUrl" placeholder="例如: https://api.openai.com/v1" @change="onOpenaiApiBaseUrlChange" :disabled="!isLocalAccess"></el-input>
+                </el-form-item>
+                <el-form-item>
+                    <template #label>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span>OpenAI 模型</span>
+                            <p class="setting-description">选择或输入用于翻译的OpenAI模型。</p>
+                        </div>
+                    </template>
+                    <el-select
+                        v-model="translationSettings.openaiModel"
+                        placeholder="选择或输入模型"
+                        @change="onOpenaiModelChange"
+                        :disabled="!isLocalAccess || !translationSettings.openaiApiKey"
+                        filterable
+                        allow-create
+                        default-first-option
+                        :loading="translationSettings.modelsLoading"
+                        style="width: 100%;"
+                    >
+                        <el-option
+                            v-for="model in translationSettings.openaiModels"
+                            :key="model"
+                            :label="model"
+                            :value="model">
+                        </el-option>
+                    </el-select>
+                </el-form-item>
+            </div>
+
+            <!-- Gemini 设置 -->
+            <div v-if="translationSettings.translator_type === 'Gemini'">
+                <el-form-item>
+                    <template #label>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span>Gemini API密钥</span>
+                            <p class="setting-description">请输入您的Google Gemini API密钥。</p>
+                        </div>
+                    </template>
+                    <el-input v-model="translationSettings.geminiApiKey" type="password" show-password placeholder="请输入Gemini API密钥" @change="onGeminiApiKeyChange" :disabled="!isLocalAccess"></el-input>
+                </el-form-item>
+                <el-form-item>
+                    <template #label>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span>Gemini 模型</span>
+                            <p class="setting-description">选择或输入用于翻译的Gemini模型。</p>
+                        </div>
+                    </template>
+                    <el-select
+                        v-model="translationSettings.geminiModel"
+                        placeholder="选择或输入模型"
+                        @change="onGeminiModelChange"
+                        :disabled="!isLocalAccess || !translationSettings.geminiApiKey"
+                        filterable
+                        allow-create
+                        default-first-option
+                        :loading="translationSettings.modelsLoading"
+                        style="width: 100%;"
+                    >
+                        <el-option
+                            v-for="model in translationSettings.geminiModels"
+                            :key="model"
+                            :label="model"
+                            :value="model">
+                        </el-option>
+                    </el-select>
                 </el-form-item>
             </div>
 

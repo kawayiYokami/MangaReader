@@ -117,3 +117,4 @@ storage/
 .roo/
 app/
 docs/
+tests/

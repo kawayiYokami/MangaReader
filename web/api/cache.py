@@ -316,26 +316,37 @@ class OcrCacheHandler(CacheHandler):
             raise HTTPException(status_code=500, detail=f"获取OCR缓存条目失败: {e}")
 
     def _format_ocr_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
-        """格式化OCR条目"""
+        """
+        使用数据库中存储的元数据格式化OCR条目，提供清晰的预览。
+        """
         cache_key = entry.get("key", "unknown_key")
         value_str = entry.get("value", "{}")
         created_time = entry.get("last_updated")
+        
+        # 直接从entry中获取元数据
+        manga_name = entry.get("manga_name")
+        page_index = entry.get("page_index")
 
         try:
-            # 解析存储在 value 字段中的 JSON 数据
             value_data = json.loads(value_str)
-            file_name = value_data.get("file_name", "Unknown")
-            page_num = value_data.get("page_num", "N/A")
-            preview = f"OCR: {os.path.basename(file_name)} 第{page_num}页"
+            text_count = len(value_data) if isinstance(value_data, list) else 0
+            
+            # 构建一个清晰、人类可读的预览字符串
+            if manga_name is not None and page_index is not None:
+                preview = f"OCR: {manga_name} 第{page_index + 1}页 ({text_count}个文本块)"
+            else:
+                # 兼容旧数据或元数据缺失的情况
+                preview = f"OCR: Unknown 第N/A页 ({text_count}个文本块)"
+                
         except (json.JSONDecodeError, TypeError):
             value_data = {}
-            preview = "无效的OCR数据"
+            preview = "无效或格式不兼容的OCR数据"
 
         return {
-            "key": cache_key,
+            "key": cache_key, # key 仍然需要用于删除等操作
             "value": value_data,
             "value_preview": preview,
-            "size_bytes": len(value_str),
+            "size_bytes": len(value_str.encode('utf-8')),
             "created_time": created_time
         }
 
@@ -461,29 +472,34 @@ class TranslationCacheHandler(CacheHandler):
     def _format_translation_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """格式化翻译条目"""
         cache_key = entry.get("key", "unknown_key")
-        value_str = entry.get("value", "{}")
+        value_str = entry.get("value", "") # value 是一个 JSON 字符串，例如 "\" translated text \""
         created_time = entry.get("last_updated")
         is_sensitive = entry.get("is_sensitive", False)
 
         try:
-            # 解析存储在 value 字段中的 JSON 数据
-            value_data = json.loads(value_str)
-            original_text = value_data.get("original_text", "")
-            translated_text = value_data.get("translated_text", "")
+            # 翻译缓存的值现在直接是翻译后的文本字符串
+            translated_text = json.loads(value_str) if value_str else ""
+            if not isinstance(translated_text, str):
+                # 兼容旧的字典格式
+                translated_text = translated_text.get("translated_text", str(translated_text))
+
+            # 由于缓存中只有译文，原文需要从key中解析（如果可能）
+            # 这是一个简化的假设，实际可能更复杂
+            original_text = cache_key
             
             original_preview = original_text[:30] + "..." if len(original_text) > 30 else original_text
             translated_preview = translated_text[:30] + "..." if len(translated_text) > 30 else translated_text
             preview = f"翻译: {original_preview} → {translated_preview}"
+
         except (json.JSONDecodeError, TypeError):
-            value_data = {}
-            original_text = ""
-            translated_text = ""
-            preview = "无效的翻译数据"
+            translated_text = value_str # 如果解析失败，直接使用原始字符串
+            original_text = cache_key
+            preview = "无法解析的翻译数据"
 
         return {
             "key": cache_key,
             "value": translated_text, # 主值设为翻译后的文本
-            "original_text": original_text,
+            "original_text": original_text, # 原文信息丢失，用key代替
             "value_preview": preview,
             "is_sensitive": is_sensitive,
             "size_bytes": len(value_str),

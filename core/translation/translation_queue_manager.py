@@ -41,21 +41,21 @@ class TranslationQueueManager:
         self._processing_tasks: Dict[str, TranslationTask] = {}
         self._completed_tasks: Dict[str, TranslationTask] = {}
         self._failed_tasks: Dict[str, TranslationTask] = {}
-        
+
         # 线程安全锁
         self._lock = threading.RLock()
-        
+
         # 事件回调
         self._event_callbacks: List[Callable[[QueueEvent], None]] = []
-        
+
         # 去重集合
-        self._task_keys: Set[str] = set()  # manga_path:page_index:target_language
-        
+        self._task_keys: Set[str] = set()  # 漫画路径:页面索引:目标语言
+
         # 后台线程
         self._cleanup_thread: Optional[threading.Thread] = None
         self._persistence_thread: Optional[threading.Thread] = None
         self._running = False
-        
+
         # 统计信息
         self._statistics = QueueStatistics()
 

@@ -27,10 +27,14 @@ window.UtilsMethods = {
                     // 暂时没有，留作扩展点
                     break;
                 case 'settings':
-                    // 设置模块需要加载字体
+                    // 设置模块需要加载字体和翻译器选项
                     if (this.fetchAvailableFonts) {
                         console.log('[LazyLoad] 调用 fetchAvailableFonts() 用于设置页面');
                         this.fetchAvailableFonts();
+                    }
+                    if (this.fetchTranslatorOptions) {
+                        console.log('[LazyLoad] 调用 fetchTranslatorOptions() 用于设置页面');
+                        this.fetchTranslatorOptions();
                     }
                     break;
             }
@@ -390,6 +394,78 @@ window.UtilsMethods = {
         this.updateSetting('font_name', value);
     },
 
+    onOpenaiApiKeyChange(value) {
+        this.updateSetting('openai_api_key', value);
+        if (value) {
+            this.fetchModels('openai');
+        } else {
+            this.translationSettings.openaiModels = [];
+        }
+    },
+    onOpenaiApiBaseUrlChange(value) {
+        this.updateSetting('openai_api_base_url', value);
+        if (this.translationSettings.openaiApiKey && value) {
+            this.fetchModels('openai');
+        }
+    },
+    onOpenaiModelChange(value) {
+        this.updateSetting('openai_model', value);
+    },
+    onGeminiApiKeyChange(value) {
+        this.updateSetting('gemini_api_key', value);
+        if (value) {
+            this.fetchModels('gemini');
+        } else {
+            this.translationSettings.geminiModels = [];
+        }
+    },
+    onGeminiModelChange(value) {
+        this.updateSetting('gemini_model', value);
+    },
+
+    async fetchModels(provider) {
+        const settings = this.translationSettings;
+        if ((provider === 'openai' && (!settings.openaiApiKey || !settings.openaiApiBaseUrl)) ||
+            (provider === 'gemini' && !settings.geminiApiKey)) {
+            return;
+        }
+
+        settings.modelsLoading = true;
+        const url = `/api/settings/${provider}/models`;
+        const payload = {
+            apiKey: provider === 'openai' ? settings.openaiApiKey : settings.geminiApiKey,
+            baseUrl: provider === 'openai' ? settings.openaiApiBaseUrl : undefined
+        };
+
+        try {
+            const response = await axios.post(url, payload);
+            if (response.data && response.data.success) {
+                if (provider === 'openai') {
+                    settings.openaiModels = response.data.models;
+                    // 如果当前选择的模型不在新列表中，则清空
+                    if (settings.openaiModel && !settings.openaiModels.includes(settings.openaiModel)) {
+                        settings.openaiModel = '';
+                        this.updateSetting('openai_model', '');
+                    }
+                } else {
+                    settings.geminiModels = response.data.models;
+                     // 如果当前选择的模型不在新列表中，则清空
+                    if (settings.geminiModel && !settings.geminiModels.includes(settings.geminiModel)) {
+                        settings.geminiModel = '';
+                        this.updateSetting('gemini_model', '');
+                    }
+                }
+                ElMessage.success(`成功获取 ${provider} 模型列表`);
+            } else {
+                this.handleError({ message: response.data.message }, `获取 ${provider} 模型`);
+            }
+        } catch (error) {
+            this.handleError(error, `获取 ${provider} 模型`);
+        } finally {
+            settings.modelsLoading = false;
+        }
+    },
+
     // ==================== 系统设置相关方法 ====================
 
     onLogLevelChange(value) {
@@ -409,59 +485,74 @@ window.UtilsMethods = {
         return levelNames[level] || level;
     },
 
-    // 加载初始设置
-    async loadInitialSettings() {
+    // 新增：获取翻译器选项
+    async fetchTranslatorOptions() {
         try {
-            const response = await axios.get('/api/settings/all');
-            if (response.data && response.data.settings) {
-                const settingsMap = response.data.settings.reduce((acc, setting) => {
-                    acc[setting.key] = setting.value;
-                    return acc;
-                }, {});
-
-                // 更新应用数据中的设置值
-                if (settingsMap.hasOwnProperty('translator_type')) {
-                    window.AppData.translationSettings.translator_type = settingsMap.translator_type; // AppData 使用 snake_case
-                }
-                if (settingsMap.hasOwnProperty('zhipu_api_key')) {
-                    window.AppData.translationSettings.zhipuApiKey = settingsMap.zhipu_api_key;
-                }
-                if (settingsMap.hasOwnProperty('zhipu_model')) {
-                    window.AppData.translationSettings.zhipuModel = settingsMap.zhipu_model;
-                }
-                if (settingsMap.hasOwnProperty('google_api_key')) {
-                    window.AppData.translationSettings.googleApiKey = settingsMap.google_api_key;
-                }
-                 if (settingsMap.hasOwnProperty('font_name')) {
-                    window.AppData.translationSettings.font_name = settingsMap.font_name; // AppData 使用 snake_case
-                }
-
-                // 更新系统设置
-                if (settingsMap.hasOwnProperty('logLevel')) {
-                    window.AppData.systemSettings.logLevel = settingsMap.logLevel;
-                }
-
-                // 更新其他可能的顶层设置 (也需要使用 window.AppData)
-                if (settingsMap.hasOwnProperty('themeMode')) {
-                    window.AppData.currentTheme = settingsMap.themeMode; // 'Light', 'Dark', 'Auto'
-                    // 调用 UtilsMethods 中的 updateThemeState 来更新相关状态
-                    if (this.updateThemeState) { // 确保方法存在
-                         this.updateThemeState.call(window.AppData); // 确保 this 指向 AppData
-                    }
-                }
+            const response = await axios.get('/api/settings/translator-options');
+            if (response.data && response.data.success) {
+                window.AppData.translationSettings.availableTranslators = response.data.translators || [];
             } else {
-                console.error('[Utils] 获取设置失败: 无效的响应格式', response.data);
-                ElMessage.error('加载初始设置失败: 无效的响应格式');
+                this.handleError({ message: response.data.message || '未知错误' }, '获取翻译器选项');
+                window.AppData.translationSettings.availableTranslators = [];
             }
         } catch (error) {
-            console.error('[Utils] 加载初始设置时出错:', error);
-            ElMessage.error('加载初始设置失败: ' + (error.response?.data?.detail || error.message));
+            this.handleError(error, '获取翻译器选项');
+            window.AppData.translationSettings.availableTranslators = [];
         }
-    }, // <-- 添加逗号
+    },
+
+    // 加载初始设置
+    async loadInitialSettings() {
+        // 并行加载所有设置数据
+        await Promise.all([
+            this.fetchTranslatorOptions(),
+            (async () => {
+                try {
+                    const response = await axios.get('/api/settings/all');
+                    if (response.data && response.data.settings) {
+                        const settingsMap = response.data.settings.reduce((acc, setting) => {
+                            acc[setting.key] = setting.value;
+                            return acc;
+                        }, {});
+
+                        // 更新翻译设置
+                        const ts = window.AppData.translationSettings;
+                        ts.translator_type = settingsMap.translator_type ?? ts.translator_type;
+                        ts.zhipuApiKey = settingsMap.zhipu_api_key ?? ts.zhipuApiKey;
+                        ts.zhipuModel = settingsMap.zhipu_model ?? ts.zhipuModel;
+                        ts.googleApiKey = settingsMap.google_api_key ?? ts.googleApiKey;
+                        ts.openaiApiKey = settingsMap.openai_api_key ?? ts.openaiApiKey;
+                        ts.openaiApiBaseUrl = settingsMap.openai_api_base_url ?? ts.openaiApiBaseUrl;
+                        ts.openaiModel = settingsMap.openai_model ?? ts.openaiModel;
+                        ts.geminiApiKey = settingsMap.gemini_api_key ?? ts.geminiApiKey;
+                        ts.geminiModel = settingsMap.gemini_model ?? ts.geminiModel;
+                        ts.font_name = settingsMap.font_name ?? ts.font_name;
+
+                        // 更新系统设置
+                        window.AppData.systemSettings.logLevel = settingsMap.logLevel ?? window.AppData.systemSettings.logLevel;
+
+                        // 更新主题
+                        if (settingsMap.hasOwnProperty('themeMode')) {
+                            window.AppData.currentTheme = settingsMap.themeMode;
+                            if (this.updateThemeState) {
+                                this.updateThemeState.call(window.AppData);
+                            }
+                        }
+                    } else {
+                        console.error('[Utils] 获取设置失败: 无效的响应格式', response.data);
+                        ElMessage.error('加载初始设置失败: 无效的响应格式');
+                    }
+                } catch (error) {
+                    console.error('[Utils] 加载初始设置时出错:', error);
+                    ElMessage.error('加载初始设置失败: ' + (error.response?.data?.detail || error.message));
+                }
+            })()
+        ]);
+    },
 
     // 新增：用于重新加载应用程序的方法
     reloadApp() {
         console.log('🔄 请求重新加载应用程序...');
         location.reload();
-    } // <-- 最后一个方法后面不需要逗号
+    }
 };

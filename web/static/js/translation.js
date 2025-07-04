@@ -1,17 +1,14 @@
-// 翻译功能模块
+// 翻译功能模块 (重构为同步阻塞模式)
 window.TranslationMethods = {
-    // ==================== 翻译功能 ====================
+    // ==================== UI交互 ====================
 
     triggerTranslationFileSelect() {
         this.$refs.translationFileInput.click();
     },
 
-    // ==================== 通用接口适配 ====================
-
     handleTranslationFileSelect(event) {
         const files = Array.from(event.target.files);
         this.processSelectedFiles(files);
-        // 清空文件选择器
         event.target.value = '';
     },
 
@@ -28,22 +25,22 @@ window.TranslationMethods = {
     handleTranslationDrop(event) {
         event.preventDefault();
         this.translationDragOver = false;
-
         const files = Array.from(event.dataTransfer.files);
         this.processSelectedFiles(files);
     },
 
+    // ==================== 任务管理 ====================
+
     processSelectedFiles(files) {
         if (files.length === 0) return;
 
-        // 过滤支持的文件类型
         const supportedFiles = files.filter(file => {
             const extension = file.name.toLowerCase().split('.').pop();
-            return ['zip', 'cbz', 'cbr'].includes(extension);
+            return ['zip', 'cbz'].includes(extension); // .cbr is not a zip archive
         });
 
         if (supportedFiles.length === 0) {
-            ElMessage.warning('请选择ZIP、CBZ或CBR格式的漫画文件');
+            ElMessage.warning('请选择ZIP或CBZ格式的漫画文件');
             return;
         }
 
@@ -51,20 +48,19 @@ window.TranslationMethods = {
             ElMessage.warning(`已过滤掉 ${files.length - supportedFiles.length} 个不支持的文件`);
         }
 
-        // 为每个文件创建翻译任务
         supportedFiles.forEach(file => {
+            if (this.translationTasks.some(t => t.fileName === file.name)) {
+                ElMessage.warning(`任务 "${file.name}" 已存在于列表中。`);
+                return;
+            }
+
             const task = {
-                id: Date.now() + Math.random(),
                 fileName: file.name,
                 file: file,
                 status: 'pending', // pending, processing, completed, error
                 progress: 0,
-                currentPage: 0,
-                totalPages: 0,
                 error: null,
-                result: null
             };
-
             this.translationTasks.push(task);
         });
 
@@ -78,25 +74,17 @@ window.TranslationMethods = {
         }
 
         if (this.taskIsProcessing) {
-            ElMessage.warning('翻译正在进行中，请先停止当前翻译');
+            ElMessage.warning('已有任务在进行中，请稍候');
             return;
         }
 
         this.taskIsProcessing = true;
-        this.translationStopped = false;
-
         console.log('🚀 开始翻译任务');
 
         try {
-            // 逐个处理翻译任务
             for (const task of this.translationTasks) {
-                if (this.translationStopped) {
-                    console.log('🛑 翻译已停止，跳出循环');
-                    break;
-                }
-
                 if (task.status === 'pending') {
-                    await this.processTranslationFileAsync(task);
+                    await this.processAndDownloadTranslation(task);
                 }
             }
         } catch (error) {
@@ -104,286 +92,105 @@ window.TranslationMethods = {
             ElMessage.error('翻译过程出错: ' + error.message);
         } finally {
             this.taskIsProcessing = false;
-            console.log('🏁 翻译任务结束');
+            console.log('🏁 所有翻译任务已处理完毕');
         }
     },
 
-    async stopTranslation() {
-        console.log('🛑 用户点击停止翻译按钮');
+    async processAndDownloadTranslation(task) {
+        console.log(`🚀 开始处理翻译: ${task.fileName}`);
+        task.status = 'processing';
+        task.progress = 0;
+        task.error = null;
 
-        // 立即设置停止标志和显示提示
-        this.translationStopped = true;
-        ElMessage.success('正在停止翻译...');
+        const endpoint = '/api/translation/translate-file-and-download';
+        const formData = new FormData();
+        formData.append('file', task.file);
+        formData.append('target_lang', this.translationSettings.targetLang);
 
-        // 使用setTimeout确保UI立即响应
-        setTimeout(async () => {
-            try {
-                // 调用后端API杀掉翻译进程
-                console.log('🛑 调用后端杀掉翻译进程');
-                const response = await axios.post('/api/translation/cancel-translation');
-
-                if (response.data.success) {
-                    console.log('🛑 翻译进程已终止:', response.data.message);
-                    ElMessage.success(response.data.message);
-                } else {
-                    console.log('🛑 终止翻译进程失败:', response.data.message);
-                    ElMessage.warning(response.data.message);
-                }
-            } catch (error) {
-                console.error('🛑 终止翻译进程API调用失败:', error);
-                ElMessage.error('终止翻译失败: ' + (error.response?.data?.detail || error.message));
-            }
-
-            // 确保状态重置
-            this.taskIsProcessing = false;
-        }, 100); // 100ms后执行，确保UI先响应
-    },
-
-    async processTranslationFileAsync(task) {
         try {
-            console.log(`🚀 开始异步翻译: ${task.fileName}`);
+            const response = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', endpoint, true);
 
-            // 检查是否已停止
-            if (this.translationStopped) {
-                console.log('🛑 翻译已停止，跳过任务:', task.fileName);
-                return;
-            }
-
-            task.status = 'processing';
-            task.progress = 0;
-
-            // 启动异步翻译任务
-            const taskId = await this.startAsyncTranslationTask(task);
-
-            if (!taskId) {
-                throw new Error('启动翻译任务失败');
-            }
-
-            // 轮询检查翻译状态
-            await this.pollAsyncTranslationStatus(task, taskId);
-
-        } catch (error) {
-            console.error('异步翻译文件失败:', error);
-            task.status = 'error';
-            task.error = error.message;
-            ElMessage.error(`${task.fileName} 翻译失败: ${error.message}`);
-        }
-    },
-
-    async startAsyncTranslationTask(task) {
-        try {
-            // 调用后端异步翻译API
-            const formData = new FormData();
-            formData.append('file', task.file);
-            formData.append('source_lang', this.translationSettings.sourceLang);
-            formData.append('target_lang', this.translationSettings.targetLang);
-            formData.append('translator_engine', this.translationSettings.engine);
-            formData.append('webp_quality', this.translationSettings.webpQuality);
-
-            const response = await axios.post('/api/translation/translate-manga-async', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            if (response.data.success) {
-                console.log(`✅ 翻译任务已启动: ${response.data.task_id}`);
-                return response.data.task_id;
-            } else {
-                throw new Error(response.data.message || '启动翻译任务失败');
-            }
-        } catch (error) {
-            console.error('启动异步翻译任务失败:', error);
-            throw error;
-        }
-    },
-
-    async pollAsyncTranslationStatus(task, taskId) {
-        const maxAttempts = 300; // 最多轮询5分钟
-        let attempts = 0;
-
-        while (attempts < maxAttempts) {
-            // 检查是否已停止
-            if (this.translationStopped) {
-                // 调用取消API
-                try {
-                    await axios.post(`/api/translation/cancel-task/${taskId}`);
-                } catch (error) {
-                    console.error('取消任务失败:', error);
-                }
-
-                task.status = 'error';
-                task.error = '翻译已取消';
-                return;
-            }
-
-            try {
-                const response = await axios.get(`/api/translation/task-status/${taskId}`);
-
-                if (response.data.success) {
-                    const status = response.data.status;
-                    task.progress = response.data.progress || 0;
-
-                    if (status === 'completed') {
-                        task.status = 'completed';
-                        task.result = response.data.output_files;
-                        ElMessage.success(`${task.fileName} 翻译完成`);
-                        return;
-                    } else if (status === 'error') {
-                        task.status = 'error';
-                        task.error = response.data.error || '翻译失败';
-                        ElMessage.error(`${task.fileName} 翻译失败: ${task.error}`);
-                        return;
-                    } else if (status === 'cancelled') {
-                        task.status = 'error';
-                        task.error = '翻译已取消';
-                        return;
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        // We give 50% progress to upload, and 50% to backend processing
+                        const uploadProgress = Math.round((event.loaded / event.total) * 50);
+                        task.progress = uploadProgress;
                     }
-                    // status === 'processing' 继续轮询
-                }
-            } catch (error) {
-                console.error('轮询翻译状态失败:', error);
-            }
+                };
+                
+                // Show backend processing after upload completes
+                xhr.upload.onload = () => {
+                    task.progress = 55; // Indicate backend is working
+                };
 
-            // 等待1秒后继续轮询
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            attempts++;
-        }
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(xhr);
+                    } else {
+                        reject({ status: xhr.status, response: xhr.response });
+                    }
+                };
 
-        // 超时
-        task.status = 'error';
-        task.error = '翻译超时';
-        ElMessage.error(`${task.fileName} 翻译超时`);
-    },
+                xhr.onerror = () => {
+                    reject({ status: xhr.status, response: xhr.response });
+                };
 
-    async processTranslationFile(task) {
-        try {
-            // 检查是否已停止
-            if (this.translationStopped) {
-                console.log('🛑 翻译已停止，跳过任务:', task.fileName);
-                return;
-            }
-
-            task.status = 'processing';
-            task.progress = 0;
-
-            // 调用后端翻译API
-            const formData = new FormData();
-            formData.append('file', task.file);
-            formData.append('source_lang', this.translationSettings.sourceLang);
-            formData.append('target_lang', this.translationSettings.targetLang);
-            formData.append('translator_engine', this.translationSettings.engine);
-            formData.append('webp_quality', this.translationSettings.webpQuality);
-
-            task.progress = 10;
-
-            // 发送翻译请求（支持取消）
-            const response = await axios.post('/api/translation/translate-manga', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                },
-                signal: this.abortController ? this.abortController.signal : undefined,
-                onUploadProgress: (progressEvent) => {
-                    // 上传进度 (0-30%)
-                    const uploadProgress = Math.round((progressEvent.loaded / progressEvent.total) * 30);
-                    task.progress = uploadProgress;
-                }
+                xhr.responseType = 'blob';
+                xhr.send(formData);
             });
-
-            if (!response.data.success) {
-                throw new Error(response.data.message || '翻译失败');
-            }
-
-            // 再次检查是否已停止
-            if (this.translationStopped) {
-                console.log('🛑 翻译已停止，跳过下载:', task.fileName);
-                task.status = 'error';
-                task.error = '翻译已取消';
-                return;
-            }
-
-            task.progress = 80;
-
-            // 下载翻译结果（支持取消）
-            const downloadResponse = await axios.post('/api/translation/download-task', {
-                task_name: task.fileName,
-                output_files: response.data.output_files
-            }, {
-                responseType: 'blob',
-                signal: this.abortController ? this.abortController.signal : undefined
-            });
-
+            
             task.progress = 100;
+            const blob = response.response;
+            const downloadFilename = `${task.fileName.replace(/\.[^/.]+$/, "")}_translated.zip`;
+            
+            // Use FileSaver.js `saveAs` if available, otherwise fallback
+            if (typeof saveAs === 'function') {
+                saveAs(blob, downloadFilename);
+            } else {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = downloadFilename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }
+            
             task.status = 'completed';
-            task.result = downloadResponse.data;
-
-            ElMessage.success(`${task.fileName} 翻译完成`);
+            ElMessage.success(`${task.fileName} 翻译并下载成功！`);
 
         } catch (error) {
-            if (error.name === 'AbortError') {
-                task.status = 'error';
-                task.error = '翻译已取消';
-                // 不显示错误消息，因为这是用户主动取消
-            } else {
-                console.error('翻译文件失败:', error);
-                task.status = 'error';
-                task.error = error.response?.data?.detail || error.message;
-                ElMessage.error(`${task.fileName} 翻译失败: ${task.error}`);
+            console.error(`翻译失败 for ${task.fileName}:`, error);
+            let errorMessage = '请求失败。';
+            try {
+                // Try to parse error response from backend
+                const errorText = await new Response(error.response).text();
+                const errorJson = JSON.parse(errorText);
+                errorMessage = errorJson.detail || errorMessage;
+            } catch (e) {
+                errorMessage = '网络错误或服务器无响应。';
             }
+            task.status = 'error';
+            task.error = errorMessage;
+            ElMessage.error(`${task.fileName} 翻译失败: ${errorMessage}`);
         }
     },
-
-    isImageFile(filename) {
-        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-        const extension = filename.toLowerCase().substring(filename.lastIndexOf('.'));
-        return imageExtensions.includes(extension);
+    
+    // This is now a simple UI action, no download logic here
+    downloadTask(task) {
+        ElMessage.info('翻译完成后文件会自动下载。如果下载失败，请重新翻译。');
     },
-
-    async downloadTask(task) {
-        if (task.status !== 'completed' || !task.result) {
-            ElMessage.warning('任务未完成或结果不可用');
-            return;
-        }
-
-        try {
-            const originalName = task.fileName;
-            const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.'));
-            const downloadName = `${nameWithoutExt}_translated.zip`;
-
-            // 检查 task.result 的类型
-            if (task.result instanceof Blob) {
-                // 兼容旧的同步流程或已获取Blob的情况
-                saveAs(task.result, downloadName);
-                ElMessage.success('下载开始');
-            } else if (Array.isArray(task.result)) {
-                // 处理异步流程返回的文件路径数组
-                ElMessage.info('正在准备下载，请稍候...');
-                
-                const downloadResponse = await axios.post('/api/translation/download-task', {
-                    task_name: task.fileName,
-                    output_files: task.result
-                }, {
-                    responseType: 'blob'
-                });
-
-                const blob = downloadResponse.data;
-                saveAs(blob, downloadName);
-                ElMessage.success('下载开始');
-                
-                // 优化：将获取的Blob存回，避免重复请求
-                task.result = blob;
-
-            } else {
-                throw new Error('未知的任务结果类型，无法下载');
-            }
-        } catch (error) {
-            console.error('下载失败:', error);
-            // 尝试从axios错误中获取更详细的信息
-            const errorMessage = error.response?.data?.detail || error.message;
-            ElMessage.error('下载失败: ' + errorMessage);
-        }
-    },
-
+    
     removeTask(index) {
         if (index >= 0 && index < this.translationTasks.length) {
+            if (this.translationTasks[index].status === 'processing') {
+                ElMessage.warning('不能移除正在处理中的任务。');
+                return;
+            }
             const task = this.translationTasks[index];
             this.translationTasks.splice(index, 1);
             ElMessage.success(`已移除任务: ${task.fileName}`);
@@ -391,16 +198,14 @@ window.TranslationMethods = {
     },
     
     clearTasks() {
-        if (this.translationTasks.length === 0) {
-            ElMessage.info('任务列表已经是空的');
+        if (this.translationTasks.some(t => t.status === 'processing')) {
+            ElMessage.warning('有任务正在处理中，无法清空列表。');
             return;
         }
-    
         this.translationTasks = [];
         ElMessage.success('已清空所有翻译任务');
     },
     
-    // getTaskStatusText 名称已符合通用接口，无需修改
     getTaskStatusText(status) {
         const statusMap = {
             'pending': '等待中',
