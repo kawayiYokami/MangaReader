@@ -18,6 +18,7 @@
 
 </head>
 <body>
+    {% raw %}
     <div id="app">
         <!-- 移除所有导航栏和工具栏 -->
 
@@ -26,7 +27,7 @@
             <!-- 图片显示区域, 改造为长条滚动模式 -->
             <div v-if="loadedPages.length > 0" class="image-container-scrolling" @scroll="handleScroll" ref="scrollContainer">
                  <template v-for="page in loadedPages" :key="page.pageIndex">
-                    <div class="manga-page" :data-page-index="page.pageIndex">
+                    <div class="manga-page" :data-page-index="page.pageIndex" :style="{ 'min-height': page.estimatedHeight + 'px' }">
                         <img
                             :src="page.src"
                             :alt="`第 ${page.pageIndex + 1} 页`"
@@ -51,7 +52,8 @@
            <div class="fast-scrubber-handle" :style="{ top: scrubberHandleTop + '%' }">
                <span class="page-indicator">{{ scrubberPageNumber }} / {{ mangaInfo.total_pages }}</span>
            </div>
-       </div>
+        </div>
+        {% endraw %}
     </div>
 
     <!-- Vue 3 和 Element Plus -->

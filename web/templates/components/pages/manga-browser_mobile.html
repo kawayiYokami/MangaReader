@@ -10,10 +10,16 @@
             clearable>
         </el-input>
         <!-- 筛选按钮 -->
-        <el-button @click="showFilterDrawer = true"
+        <el-button @click="isFilterDrawerVisible = true"
                    :class="{ 'is-active': filterOptions.tags.length > 0 }"
                    circle>
              <span class="material-symbols-rounded">filter_list</span>
+        </el-button>
+        <!-- 随机阅读按钮 -->
+        <el-button @click="toggleRandomMode"
+                   :class="{ 'is-active': isRandomMode }"
+                   circle>
+            <span class="material-symbols-rounded">shuffle</span>
         </el-button>
     </header>
 
@@ -36,13 +42,13 @@
 
     <!-- 半屏上拉筛选面板 -->
     {% raw %}
-    <div v-if="showFilterDrawer" class="filter-panel-overlay" @click.self="showFilterDrawer = false">
+    <div v-if="isFilterDrawerVisible" class="filter-panel-overlay" @click.self="isFilterDrawerVisible = false">
         <div class="filter-panel">
             <div class="panel-header">
                 <h3 class="panel-title">标签筛选</h3>
-                <el-button @click="showFilterDrawer = false" text circle>
+                <el-button @click="isFilterDrawerVisible = false" text circle>
                     <span class="material-symbols-rounded">close</span>
-                </el-button>
+                </button>
             </div>
             <div class="panel-content">
                 <!-- 手风琴式标签分类过滤 -->

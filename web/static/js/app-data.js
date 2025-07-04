@@ -1,8 +1,9 @@
 // 应用数据模块
 window.AppData = {
-    // 系统状态 - 保留本地访问检测，用于翻译和压缩功能
+    // 系统状态
     isLocalAccess: ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname),
-    // 桌面应用标识不再是数据属性
+    isDesktopEnvironment: window.IS_PYWEBVIEW === true,
+    // clientType 已被移除，使用 isPyWebView 计算属性替代
 
     activeMenu: 'home',
     currentTheme: 'auto',
@@ -13,18 +14,17 @@ window.AppData = {
     // 漫画浏览相关数据
     mangaList: [],
     availableTags: [],
-    selectedTags: [],
-    searchQuery: '',
-    isLoading: false,
-    showFilterDrawer: false, // 控制移动端筛选面板
-    filterOptions: { // 新增：用于存储筛选条件
+    filterOptions: {
         tags: []
     },
+    searchQuery: '',
+    isLoading: false,
+    isFilterDrawerVisible: false, // 控制侧边栏筛选面板的显示
 
     // 标签分类过滤
     tagsByCategory: {},
     activeTagCategory: '作者', // For old desktop UI, can be deprecated later
-    activeAccordion: '作者', // For new mobile UI
+    activeAccordion: '作者', // For new filter UI
     tagCategoryShowAll: {},
 
     // 新的缩略图系统（优化版本）
@@ -40,6 +40,12 @@ window.AppData = {
 
     // WebSocket连接相关数据
     websocket: null,
+
+    // 随机阅读模式
+    isRandomMode: false,
+    randomSessionId: null,
+    currentRandomPage: 1,
+    isLoadingNextPage: false,
 
     // 请求去重机制
     pendingRequests: new Map(),
@@ -61,6 +67,7 @@ window.AppData = {
     pageSize: 20,
     cacheSearchQuery: '',
     showOnlyUnlikelyManga: false, // 筛选“可能非漫画”的开关
+    showOnlySensitive: false, // 筛选“敏感内容”的开关
 
     // 简化的加载状态
     loadingStates: {
@@ -175,40 +182,28 @@ window.AppData = {
     compressionTasks: [],
     isCompressing: false,
     compressionDragOver: false,
-    compressionStopped: false  // 停止标志
+    compressionStopped: false,  // 停止标志
+
+    // 新增：模块懒加载初始化标志
+    moduleInitialized: {
+        home: true, // 首页默认已加载
+        'manga-browser': true, // 漫画浏览默认加载初始数据
+        translation: false,
+        compression: false,
+        cache: false,
+        settings: false
+    }
 };
 
 // 计算属性
 window.AppComputed = {
-    // 重新添加：计算是否在桌面应用中运行（增强版本）
-    runningInDesktopApp() {
-        // 多重检测机制确保桌面模式的正确识别
-        const checks = {
-            pywebview: typeof window.pywebview !== 'undefined',
-            userAgent: window.navigator.userAgent.includes('pywebview'),
-            hostname: window.location.hostname === '127.0.0.1',
-            protocol: window.location.protocol === 'http:',
-            port: window.location.port === '8082', // 桌面版专用端口
-            localStorage: localStorage.getItem('DESKTOP_MODE') === 'true'
-        };
+    // PyWebView 应用专属功能
+    isPyWebView() {
+        // 直接从后端注入的全局变量读取
+        return window.IS_PYWEBVIEW === true;
+    },
 
-        // 如果pywebview存在，确保设置桌面模式标识
-        if (checks.pywebview) {
-            localStorage.setItem('DESKTOP_MODE', 'true');
-            localStorage.setItem('DESKTOP_MODE_TIMESTAMP', Date.now().toString());
-        }
-
-        // 桌面模式判断：pywebview存在 或 localStorage中有桌面模式标识
-        const isDesktop = checks.pywebview || checks.localStorage;
-
-        // 如果检测到桌面模式但localStorage中没有标识，设置标识
-        if ((checks.userAgent || (checks.hostname && checks.protocol && checks.port)) && !checks.localStorage) {
-            localStorage.setItem('DESKTOP_MODE', 'true');
-            localStorage.setItem('DESKTOP_MODE_TIMESTAMP', Date.now().toString());
-        }
-
-        return isDesktop;
-    }, // 注意这里的逗号
+    // isDesktopEnvironment 已被移除，因为桌面和移动端已分离
 
     filteredMangaList() {
         let filtered = this.mangaList;
@@ -221,7 +216,7 @@ window.AppComputed = {
             );
         }
 
-        // 标签过滤（重构以使用新的filterOptions）
+        // 标签过滤
         if (this.filterOptions.tags.length > 0) {
             filtered = filtered.filter(manga =>
                 this.filterOptions.tags.every(tag => manga.tags.includes(tag))
@@ -280,14 +275,39 @@ window.AppComputed = {
     // 每页文件数
     filesPerPage() {
         return 20;
+    },
+
+    // ==================== 通用任务接口 (适配器) ====================
+    tasks() {
+        if (this.activeMenu === 'compression') {
+            return this.compressionTasks;
+        }
+        if (this.activeMenu === 'translation') {
+            return this.translationTasks;
+        }
+        return [];
+    },
+
+    isProcessing() {
+        if (this.activeMenu === 'compression') {
+            return this.isCompressing;
+        }
+        if (this.activeMenu === 'translation') {
+            return this.taskIsProcessing;
+        }
+        return false;
+    },
+
+    taskType() {
+        // 直接返回当前激活的菜单名，它就是我们的任务类型
+        return this.activeMenu;
     }
 };
 
 // 生命周期方法
 window.AppLifecycle = {
     mounted() {
-        // 首先检测并设置桌面模式标识
-        this.detectAndSetDesktopMode();
+        // 客户端类型已由后端注入 window.CLIENT_TYPE, 无需前端检测
 
         // 首先加载初始设置
         this.loadInitialSettings();
@@ -320,18 +340,9 @@ window.AppLifecycle = {
             this.loadInitialData();
         }
 
-        // 初始化缓存管理数据
-        if (this.initCacheManagement) {
-            this.initCacheManagement();
-        }
+        // 初始化缓存管理数据 - 已移至 handleMenuSelect 按需加载
 
-        // 添加：初始化时加载可用字体列表
-        if (this.fetchAvailableFonts) {
-            console.log('[Mounted] 调用 this.fetchAvailableFonts()'); // 添加日志
-            this.fetchAvailableFonts();
-        } else {
-            console.warn('[Mounted] this.fetchAvailableFonts 未找到'); // 添加警告日志
-        }
+        // 字体列表将在用户导航到翻译页面时按需加载
 
         // 重新添加桌面导入完成事件监听器
         // 确保 handleDesktopImportComplete 方法已混入 Vue 实例

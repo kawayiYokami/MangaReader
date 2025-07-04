@@ -201,18 +201,20 @@
                         </template>
 
                         <td class="cache-table-cell action-cell">
-                            <!-- 对大多数类型，显示"编辑"按钮 -->
+                            <!-- 对支持编辑的类型，显示"编辑"按钮 -->
                             <el-button
-                                v-if="selectedCacheType !== 'persistent_translation'"
+                                v-if="
+!['persistent_translation', 'manga_list'].includes(selectedCacheType)
+"
                                 size="small"
                                 text
                                 @click="editCacheEntry(entry)">
                                 编辑
                             </el-button>
 
-                            <!-- 仅当选择"持久化翻译"时，显示"删除"按钮 -->
+                            <!-- 对支持直接删除的类型，显示"删除"按钮 -->
                             <el-button
-                                v-if="selectedCacheType === 'persistent_translation'"
+                                v-if="['persistent_translation', 'manga_list'].includes(selectedCacheType)"
                                 size="small"
                                 type="danger"
                                 text

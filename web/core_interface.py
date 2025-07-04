@@ -18,6 +18,8 @@ from pathlib import Path
 import os
 import time
 from datetime import datetime
+import random
+import uuid
 from dataclasses import dataclass, asdict
 import traceback
 import shutil
@@ -25,16 +27,17 @@ import tempfile
 import hashlib
 import json
 import threading
+import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 导入core模块
 from core.manga.manga_manager import MangaManager
-from core.manga.manga_model import MangaInfo, MangaLoader
+from core.manga.manga_model import MangaInfo
+from core.manga.data_source import DataSourceFactory
 from core.core_cache.thumbnail_cache import ThumbnailCache
 from core.config import config
 from core.core_cache.cache_factory import get_cache_factory_instance
-from core.image.image_compressor import get_image_compressor, ImageCompressor
-from core.manga.batch_compression_manager import get_batch_compression_manager, BatchCompressionManager
+from core.image import processor
 from utils import manga_logger as log
 
 
@@ -81,25 +84,21 @@ class CoreInterfaceError(Exception):
         super().__init__(self.message)
 
 
-
-
-
-
-
-
 class CoreInterface:
     """Web UI与Core模块的统一接口"""
 
     def __init__(self):
         self._manga_manager: Optional[MangaManager] = None
-        self._manga_loader: Optional[MangaLoader] = None
         self._thumbnail_cache: Optional[ThumbnailCache] = None
-        self._batch_compression_manager: Optional[BatchCompressionManager] = None
 
         # 转换结果缓存机制
         self._conversion_cache: Dict[str, WebMangaInfo] = {}
         self._conversion_cache_timestamps: Dict[str, float] = {}
         self._cache_expire_time = 300  # 5分钟缓存过期时间
+
+        # 随机阅读会话缓存
+        self._random_sessions: Dict[str, Dict[str, Any]] = {}
+        self._random_session_lock = threading.Lock()
         
     @property
     def manga_manager(self) -> MangaManager:
@@ -112,18 +111,6 @@ class CoreInterface:
                 log.error(f"MangaManager初始化失败: {e}", exc_info=True)
                 raise CoreInterfaceError("漫画管理器初始化失败", e)
         return self._manga_manager
-    
-    @property
-    def manga_loader(self) -> MangaLoader:
-        """获取MangaLoader实例（懒加载）"""
-        if self._manga_loader is None:
-            try:
-                self._manga_loader = MangaLoader()
-                log.info("MangaLoader初始化成功")
-            except Exception as e:
-                log.error(f"MangaLoader初始化失败: {e}")
-                raise CoreInterfaceError("漫画加载器初始化失败", e)
-        return self._manga_loader
 
     @property
     def thumbnail_cache(self) -> ThumbnailCache:
@@ -145,21 +132,13 @@ class CoreInterface:
                 raise CoreInterfaceError("缩略图缓存管理器初始化失败", e)
         return self._thumbnail_cache
 
-    @property
-    def batch_compression_manager(self) -> BatchCompressionManager:
-        """获取BatchCompressionManager实例（懒加载）"""
-        if self._batch_compression_manager is None:
-            self._batch_compression_manager = get_batch_compression_manager()
-            log.info("BatchCompressionManager初始化成功")
-        return self._batch_compression_manager
-    
     # ==================== 目录管理 ====================
     
-    def get_current_directory(self) -> WebDirectoryInfo:
+    async def get_current_directory(self) -> WebDirectoryInfo:
         """获取当前漫画目录信息"""
         try:
             current_dir = config.manga_dir.value or ""
-            manga_count = len(self.manga_manager.manga_list) if current_dir else 0
+            manga_count = await self.manga_manager.get_manga_count() if current_dir else 0
             
             return WebDirectoryInfo(
                 path=current_dir,
@@ -171,325 +150,234 @@ class CoreInterface:
             log.error(f"获取当前目录失败: {e}")
             raise CoreInterfaceError("获取当前目录失败", e)
     
-    def set_directory(self, directory_path: str, force_rescan: bool = True) -> WebScanResult:
-        """设置漫画目录并扫描"""
+    async def set_directory(self, directory_path: str) -> Dict[str, Any]:
+        """设置漫画目录并进行全新的完整扫描。"""
         try:
-            # 验证目录
-            if not os.path.exists(directory_path):
-                raise CoreInterfaceError("目录不存在")
-            
-            if not os.path.isdir(directory_path):
-                raise CoreInterfaceError("路径不是目录")
-            
-            # 设置目录
+            if not os.path.exists(directory_path) or not os.path.isdir(directory_path):
+                raise CoreInterfaceError(f"提供的路径不是一个有效的目录: {directory_path}")
+
+            # 设置新目录并保存配置
             config.manga_dir.value = directory_path
             self.manga_manager.save_config()
-            log.info(f"设置漫画目录: {directory_path}")
+            log.info(f"漫画目录已成功设置为: {directory_path}")
+
+            # 设置目录被视为一个重要操作，将触发一次全新的扫描
+            # 首先清空现有数据
+            await self.manga_manager.clear_all_data()
+            log.info("由于设置了新目录，已清空所有旧数据以进行全新扫描。")
             
-            # 扫描文件
-            return self.scan_manga_files(force_rescan)
-            
+            # 然后调用统一的添加方法进行扫描
+            return await self.add_mangas_from_paths([directory_path])
+
         except CoreInterfaceError:
             raise
         except Exception as e:
-            log.error(f"设置目录失败: {e}")
-            raise CoreInterfaceError("设置目录失败", e)
-    
-    # ==================== 文件扫描 ====================
-    
-    def scan_manga_files(self, force_rescan: bool = False) -> WebScanResult:
-        """扫描漫画文件"""
-        try:
-            scan_start = datetime.now()
-            errors = []
-            
-            # 执行扫描
-            try:
-                self.manga_manager.scan_manga_files(force_rescan=force_rescan)
-            except Exception as e:
-                errors.append(f"扫描过程中出现错误: {str(e)}")
-                log.warning(f"扫描过程中出现错误: {e}")
-            
-            scan_end = datetime.now()
-            manga_count = len(self.manga_manager.manga_list)
-            tags_count = len(self.manga_manager.tags)
-            
-            log.info(f"扫描完成: 找到{manga_count}个漫画, {tags_count}个标签")
-            
-            return WebScanResult(
-                success=True,
-                message=f"扫描完成，找到 {manga_count} 个漫画",
-                manga_count=manga_count,
-                tags_count=tags_count,
-                scan_time=scan_end.isoformat(),
-                errors=errors if errors else None
-            )
-            
-        except Exception as e:
-            log.error(f"扫描文件失败: {e}")
-            return WebScanResult(
-                success=False,
-                message=f"扫描失败: {str(e)}",
-                manga_count=0,
-                tags_count=0,
-                scan_time=datetime.now().isoformat(),
-                errors=[str(e)]
-            )
+            log.error(f"设置目录时发生未知错误: {e}", exc_info=True)
+            raise CoreInterfaceError("设置目录时发生严重错误", e)
     
     # ==================== 漫画列表管理 ====================
     
-    def get_manga_list(self) -> List[WebMangaInfo]:
-        """获取漫画列表"""
+    async def get_manga_list(self, sort_by: str = "last_modified DESC", tag_filters: Optional[List[str]] = None) -> List[WebMangaInfo]:
+        """从数据库获取漫画列表，并支持排序和过滤"""
         try:
-            web_manga_list = []
-
-            # # DEBUG: 检查manga_manager返回的数据 (Startup performance optimization)
-            # for i, manga_info in enumerate(self.manga_manager.manga_list[:5]):  # 只检查前5个
-            #     log.debug(f"DEBUG 接口层原始 {i}: title={manga_info.title}, dimension_variance={getattr(manga_info, 'dimension_variance', 'N/A')}, 类型={type(getattr(manga_info, 'dimension_variance', None))}")
-
-            for manga_info in self.manga_manager.manga_list:
-                web_manga = self._convert_manga_info(manga_info)
-                web_manga_list.append(web_manga)
-
-            # 按最后修改时间排序（最新的在前）
-            web_manga_list.sort(key=lambda x: x.last_modified, reverse=True)
-
-            log.debug(f"返回漫画列表: {len(web_manga_list)} 个项目")
+            log.info(f"获取漫画列表，排序: {sort_by}, 过滤: {tag_filters}")
+            manga_dicts = await self.manga_manager.get_manga_list(sort_by=sort_by, tag_filters=tag_filters)
+            
+            web_manga_list = [self._convert_dict_to_web_manga(d) for d in manga_dicts]
             return web_manga_list
 
         except Exception as e:
-            log.error(f"获取漫画列表失败: {e}")
+            log.error(f"获取漫画列表失败: {e}", exc_info=True)
             raise CoreInterfaceError("获取漫画列表失败", e)
     
-    def get_all_tags(self) -> List[str]:
-        """获取所有标签"""
+    async def get_all_tags(self) -> List[str]:
+        """从数据库获取所有标签"""
         try:
-            return sorted(list(self.manga_manager.tags))
+            return await self.manga_manager.get_all_tags()
         except Exception as e:
-            log.error(f"获取标签失败: {e}")
+            log.error(f"获取标签失败: {e}", exc_info=True)
             raise CoreInterfaceError("获取标签失败", e)
-    
-    def filter_manga_by_tags(self, tags: List[str]) -> List[WebMangaInfo]:
-        """根据标签过滤漫画"""
-        try:
-            filtered_manga = self.manga_manager.filter_manga_by_tags(tags)
-            
-            web_manga_list = []
-            for manga_info in filtered_manga:
-                web_manga = self._convert_manga_info(manga_info)
-                web_manga_list.append(web_manga)
-            
-            # 按最后修改时间排序
-            web_manga_list.sort(key=lambda x: x.last_modified, reverse=True)
-            
-            log.debug(f"标签过滤结果: {len(web_manga_list)} 个项目")
-            return web_manga_list
-            
-        except Exception as e:
-            log.error(f"标签过滤失败: {e}")
-            raise CoreInterfaceError("标签过滤失败", e)
     
     # ==================== 漫画图片获取 ====================
 
-    def get_manga_cover(self, manga_path: str) -> Optional[str]:
-        """获取漫画封面（第一页）的base64编码"""
+    def get_manga_thumbnail_path(self, manga_path: str) -> Optional[str]:
+        """
+        获取漫画缩略图的文件路径。
+        这是对 thumbnail_cache.get_thumbnail_path 的封装，用于统一接口。
+        """
         try:
-            # 加载漫画
-            manga_data = self.manga_loader.load_manga(manga_path)
-            if not manga_data or not manga_data.pages or manga_data.total_pages == 0:
-                return None
-
-            # 获取第一页图片数据
-            first_page_image = self.manga_loader.get_page_image(manga_data, 0)
-            if first_page_image is None:
-                return None
-
-            # 使用PIL转换numpy数组为图片
-            from PIL import Image
-            import io
-            import base64
-
-            # 将numpy数组转换为PIL图片
-            if first_page_image.dtype != 'uint8':
-                first_page_image = (first_page_image * 255).astype('uint8')
-
-            # 创建PIL图片（注意：OpenCV使用BGR，PIL使用RGB）
-            pil_image = Image.fromarray(first_page_image)
-
-            # 转换为JPEG格式
-            output = io.BytesIO()
-            if pil_image.mode in ('RGBA', 'LA', 'P'):
-                # 转换为RGB模式
-                rgb_image = Image.new('RGB', pil_image.size, (255, 255, 255))
-                if pil_image.mode == 'P':
-                    pil_image = pil_image.convert('RGBA')
-                rgb_image.paste(pil_image, mask=pil_image.split()[-1] if pil_image.mode in ('RGBA', 'LA') else None)
-                pil_image = rgb_image
-
-            pil_image.save(output, format='JPEG', quality=90)
-            image_base64 = base64.b64encode(output.getvalue()).decode('utf-8')
-
-            return f"data:image/jpeg;base64,{image_base64}"
-
-        except Exception as e:
-            log.error(f"获取漫画封面失败 {manga_path}: {e}")
-            return None
-
-    def get_manga_thumbnail(self, manga_path: str) -> Optional[str]:
-        """获取漫画缩略图的base64编码（使用缓存）"""
-        try:
-            # 获取缩略图文件路径
+            # 注意：get_thumbnail_path 可能会触发生成操作，所以它不是纯粹的“获取”
             thumbnail_path = self.thumbnail_cache.get_thumbnail_path(manga_path)
-            if not thumbnail_path:
-                return None
-
-            # 读取缩略图文件并转换为base64
-            import base64
-            with open(thumbnail_path, 'rb') as f:
-                image_data = f.read()
-
-            image_base64 = base64.b64encode(image_data).decode('utf-8')
-            return f"data:image/webp;base64,{image_base64}"
-
+            
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                return thumbnail_path
+            
+            log.warning(f"无法为漫画 '{manga_path}' 找到或生成有效的缩略图路径。")
+            return None
         except Exception as e:
-            log.error(f"获取漫画缩略图失败 {manga_path}: {e}")
+            log.error(f"在 CoreInterface 中获取缩略图路径失败: {e}", exc_info=True)
             return None
 
-
-
-    def get_manga_page(self, manga_path: str, page_num: int) -> Optional[Tuple[str, int, int]]:
+    async def get_manga_page(self, manga_path: str, page_num: int, use_cache: bool = True) -> Optional[Tuple[str, int, int]]:
         """获取漫画指定页面的base64编码图片及其尺寸"""
         try:
-            # 加载漫画
-            manga_data = self.manga_loader.load_manga(manga_path)
-            if not manga_data or not manga_data.pages or manga_data.total_pages == 0:
-                log.warning(f"无法加载漫画或漫画为空: {manga_path}")
+            manga_info = await self.get_manga_by_path(manga_path) # 改为调用封装后的方法
+            if not manga_info:
+                log.warning(f"无法在管理器中找到漫画信息: {manga_path}")
+                return None
+            
+            if not (0 <= page_num < manga_info.total_pages):
+                log.warning(f"页码超出范围: {page_num}, 总页数: {manga_info.total_pages}")
+                return None
+            
+            data_source = DataSourceFactory.create(manga_path)
+            if not data_source:
+                log.warning(f"无法为路径创建数据源: {manga_path}")
+                return None
+            
+            image_data = data_source.get_page_image_data(page_num)
+            if not image_data:
+                log.warning(f"无法获取页面 {page_num} 的图像数据: {manga_path}")
                 return None
 
-            # 检查页码范围
-            if page_num < 0 or page_num >= manga_data.total_pages:
-                log.warning(f"页码超出范围: {page_num}, 总页数: {manga_data.total_pages}")
-                return None
+            width, height = -1, -1
+            if manga_info.page_dimensions and page_num < len(manga_info.page_dimensions):
+                width, height = manga_info.page_dimensions[page_num]
+            else:
+                try:
+                    img = processor.read_image(image_data)
+                    if img is not None:
+                        height, width, _ = img.shape
+                except Exception as ex:
+                    log.warning(f"无法解码图像以获取尺寸: {ex}")
 
-            # 获取指定页面图片数据
-            page_image = self.manga_loader.get_page_image(manga_data, page_num)
-            if page_image is None:
-                log.warning(f"无法获取页面图片: {manga_path}, 页码: {page_num}")
-                return None
-
-            # 使用PIL转换numpy数组为图片
-            from PIL import Image
-            import io
             import base64
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            
+            if image_data.startswith(b'\xff\xd8'):
+                mime_type = 'image/jpeg'
+            elif image_data.startswith(b'\x89PNG\r\n\x1a\n'):
+                mime_type = 'image/png'
+            else:
+                mime_type = 'image/jpeg'
 
-            # 将numpy数组转换为PIL图片
-            if page_image.dtype != 'uint8':
-                page_image = (page_image * 255).astype('uint8')
-
-            # 创建PIL图片（注意：core返回的是RGB格式）
-            pil_image = Image.fromarray(page_image)
-            width, height = pil_image.size
-
-            # 转换为JPEG格式
-            output = io.BytesIO()
-            if pil_image.mode in ('RGBA', 'LA', 'P'):
-                # 转换为RGB模式
-                rgb_image = Image.new('RGB', pil_image.size, (255, 255, 255))
-                if pil_image.mode == 'P':
-                    pil_image = pil_image.convert('RGBA')
-                rgb_image.paste(pil_image, mask=pil_image.split()[-1] if pil_image.mode in ('RGBA', 'LA') else None)
-                pil_image = rgb_image
-
-            pil_image.save(output, format='JPEG', quality=95)
-            image_base64 = base64.b64encode(output.getvalue()).decode('utf-8')
-
-            return f"data:image/jpeg;base64,{image_base64}", width, height
+            return f"data:{mime_type};base64,{image_base64}", width, height
 
         except Exception as e:
             log.error(f"获取漫画页面失败 {manga_path}, 页码 {page_num}: {e}")
             return None
 
-    # ==================== 数据转换工具 ====================
+    # ==================== 漫画详情与缓存管理 (封装) ====================
 
-    def _convert_manga_info(self, manga_info: MangaInfo) -> WebMangaInfo:
-        """将Core的MangaInfo转换为Web的WebMangaInfo（带缓存优化）"""
+    async def get_manga_by_path(self, manga_path: str) -> Optional[MangaInfo]:
+        """
+        通过路径获取单个漫画的完整信息 (封装MangaManager调用)。
+        """
         try:
-            # 生成缓存键（基于文件路径和最后修改时间）
-            cache_key = f"{manga_info.file_path}:{manga_info.last_modified}"
-            current_time = time.time()
+            return await self.manga_manager.get_manga_by_path(manga_path)
+        except Exception as e:
+            log.error(f"通过路径 '{manga_path}' 获取漫画信息失败: {e}", exc_info=True)
+            raise CoreInterfaceError(f"获取漫画信息失败: {manga_path}", e)
 
-            # 检查缓存是否存在且未过期
-            if (cache_key in self._conversion_cache and
-                cache_key in self._conversion_cache_timestamps and
-                current_time - self._conversion_cache_timestamps[cache_key] < self._cache_expire_time):
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """获取缩略图缓存统计信息 (封装ThumbnailCache调用)。"""
+        try:
+            return self.thumbnail_cache.get_cache_stats()
+        except Exception as e:
+            log.error(f"获取缓存统计信息失败: {e}", exc_info=True)
+            raise CoreInterfaceError("获取缓存统计失败", e)
 
-                # 缓存命中，直接返回
-                return self._conversion_cache[cache_key]
+    def cleanup_cache(self, max_age_days: int) -> Dict[str, Any]:
+        """清理过期的缩略图缓存 (封装ThumbnailCache调用)。"""
+        try:
+            self.thumbnail_cache.cleanup_expired_cache(max_age_days)
+            # 返回清理后的状态
+            return self.get_cache_stats()
+        except Exception as e:
+            log.error(f"清理缓存失败: {e}", exc_info=True)
+            raise CoreInterfaceError("清理缓存失败", e)
 
-            # 缓存未命中或已过期，执行转换
-            # 处理last_modified字段
-            last_modified_str = ""
-            if manga_info.last_modified:
-                if hasattr(manga_info.last_modified, 'isoformat'):
-                    last_modified_str = manga_info.last_modified.isoformat()
-                else:
-                    last_modified_str = str(manga_info.last_modified)
+    def clear_cache(self) -> None:
+        """清空所有缩略图缓存 (封装ThumbnailCache调用)。"""
+        try:
+            self.thumbnail_cache.clear_cache()
+            log.info("缩略图缓存已通过 CoreInterface 清空。")
+        except Exception as e:
+            log.error(f"清空缓存失败: {e}", exc_info=True)
+            raise CoreInterfaceError("清空缓存失败", e)
 
-            # 确定文件类型
-            file_type = "unknown"
-            file_size = None
+    async def get_page_dimensions(self, manga_path: str, page_num: int) -> Optional[Tuple[int, int]]:
+        """高效获取漫画指定页面的尺寸 (width, height)"""
+        try:
+            manga_info = await self.manga_manager.get_manga_by_path(manga_path)
+            if not manga_info:
+                log.warning(f"无法在管理器中找到漫画信息: {manga_path}")
+                return None
 
-            if os.path.isdir(manga_info.file_path):
-                file_type = "folder"
-            elif manga_info.file_path.lower().endswith(('.zip', '.cbz', '.cbr')):
-                file_type = "zip"
-                try:
-                    file_size = os.path.getsize(manga_info.file_path)
-                except:
-                    pass
-
-            # 处理标签，保留原始格式（包含前缀）
-            clean_tags = list(manga_info.tags)
-
-            web_manga = WebMangaInfo(
-                file_path=manga_info.file_path,
-                title=manga_info.title,
-                tags=clean_tags,
-                total_pages=manga_info.total_pages,
-                is_valid=manga_info.is_valid,
-                last_modified=last_modified_str,
-                file_type=file_type,
-                file_size=file_size
-            )
-
-            # 添加缓存相关属性（尺寸分析数据）
-            if hasattr(manga_info, 'dimension_variance'):
-                web_manga.dimension_variance = manga_info.dimension_variance
-            if hasattr(manga_info, 'is_likely_manga'):
-                web_manga.is_likely_manga = manga_info.is_likely_manga
-            if hasattr(manga_info, 'page_dimensions'):
-                web_manga.page_dimensions = manga_info.page_dimensions
-
-            # 保存到缓存
-            self._conversion_cache[cache_key] = web_manga
-            self._conversion_cache_timestamps[cache_key] = current_time
-
-            # 清理过期缓存（每100次转换清理一次）
-            if len(self._conversion_cache) % 100 == 0:
-                self._cleanup_expired_cache()
-
-            # 只在首次转换时输出DEBUG日志
-            if cache_key not in self._conversion_cache_timestamps or current_time - self._conversion_cache_timestamps.get(cache_key, 0) > self._cache_expire_time:
-                log.debug(f"转换完成（新转换）: {manga_info.file_path}, dimension_variance={getattr(web_manga, 'dimension_variance', 'N/A')}")
-
-            return web_manga
+            if not (0 <= page_num < manga_info.total_pages):
+                log.warning(f"页码超出范围: {page_num}, 总页数: {manga_info.total_pages}")
+                return None
+            
+            if manga_info.page_dimensions and page_num < len(manga_info.page_dimensions):
+                return manga_info.page_dimensions[page_num]
+            else:
+                log.warning(f"漫画 {manga_path} 缺少页面 {page_num} 的尺寸信息。")
+                return None
 
         except Exception as e:
-            log.error(f"转换漫画信息失败: {e}")
-            # 返回一个基本的错误信息
+            log.error(f"高效获取页面尺寸失败 {manga_path}, 页码 {page_num}: {e}")
+            return None
+
+    async def get_all_page_dimensions(self, manga_path: str) -> Optional[List[Tuple[int, int]]]:
+        """获取漫画所有页面的尺寸 (width, height) 列表"""
+        try:
+            data_source = await asyncio.to_thread(DataSourceFactory.create, manga_path)
+            if not data_source:
+                log.warning(f"无法为路径创建数据源: {manga_path}")
+                return None
+            
+            # get_all_page_dimensions 是一个I/O密集型操作，应在线程中运行
+            return await asyncio.to_thread(data_source.get_all_page_dimensions)
+
+        except Exception as e:
+            log.error(f"获取所有页面尺寸失败 {manga_path}: {e}", exc_info=True)
+            return None
+
+    # ==================== 数据转换工具 ====================
+
+    def _convert_dict_to_web_manga(self, manga_dict: Dict[str, Any]) -> WebMangaInfo:
+        """将从数据库获取的字典转换为WebMangaInfo"""
+        try:
+            # last_modified 可能是一个时间戳 (float/int) 或一个已格式化的字符串
+            last_modified_val = manga_dict.get('last_modified')
+            last_modified_str = ""
+            if isinstance(last_modified_val, (int, float)):
+                if last_modified_val > 0:
+                    last_modified_str = datetime.fromtimestamp(last_modified_val).isoformat()
+            elif isinstance(last_modified_val, str):
+                last_modified_str = last_modified_val
+            
+            # 标签由 MangaRepository 返回时已经是列表
+            tag_list = manga_dict.get('tags', [])
+            if not isinstance(tag_list, list):
+                # 添加一层保护，以防万一返回的是字符串
+                tag_list = tag_list.split(',') if isinstance(tag_list, str) and tag_list else []
+
             return WebMangaInfo(
-                file_path=getattr(manga_info, 'file_path', ''),
-                title=getattr(manga_info, 'title', '转换失败'),
+                file_path=manga_dict.get('file_path', ''),
+                title=manga_dict.get('title', 'N/A'),
+                tags=tag_list,
+                total_pages=manga_dict.get('total_pages', 0),
+                is_valid=manga_dict.get('is_valid', True), # 假设数据库中的都是有效的
+                last_modified=last_modified_str,
+                file_type=manga_dict.get('file_type', 'unknown'),
+                file_size=manga_dict.get('file_size')
+            )
+        except Exception as e:
+            log.error(f"从字典转换漫画信息失败: {manga_dict.get('file_path')}, 错误: {e}", exc_info=True)
+            return WebMangaInfo(
+                file_path=manga_dict.get('file_path', ''),
+                title='转换失败',
                 tags=[],
                 total_pages=0,
                 is_valid=False,
@@ -503,11 +391,10 @@ class CoreInterface:
         """清理过期的转换缓存"""
         try:
             current_time = time.time()
-            expired_keys = []
-
-            for cache_key, timestamp in self._conversion_cache_timestamps.items():
-                if current_time - timestamp > self._cache_expire_time:
-                    expired_keys.append(cache_key)
+            expired_keys = [
+                cache_key for cache_key, timestamp in self._conversion_cache_timestamps.items()
+                if current_time - timestamp > self._cache_expire_time
+            ]
 
             for key in expired_keys:
                 self._conversion_cache.pop(key, None)
@@ -526,405 +413,165 @@ class CoreInterface:
         log.info("转换缓存已清空")
 
     # ==================== 清理和关闭 ====================
-    
-    def add_manga_from_path(self, path: str) -> WebScanResult:
-        """从指定路径添加漫画到缓存"""
-        try:
-            import os
-            from core.manga.manga_model import MangaLoader
 
-            if not os.path.exists(path):
-                return WebScanResult(
-                    success=False,
-                    message=f"路径不存在: {path}",
-                    manga_count=0,
-                    tags_count=0,
-                    scan_time="0s",
-                    errors=[f"路径不存在: {path}"]
-                )
+    async def add_mangas_from_paths(self, paths: List[str]) -> Dict[str, Any]:
+        """
+        从多个路径（文件或文件夹）添加漫画，并返回详细的处理结果。
+        这是对原 add_manga_from_path 的一个更上层的封装，包含了API层的逻辑。
+        """
+        added_count = 0
+        failed_paths = []
+        start_time = time.time()
+        initial_count = await self.manga_manager.get_manga_count()
 
-            start_time = time.time()
+        for path in paths:
+            try:
+                if not os.path.exists(path):
+                    failed_paths.append({"path": path, "reason": "路径不存在"})
+                    continue
 
-            # 使用MangaLoader加载漫画
-            manga = MangaLoader.load_manga(path)
-
-            if manga and manga.is_valid:
-                # 将漫画添加到管理器的列表中
-                existing_paths = {m.file_path for m in self.manga_manager.manga_list}
-
-                if manga.file_path not in existing_paths:
-                    self.manga_manager.manga_list.append(manga)
-
-                    # 更新缓存
-                    cache_key = self.manga_manager.manga_list_cache_manager.generate_key("all_manga")
-                    self.manga_manager.manga_list_cache_manager.set(cache_key, self.manga_manager.manga_list)
-
-                    scan_time = f"{time.time() - start_time:.2f}s"
-
-                    return WebScanResult(
-                        success=True,
-                        message=f"成功添加漫画: {manga.title}",
-                        manga_count=1,
-                        tags_count=len(manga.tags),
-                        scan_time=scan_time,
-                        errors=[]
-                    )
+                if os.path.isdir(path):
+                    await self.manga_manager.add_manga_from_path(path)
+                elif path.lower().endswith(('.zip', '.cbz', '.cbr')):
+                    await self.manga_manager.add_manga_from_path(path)
                 else:
-                    return WebScanResult(
-                        success=False,
-                        message=f"漫画已存在: {manga.title}",
-                        manga_count=0,
-                        tags_count=0,
-                        scan_time="0s",
-                        errors=[f"漫画已存在: {path}"]
-                    )
-            else:
-                return WebScanResult(
-                    success=False,
-                    message=f"无法加载漫画: {path}",
-                    manga_count=0,
-                    tags_count=0,
-                    scan_time="0s",
-                    errors=[f"无法加载漫画: {path}"]
-                )
+                    failed_paths.append({"path": path, "reason": "不支持的文件类型"})
+            except Exception as e:
+                log.error(f"在 CoreInterface 中添加路径 '{path}' 失败: {e}", exc_info=True)
+                failed_paths.append({"path": path, "reason": f"处理失败: {str(e)}"})
+        
+        final_count = await self.manga_manager.get_manga_count()
+        added_count = final_count - initial_count
+        scan_time = f"{time.time() - start_time:.2f}s"
 
-        except Exception as e:
-            log.error(f"添加漫画失败 {path}: {e}")
-            return WebScanResult(
-                success=False,
-                message=f"添加漫画失败: {str(e)}",
-                manga_count=0,
-                tags_count=0,
-                scan_time="0s",
-                errors=[str(e)]
-            )
+        # 构建响应消息
+        message_parts = []
+        if added_count > 0:
+            message_parts.append(f"成功扫描并处理了 {added_count} 本新漫画")
+        if failed_paths:
+            message_parts.append(f"有 {len(failed_paths)} 个路径处理失败")
 
-    def scan_directory_for_manga(self, directory_path: str) -> WebScanResult:
-        """扫描指定目录中的所有漫画文件"""
-        try:
-            import os
-            from core.manga.manga_model import MangaLoader
+        message = "，".join(message_parts) if message_parts else "未发现新的漫画或所有漫画都已存在"
 
-            if not os.path.exists(directory_path):
-                return WebScanResult(
-                    success=False,
-                    message=f"目录不存在: {directory_path}",
-                    manga_count=0,
-                    tags_count=0,
-                    scan_time="0s",
-                    errors=[f"目录不存在: {directory_path}"]
-                )
+        return {
+            "success": added_count > 0 and not failed_paths,
+            "message": message,
+            "added_count": added_count,
+            "failed_paths": failed_paths,
+            "scan_time": scan_time
+        }
 
-            if not os.path.isdir(directory_path):
-                return WebScanResult(
-                    success=False,
-                    message=f"路径不是目录: {directory_path}",
-                    manga_count=0,
-                    tags_count=0,
-                    scan_time="0s",
-                    errors=[f"路径不是目录: {directory_path}"]
-                )
 
-            start_time = time.time()
-            added_count = 0
-            errors = []
-
-            # 使用核心的find_manga_files方法递归扫描目录
-            manga_files = MangaLoader.find_manga_files(directory_path)
-            log.info(f"在目录 {directory_path} 中找到 {len(manga_files)} 个漫画文件")
-
-            existing_paths = {m.file_path for m in self.manga_manager.manga_list}
-
-            for file_path in manga_files:
-                try:
-                    # 检查是否已存在
-                    if file_path in existing_paths:
-                        log.info(f"漫画已存在，跳过: {file_path}")
-                        continue
-
-                    # 加载漫画
-                    manga = MangaLoader.load_manga(file_path)
-                    if manga and manga.is_valid:
-                        self.manga_manager.manga_list.append(manga)
-                        existing_paths.add(file_path)  # 更新已存在路径集合
-                        added_count += 1
-                        log.info(f"成功添加漫画: {manga.title}")
-                    else:
-                        error_msg = f"无法加载漫画: {file_path}"
-                        errors.append(error_msg)
-                        log.warning(error_msg)
-
-                except Exception as e:
-                    error_msg = f"处理 {file_path} 失败: {str(e)}"
-                    errors.append(error_msg)
-                    log.error(error_msg)
-
-            # 更新缓存
-            if added_count > 0:
-                cache_key = self.manga_manager.manga_list_cache_manager.generate_key("all_manga")
-                self.manga_manager.manga_list_cache_manager.set(cache_key, self.manga_manager.manga_list)
-
-            scan_time = f"{time.time() - start_time:.2f}s"
-
-            if added_count > 0:
-                message = f"成功扫描目录，添加了 {added_count} 本漫画"
-                if errors:
-                    message += f"，{len(errors)} 个文件处理失败"
-            else:
-                message = f"目录扫描完成，未发现新的漫画文件"
-                if errors:
-                    message += f"，{len(errors)} 个文件处理失败"
-
-            return WebScanResult(
-                success=added_count > 0 or len(errors) == 0,
-                message=message,
-                manga_count=added_count,
-                tags_count=0,  # 这里可以统计新增的标签数量
-                scan_time=scan_time,
-                errors=errors
-            )
-
-        except Exception as e:
-            log.error(f"扫描目录失败 {directory_path}: {e}")
-            return WebScanResult(
-                success=False,
-                message=f"扫描目录失败: {str(e)}",
-                manga_count=0,
-                tags_count=0,
-                scan_time="0s",
-                errors=[str(e)]
-            )
-
-    def clear_all_data(self) -> bool:
+    async def clear_all_data(self) -> bool:
         """清空所有漫画数据"""
         try:
-            self.manga_manager.clear_all_data()
+            await self.manga_manager.clear_all_data()
             log.info("所有漫画数据已清空")
             return True
         except Exception as e:
             log.error(f"清空数据失败: {e}")
             raise CoreInterfaceError("清空数据失败", e)
 
-    # ==================== 批量压缩功能 ====================
 
-    def batch_compress_manga(
-        self,
-        webp_quality: int = 85,
-        min_compression_ratio: float = 0.25,
-        preserve_original_names: bool = True,
-        manga_files: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+    # ==================== 随机播放会话管理 ====================
+    # ==================== 随机播放会话管理 ====================
+
+    async def start_random_session(self, limit: int = 50) -> Tuple[Optional[str], List[WebMangaInfo]]:
         """
-        启动批量压缩任务。
-        此方法会立即返回，并在后台线程中执行实际的压缩任务。
+        启动一个新的随机漫画阅读会话。
         """
         try:
-            if self.batch_compression_manager.is_running:
-                return {"success": False, "message": "一个批量压缩任务已经在运行中。"}
-
-            files_to_process = manga_files
-            if files_to_process is None:
-                files_to_process = [m.file_path for m in self.get_manga_list()]
+            # 从数据库获取所有漫画的路径
+            all_manga_dicts = await self.manga_manager.get_manga_list(sort_by=None)
+            all_manga_paths = [m['file_path'] for m in all_manga_dicts]
+            if not all_manga_paths:
+                return None, []
             
-            # 在后台线程中运行管理器，以避免阻塞API
-            thread = threading.Thread(
-                target=self.batch_compression_manager.run_batch_compression,
-                args=(files_to_process, webp_quality, min_compression_ratio, preserve_original_names)
-            )
-            thread.start()
-            
-            log.info(f"批量压缩任务已在后台启动，将处理 {len(files_to_process)} 个文件。")
+            random.shuffle(all_manga_paths)
 
-            return {
-                "success": True,
-                "message": "批量压缩任务已成功启动，正在后台运行。"
-            }
+            with self._random_session_lock:
+                session_id = str(uuid.uuid4())
+                self._random_sessions[session_id] = {
+                    "shuffled_paths": all_manga_paths,
+                    "timestamp": time.time()
+                }
+
+                log.info(f"启动新的随机播放会话: {session_id}，包含 {len(all_manga_paths)} 个项目。")
+                if len(self._random_sessions) % 10 == 0: self._cleanup_random_sessions()
+            
+            first_page_manga = await self.get_random_session_page(session_id, 1, limit)
+            return session_id, first_page_manga
+
         except Exception as e:
-            log.error(f"启动批量压缩任务失败: {e}", exc_info=True)
-            raise CoreInterfaceError("启动批量压缩任务失败", e)
+            log.error(f"启动随机播放会话失败: {e}", exc_info=True)
+            raise CoreInterfaceError("启动随机播放会话失败", e)
 
-    def cancel_batch_compression(self):
-        """请求取消正在进行的批量压缩任务。"""
-        log.info("CoreInterface: 正在请求取消批量压缩任务...")
-        self.batch_compression_manager.cancel()
-
-    # ==================== 自动过滤功能 ====================
-
-    def auto_filter_manga(self, filter_method: str = "dimension_analysis",
-                         threshold: float = 0.15, force_reanalyze: bool = False) -> Dict[str, Any]:
-        """
-        自动过滤漫画文件，识别哪些是真正的漫画
-
-        Args:
-            filter_method: 过滤方法 ("dimension_analysis", "tag_based", "hybrid")
-            threshold: 过滤阈值
-
-        Returns:
-            过滤结果字典
-        """
+    async def get_random_session_page(self, session_id: str, page: int, limit: int) -> List[WebMangaInfo]:
+        """从缓存的随机播放会话中获取特定页面。"""
         try:
-            from core.config import config
+            with self._random_session_lock:
+                session = self._random_sessions.get(session_id)
+                if not session:
+                    raise CoreInterfaceError("随机播放会话未找到或已过期。")
+                
+                session['timestamp'] = time.time()
 
-            log.info(f"开始自动过滤漫画，方法: {filter_method}, 阈值: {threshold}")
+            shuffled_paths = session["shuffled_paths"]
+            
+            start_index = (page - 1) * limit
+            end_index = start_index + limit
+            
+            if start_index >= len(shuffled_paths):
+                return []
 
-            # 如果使用尺寸分析，先确保所有漫画都有尺寸分析数据
-            if filter_method in ["dimension_analysis", "hybrid"]:
-                log.info("检查尺寸分析数据...")
-
-                # 检查是否需要进行尺寸分析（仅对ZIP文件）
-                manga_list = self.manga_manager.manga_list
-                zip_manga_list = [m for m in manga_list if not os.path.isdir(m.file_path)]
-
-                if not zip_manga_list:
-                    log.info("没有ZIP格式的漫画需要进行尺寸分析")
-                elif force_reanalyze:
-                    # 强制重新分析所有ZIP漫画
-                    log.info(f"强制重新分析所有 {len(zip_manga_list)} 本ZIP漫画的尺寸数据...")
-                    analyzed_count = self.manga_manager.analyze_manga_dimensions(force_reanalyze=True)
-                    log.info(f"强制尺寸分析完成，重新分析了 {analyzed_count} 本ZIP漫画")
-                else:
-                    # 只分析缺少数据的ZIP漫画
-                    need_analysis = [m for m in zip_manga_list if m.dimension_variance is None]
-
-                    if need_analysis:
-                        log.info(f"发现 {len(need_analysis)} 本ZIP漫画缺少尺寸分析数据，开始分析...")
-                        # 调用MangaManager的分析方法，它会正确调用MangaLoader._analyze_manga_dimensions
-                        analyzed_count = self.manga_manager.analyze_manga_dimensions(force_reanalyze=False)
-                        log.info(f"尺寸分析完成，分析了 {analyzed_count} 本ZIP漫画")
+            page_paths = shuffled_paths[start_index:end_index]
+            
+            # 由于不再有内存列表，我们需要为每个路径单独获取信息
+            # 这效率不高，但对于随机功能是可接受的。
+            # 更好的方法是在 MangaRepository 中添加一个 get_mangas_by_paths 方法。
+            page_manga_info = []
+            for path in page_paths:
+                manga_info = await self.manga_manager.get_manga_by_path(path)
+                if manga_info:
+                    # get_manga_by_path 返回 MangaInfo 对象，我们需要将其转换为字典
+                    # 以便 _convert_dict_to_web_manga 可以处理
+                    manga_dict = asdict(manga_info)
+                    # asdict 可能会丢失方法，但对数据转换足够了
+                    # 我们需要手动处理 tags 和 last_modified 的格式
+                    manga_dict['tags'] = ','.join(manga_info.tags)
+                    if manga_info.last_modified:
+                        manga_dict['last_modified'] = datetime.fromtimestamp(manga_info.last_modified).isoformat()
                     else:
-                        log.info("所有ZIP漫画都已有尺寸分析数据，无需重新分析")
+                        manga_dict['last_modified'] = ""
+                    page_manga_info.append(self._convert_dict_to_web_manga(manga_dict))
 
-            all_manga = self.get_manga_list()
-            filtered_manga = []
-            removed_manga = []
+            
+            return page_manga_info
 
-            for manga in all_manga:
-                is_manga = True
-                reason = ""
-
-                if filter_method == "dimension_analysis":
-                    # 基于页面尺寸分析（仅对ZIP文件进行过滤）
-                    if os.path.isdir(manga.file_path):
-                        # 文件夹漫画自动保留，不进行过滤
-                        pass
-                    elif hasattr(manga, 'dimension_variance') and manga.dimension_variance is not None:
-                        if manga.dimension_variance > threshold:
-                            is_manga = False
-                            reason = f"ZIP文件尺寸方差过大: {manga.dimension_variance:.3f} > {threshold}"
-                    elif hasattr(manga, 'is_likely_manga') and manga.is_likely_manga is not None:
-                        if not manga.is_likely_manga:
-                            is_manga = False
-                            reason = "ZIP文件尺寸分析判定为非漫画"
-
-                elif filter_method == "tag_based":
-                    # 基于标签过滤
-                    required_tags = ["作者:", "标题:"]
-                    has_required_tags = any(
-                        any(tag.startswith(req) for tag in manga.tags)
-                        for req in required_tags
-                    )
-                    if not has_required_tags:
-                        is_manga = False
-                        reason = "缺少必要标签（作者或标题）"
-
-                elif filter_method == "hybrid":
-                    # 混合方法：同时检查尺寸和标签
-                    dimension_ok = True
-                    tag_ok = True
-
-                    # 检查尺寸（仅对ZIP文件）
-                    if os.path.isdir(manga.file_path):
-                        # 文件夹漫画在尺寸检查中自动通过
-                        dimension_ok = True
-                    elif hasattr(manga, 'dimension_variance') and manga.dimension_variance is not None:
-                        if manga.dimension_variance > threshold:
-                            dimension_ok = False
-                    elif hasattr(manga, 'is_likely_manga') and manga.is_likely_manga is not None:
-                        if not manga.is_likely_manga:
-                            dimension_ok = False
-
-                    # 检查标签
-                    required_tags = ["作者:", "标题:"]
-                    has_required_tags = any(
-                        any(tag.startswith(req) for tag in manga.tags)
-                        for req in required_tags
-                    )
-                    if not has_required_tags:
-                        tag_ok = False
-
-                    if not dimension_ok and not tag_ok:
-                        is_manga = False
-                        reason = "尺寸分析和标签检查均未通过"
-                    elif not dimension_ok:
-                        is_manga = False
-                        reason = "尺寸分析未通过"
-                    elif not tag_ok:
-                        is_manga = False
-                        reason = "标签检查未通过"
-
-                if is_manga:
-                    filtered_manga.append(manga)
-                else:
-                    removed_manga.append({
-                        "file_path": manga.file_path,
-                        "title": manga.title,
-                        "reason": reason
-                    })
-
-            log.info(f"过滤完成: 保留 {len(filtered_manga)} 个，移除 {len(removed_manga)} 个")
-
-            return {
-                "success": True,
-                "filter_method": filter_method,
-                "threshold": threshold,
-                "total_files": len(all_manga),
-                "filtered_count": len(filtered_manga),
-                "removed_count": len(removed_manga),
-                "filtered_manga": [self._convert_manga_info(manga) for manga in filtered_manga],
-                "removed_manga": removed_manga
-            }
-
+        except CoreInterfaceError:
+            raise
         except Exception as e:
-            log.error(f"自动过滤失败: {e}")
-            raise CoreInterfaceError("自动过滤失败", e)
+            log.error(f"获取随机播放会话页面失败: {e}", exc_info=True)
+            raise CoreInterfaceError("获取随机播放会话页面失败", e)
 
-    def apply_filter_results(self, filter_results: Dict[str, Any]) -> bool:
-        """
-        应用过滤结果，实际移除被过滤的文件
-
-        Args:
-            filter_results: auto_filter_manga 返回的结果
-
-        Returns:
-            是否成功应用
-        """
-        try:
-            removed_manga = filter_results.get("removed_manga", [])
-
-            for removed in removed_manga:
-                file_path = removed["file_path"]
-                # 从漫画管理器中移除
-                self.manga_manager.manga_list = [
-                    manga for manga in self.manga_manager.manga_list
-                    if manga.file_path != file_path
-                ]
-
-            # 重新构建标签集合
-            self.manga_manager.tags = set()
-            for manga in self.manga_manager.manga_list:
-                self.manga_manager.tags.update(manga.tags)
-
-            log.info(f"已应用过滤结果，移除了 {len(removed_manga)} 个文件")
-            return True
-
-        except Exception as e:
-            log.error(f"应用过滤结果失败: {e}")
-            raise CoreInterfaceError("应用过滤结果失败", e)
+    def _cleanup_random_sessions(self, max_age_seconds: int = 3600): # 1小时
+        """清理过期的随机播放会话。"""
+        with self._random_session_lock:
+            current_time = time.time()
+            expired_sessions = [
+                sid for sid, data in self._random_sessions.items()
+                if current_time - data.get("timestamp", 0) > max_age_seconds
+            ]
+            
+            for sid in expired_sessions:
+                del self._random_sessions[sid]
+            
+            if expired_sessions:
+                log.info(f"清理了 {len(expired_sessions)} 个过期的随机播放会话。")
 
     def close(self):
         """关闭接口，清理资源"""
         try:
-            # 清理缓存管理器
             get_cache_factory_instance().close_all_managers()
             log.info("Core接口已关闭")
         except Exception as e:

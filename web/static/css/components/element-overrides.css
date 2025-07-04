@@ -61,11 +61,11 @@
 }
 
 /* ElButton 按钮 - Default 默认按钮 (线框样式) */
-/* 当未显式设置类型 (primary, success 等) 时应用的样式 */
-.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not([class*="el-button--text"]):not([class*="el-button--link"]) {
+/* 当未显式设置类型 (primary, success 等) 时应用的样式 (更精确的排除) */
+.el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not(.el-button--text):not(.is-text):not(.el-button--link) {
     background: transparent !important;
-    border: 1px solid var(--el-color-primary) !important; /* 边框使用主色 */
-    color: var(--el-color-primary) !important; /* 文本使用主色 */
+    border: 1px solid var(--color-border-default) !important; /* 默认边框使用标准边框色 */
+    color: var(--color-text-secondary) !important; /* 默认按钮文本使用次要颜色 */
 }
 
 .el-button:not(.is-disabled):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not([class*="el-button--text"]):not([class*="el-button--link"]):hover,
@@ -107,7 +107,7 @@
 .el-button--text {
     background: transparent !important;
     border: none !important;
-    color: var(--el-color-primary) !important;
+    /* color: var(--el-color-primary) !important;  <- THIS WAS THE CULPRIT! Commenting it out. */
     box-shadow: none !important;
     border-radius: var(--border-radius) !important;
     transition: background-color var(--transition-fast) !important;
@@ -663,10 +663,7 @@ html.theme-auto .el-select-dropdown__item.selected {
 }
 
 /* 确保对话框内容区域有合适的底部内边距，避免内容与按钮重叠 */
-.modern-dialog .el-dialog__body {
-    /* 移除原有的padding-bottom，让footer的margin-top控制间距 */
-    /* padding-bottom: 20px; */
-}
+/* .modern-dialog .el-dialog__body {} 被移除，因为它是空的 */
 
 /* 修复对话框背景主题问题 */
 .modern-dialog .el-dialog {
@@ -690,9 +687,7 @@ html.theme-auto .el-select-dropdown__item.selected {
 }
 
 /* 可选：调整删除按钮样式 */
-.modern-dialog-footer .delete-button {
-    /* 如果需要，可以在这里添加自定义样式 */
-}
+/* .modern-dialog-footer .delete-button {} 被移除，因为它是空的 */
 /* -------------------- End Edit Dialog Footer Styles -------------------- */
 /* -------------------- Edit Dialog Footer Button Theme Styles -------------------- */
 

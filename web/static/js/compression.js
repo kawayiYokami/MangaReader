@@ -1,293 +1,95 @@
-// 压缩功能模块
-window.CompressionMethods = {
-    // ==================== 压缩功能 ====================
+/**
+ * compression.js
+ * 
+ * 负责与后端“上传-压缩-下载”API交互的前端逻辑。
+ * 此文件将通过 window.compressionMethods 暴露方法给Vue组件。
+ */
+(function() {
+    'use strict';
 
-    triggerCompressionFileSelect() {
-        this.$refs.compressionFileInput.click();
-    },
+    /**
+     * 上传、压缩并下载单个文件。
+     * @param {File} file - 用户选择的文件对象
+     * @param {number} quality - WebP 压缩质量 (50-100)
+     * @param {function} onProgress - 进度回调函数，接收一个参数 (0-100)
+     * @returns {Promise<object>} - 返回一个包含 success 和 message 的对象
+     */
+    async function uploadAndCompressFile(file, quality, onProgress) {
+        console.log(`开始处理文件: ${file.name}, 质量: ${quality}`);
+        const endpoint = '/api/manga/compress-file-and-download';
 
-    handleCompressionFileSelect(event) {
-        const files = Array.from(event.target.files);
-        this.processCompressionFiles(files);
-        // 清空文件选择器
-        event.target.value = '';
-    },
-
-    handleCompressionDragOver(event) {
-        event.preventDefault();
-        this.compressionDragOver = true;
-    },
-
-    handleCompressionDragLeave(event) {
-        event.preventDefault();
-        this.compressionDragOver = false;
-    },
-
-    handleCompressionDrop(event) {
-        event.preventDefault();
-        this.compressionDragOver = false;
-        
-        const files = Array.from(event.dataTransfer.files);
-        this.processCompressionFiles(files);
-    },
-
-    processCompressionFiles(files) {
-        if (files.length === 0) return;
-
-        // 过滤支持的文件类型
-        const supportedFiles = files.filter(file => {
-            const extension = file.name.toLowerCase().split('.').pop();
-            return ['zip', 'cbz', 'cbr'].includes(extension);
-        });
-
-        if (supportedFiles.length === 0) {
-            ElMessage.warning('请选择ZIP、CBZ或CBR格式的漫画文件');
-            return;
-        }
-
-        if (supportedFiles.length !== files.length) {
-            ElMessage.warning(`已过滤掉 ${files.length - supportedFiles.length} 个不支持的文件`);
-        }
-
-        // 为每个文件创建压缩任务
-        supportedFiles.forEach(file => {
-            const task = {
-                id: Date.now() + Math.random(),
-                fileName: file.name,
-                file: file,
-                status: 'pending', // pending, processing, completed, error
-                progress: 0,
-                currentStep: '等待开始',
-                error: null,
-                result: null,
-                originalSize: file.size,
-                compressedSize: 0
-            };
-
-            this.compressionTasks.push(task);
-        });
-
-        ElMessage.success(`已添加 ${supportedFiles.length} 个压缩任务`);
-    },
-
-    async startCompression() {
-        if (this.compressionTasks.length === 0) {
-            ElMessage.warning('请先选择要压缩的文件');
-            return;
-        }
-
-        this.compressionIsProcessing = true;
-        this.compressionStopped = false;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('webp_quality', quality);
 
         try {
-            // 逐个处理压缩任务
-            for (const task of this.compressionTasks) {
-                if (this.compressionStopped) break;
-                
-                if (task.status === 'pending') {
-                    await this.processCompressionFile(task);
-                }
-            }
-        } catch (error) {
-            console.error('压缩过程出错:', error);
-            ElMessage.error('压缩过程出错: ' + error.message);
-        } finally {
-            this.compressionIsProcessing = false;
-        }
-    },
+            const response = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', endpoint, true);
 
-    stopCompression() {
-        this.compressionStopped = true;
-        this.compressionIsProcessing = false;
-        ElMessage.info('压缩已停止');
-    },
-
-    async processCompressionFile(task) {
-        try {
-            task.status = 'processing';
-            task.progress = 0;
-            task.currentStep = '读取文件...';
-
-            // 读取ZIP文件
-            const zip = new JSZip();
-            const zipContent = await zip.loadAsync(task.file);
-
-            // 获取所有图片文件
-            const imageFiles = [];
-            zipContent.forEach((relativePath, file) => {
-                if (!file.dir && this.isImageFile(relativePath)) {
-                    imageFiles.push({ path: relativePath, file: file });
-                }
-            });
-
-            if (imageFiles.length === 0) {
-                throw new Error('ZIP文件中没有找到图片文件');
-            }
-
-            task.currentStep = `找到 ${imageFiles.length} 个图片文件`;
-            task.progress = 10;
-
-            // 预检测：压缩第一张图片检查压缩率
-            if (imageFiles.length > 0) {
-                task.currentStep = '检测压缩效果...';
-                const firstImage = imageFiles[0];
-                const originalData = await firstImage.file.async('blob');
-                const compressedData = await this.compressImage(originalData, this.compressionSettings);
-                
-                const compressionRatio = compressedData.size / originalData.size;
-                if (compressionRatio > 0.75) {
-                    // 如果压缩率小于25%，询问是否继续
-                    const shouldContinue = confirm(
-                        `检测到压缩效果不明显（压缩率仅 ${(100 - compressionRatio * 100).toFixed(1)}%），是否继续压缩？`
-                    );
-                    if (!shouldContinue) {
-                        task.status = 'error';
-                        task.error = '用户取消了压缩';
-                        return;
+                // 进度事件监听
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable && onProgress) {
+                        const percentComplete = Math.round((event.loaded / event.total) * 100);
+                        onProgress(percentComplete);
                     }
-                }
-            }
+                };
 
-            task.progress = 20;
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(xhr);
+                    } else {
+                        reject({ status: xhr.status, statusText: xhr.statusText, response: xhr.response });
+                    }
+                };
 
-            // 创建结果ZIP
-            const resultZip = new JSZip();
+                xhr.onerror = () => {
+                    reject({ status: xhr.status, statusText: xhr.statusText, response: xhr.response });
+                };
 
-            // 逐个压缩图片
-            for (let i = 0; i < imageFiles.length; i++) {
-                if (this.compressionStopped) {
-                    task.status = 'error';
-                    task.error = '用户停止了压缩';
-                    return;
-                }
-
-                const imageFile = imageFiles[i];
-                task.currentStep = `压缩第 ${i + 1}/${imageFiles.length} 张图片`;
-                task.progress = 20 + Math.round((i / imageFiles.length) * 70);
-
-                try {
-                    // 读取图片数据
-                    const originalData = await imageFile.file.async('blob');
-                    
-                    // 压缩图片
-                    const compressedData = await this.compressImage(originalData, this.compressionSettings);
-                    
-                    // 生成新的文件名（WebP格式）
-                    const originalPath = imageFile.path;
-                    const pathWithoutExt = originalPath.substring(0, originalPath.lastIndexOf('.'));
-                    const newPath = pathWithoutExt + '.webp';
-                    
-                    // 将压缩后的图片添加到结果ZIP
-                    resultZip.file(newPath, compressedData);
-                    
-                } catch (error) {
-                    console.error(`压缩第 ${i + 1} 张图片失败:`, error);
-                    // 如果压缩失败，添加原图片
-                    const originalData = await imageFile.file.async('blob');
-                    resultZip.file(imageFile.path, originalData);
-                }
-            }
-
-            task.currentStep = '生成压缩包...';
-            task.progress = 90;
-
-            // 生成最终的ZIP文件
-            const resultBlob = await resultZip.generateAsync({ 
-                type: 'blob',
-                compression: 'DEFLATE',
-                compressionOptions: { level: 6 }
+                xhr.responseType = 'blob'; // 期望服务器返回文件数据
+                xhr.send(formData);
             });
             
-            task.status = 'completed';
-            task.progress = 100;
-            task.result = resultBlob;
-            task.compressedSize = resultBlob.size;
-            task.currentStep = '压缩完成';
+            // 服务器返回的是压缩后的文件blob
+            const blob = response.response;
             
-            const compressionRatio = ((task.originalSize - task.compressedSize) / task.originalSize * 100).toFixed(1);
-            ElMessage.success(`${task.fileName} 压缩完成，减少了 ${compressionRatio}%`);
+            // 直接使用上传时的原始文件名来构建下载文件名，这是最可靠的方式。
+            const downloadFilename = `${file.name.replace(/\.[^/.]+$/, "")}_compressed.zip`;
+            
+            // 创建一个下载链接并模拟点击
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = downloadFilename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            console.log(`文件 ${downloadFilename} 已成功下载。`);
+            return { success: true, message: '压缩并下载成功！' };
 
         } catch (error) {
-            console.error('压缩文件失败:', error);
-            task.status = 'error';
-            task.error = error.message;
-            ElMessage.error(`${task.fileName} 压缩失败: ${error.message}`);
+            console.error('上传或压缩文件时出错:', error);
+            let errorMessage = '请求失败。';
+            try {
+                // 尝试解析错误响应
+                const errorText = await new Response(error.response).text();
+                const errorJson = JSON.parse(errorText);
+                errorMessage = errorJson.detail || errorMessage;
+            } catch (e) {
+                // 解析失败，使用通用错误
+                errorMessage = error.statusText || '网络错误或服务器无响应。';
+            }
+            return { success: false, message: `压缩失败: ${errorMessage}` };
         }
-    },
-
-    async compressImage(imageBlob, settings) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-
-            img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-
-                // 根据设置选择压缩方式
-                if (settings.lossless) {
-                    // 无损压缩
-                    canvas.toBlob(resolve, 'image/webp', 1.0);
-                } else {
-                    // 有损压缩
-                    const quality = settings.quality / 100;
-                    canvas.toBlob(resolve, 'image/webp', quality);
-                }
-            };
-
-            img.onerror = reject;
-            img.src = URL.createObjectURL(imageBlob);
-        });
-    },
-
-    downloadCompressionTask(task) {
-        if (task.status !== 'completed' || !task.result) {
-            ElMessage.warning('任务未完成或结果不可用');
-            return;
-        }
-
-        try {
-            // 生成下载文件名
-            const originalName = task.fileName;
-            const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.'));
-            const downloadName = `${nameWithoutExt}_compressed.zip`;
-
-            // 下载文件
-            saveAs(task.result, downloadName);
-            ElMessage.success('下载开始');
-        } catch (error) {
-            console.error('下载失败:', error);
-            ElMessage.error('下载失败: ' + error.message);
-        }
-    },
-
-    removeCompressionTask(index) {
-        if (index >= 0 && index < this.compressionTasks.length) {
-            const task = this.compressionTasks[index];
-            this.compressionTasks.splice(index, 1);
-            ElMessage.success(`已移除任务: ${task.fileName}`);
-        }
-    },
-
-    clearCompressionTasks() {
-        if (this.compressionTasks.length === 0) {
-            ElMessage.info('任务列表已经是空的');
-            return;
-        }
-
-        this.compressionTasks = [];
-        ElMessage.success('已清空所有压缩任务');
-    },
-
-    getCompressionTaskStatusText(status) {
-        const statusMap = {
-            'pending': '等待中',
-            'processing': '处理中',
-            'completed': '已完成',
-            'error': '失败'
-        };
-        return statusMap[status] || '未知';
     }
-};
+    
+    // 将方法暴露到全局 window 对象
+    window.compressionMethods = {
+        uploadAndCompressFile,
+    };
+
+})();

@@ -37,32 +37,59 @@ const app = createApp({
                     mangaInfo.value.title = result.manga_info.title;
                     mangaInfo.value.total_pages = result.manga_info.total_pages;
                     document.title = result.manga_info.title || '漫画查看器';
-                    fetchAllPages();
+
+                    // --- 懒加载高度预估 ---
+                    // 在图片加载前，为占位符提供一个预估高度，防止IntersectionObserver一次性触发所有加载
+                    const screenWidth = window.innerWidth;
+                    const estimatedAspectRatio = 1.414; // 使用一个常见的高宽比 (如 A4 纸)
+                    const estimatedHeight = screenWidth * estimatedAspectRatio;
+                    
+                    // 创建占位符数组，不再预加载所有图片
+                    loadedPages.value = Array.from({ length: mangaInfo.value.total_pages }, (_, i) => ({
+                        src: '', // 初始为空
+                        pageIndex: i,
+                        isLoading: false, // 新增：跟踪单页加载状态
+                        isLoaded: false,   // 新增：标记是否已加载
+                        estimatedHeight: estimatedHeight // 为每个占位符设置预估高度
+                    }));
+                    isLoading.value = false;
+
                 } else {
                     ElMessage.error('无法加载漫画信息');
+                    isLoading.value = false;
                 }
             } catch (error) {
                 console.error('初始化阅读器失败:', error);
                 ElMessage.error('初始化阅读器失败');
+                isLoading.value = false;
             }
         }
 
-        async function fetchAllPages() {
-            const total = mangaInfo.value.total_pages;
-            for (let i = 0; i < total; i++) {
-                try {
-                    const images = await viewerManager.getPageImages(i, 'single', false);
-                    if (images && images.length > 0) {
-                        loadedPages.value.push({
-                            src: images[0].image_data,
-                            pageIndex: images[0].page_index
-                        });
-                    }
-                } catch (error) {
-                    console.error(`加载第 ${i + 1} 页失败:`, error);
+        // 新的懒加载函数
+        async function loadPageIfNeeded(pageIndex) {
+            if (pageIndex < 0 || pageIndex >= loadedPages.value.length) return;
+
+            const page = loadedPages.value[pageIndex];
+            if (page.isLoaded || page.isLoading) return; // 防止重复加载
+
+            page.isLoading = true;
+
+            try {
+                // 获取容器尺寸
+                const container = scrollContainer.value;
+                const maxWidth = container ? container.clientWidth : window.innerWidth;
+                const maxHeight = container ? container.clientHeight : window.innerHeight;
+
+                const images = await viewerManager.getPageImages(pageIndex, 'single', false, maxWidth, maxHeight);
+                if (images && images.length > 0) {
+                    page.src = images[0].image_data;
+                    page.isLoaded = true;
                 }
+            } catch (error) {
+                console.error(`加载第 ${pageIndex + 1} 页失败:`, error);
+            } finally {
+                page.isLoading = false;
             }
-            isLoading.value = false;
         }
 
         // --- Fast Scrubber Logic ---
@@ -151,8 +178,10 @@ const app = createApp({
 
         // --- Event Handlers for template ---
         function onImageLoad(event, pageIndex) {
-            if (pageIntersectionObserver && event.target.parentElement) {
-                pageIntersectionObserver.observe(event.target.parentElement);
+            // 图片加载完成后，可以停止观察，因为我们不再需要对它做任何事
+            const pageElement = event.target.parentElement;
+            if (pageIntersectionObserver && pageElement) {
+                pageIntersectionObserver.unobserve(pageElement);
             }
         }
         function onImageError(pageIndex) {}
@@ -163,31 +192,45 @@ const app = createApp({
         function setupIntersectionObserver() {
             const options = {
                 root: scrollContainer.value,
-                threshold: 0.5
+                rootMargin: '200px 0px', // 预加载视窗上下200px的图片
+                threshold: 0.01
             };
 
             pageIntersectionObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
+                    const pageIndex = parseInt(entry.target.dataset.pageIndex, 10);
+                    if (isNaN(pageIndex)) return;
+
                     if (entry.isIntersecting) {
-                        const pageIndex = parseInt(entry.target.dataset.pageIndex, 10);
-                        if (!isNaN(pageIndex)) {
-                            scrubberPageNumber.value = pageIndex + 1;
-                        }
+                        // 更新当前页码
+                        scrubberPageNumber.value = pageIndex + 1;
+                        // 触发懒加载
+                        loadPageIfNeeded(pageIndex);
                     }
                 });
             }, options);
+
+            // 初始化时，让Observer观察所有占位符
+            nextTick(() => {
+                // DOM更新后，每个 .manga-page 已经有了 min-height，可以直接观察
+                const pageElements = scrollContainer.value.querySelectorAll('.manga-page');
+                pageElements.forEach(el => pageIntersectionObserver.observe(el));
+            });
         }
 
         // --- Lifecycle Hooks ---
-        onMounted(() => {
+        onMounted(async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const mangaPath = urlParams.get('path');
             if (!mangaPath) {
                 ElMessage.error('缺少漫画路径参数');
                 return;
             }
+            // 必须先等待阅读器初始化完成，拿到页面数据
+            await initializeReader(mangaPath);
+
+            // 在数据加载完成，DOM更新后，再设置Observer
             setupIntersectionObserver();
-            initializeReader(mangaPath);
         });
 
         onUnmounted(() => {

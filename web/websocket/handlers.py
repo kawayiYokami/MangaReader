@@ -217,12 +217,21 @@ async def broadcast_log_message(level: str, message: str):
         "timestamp": datetime.now().isoformat()
     }, subscription="logs")
 
+async def broadcast_manga_list_update(update_info: Dict[str, Any]):
+    """广播漫画库更新事件"""
+    await manager.broadcast({
+        "type": "manga_list_updated",
+        "data": update_info,
+        "timestamp": datetime.now().isoformat()
+    })
+
 # 导出给其他模块使用
 __all__ = [
     "websocket_endpoint",
     "broadcast_translation_progress",
-    "broadcast_scan_progress", 
+    "broadcast_scan_progress",
     "broadcast_system_notification",
     "broadcast_log_message",
+    "broadcast_manga_list_update",
     "manager"
 ]

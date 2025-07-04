@@ -36,7 +36,6 @@ const app = createApp({
             document.addEventListener('keydown', controls.handleKeydown);
             document.addEventListener('fullscreenchange', controls.handleFullscreenChange);
             document.addEventListener('wheel', controls.handleWheel, { passive: false });
-            window.addEventListener('resize', controls.handleResize);
         });
 
         onUnmounted(() => {
@@ -44,7 +43,6 @@ const app = createApp({
             document.removeEventListener('keydown', controls.handleKeydown);
             document.removeEventListener('fullscreenchange', controls.handleFullscreenChange);
             document.removeEventListener('wheel', controls.handleWheel);
-            window.removeEventListener('resize', controls.handleResize);
 
             // 销毁会话
             if (viewerManager) {

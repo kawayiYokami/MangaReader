@@ -6,10 +6,11 @@ from core.core_cache.manga_cache import MangaListCacheManager
 from core.core_cache.ocr_cache_manager import OcrCacheManager
 from core.core_cache.translation_cache_manager import TranslationCacheManager
 from core.core_cache.persistent_translation_cache import get_persistent_translation_cache
+from core.core_cache.page_policy_cache import PagePolicyCacheManager
 # DangerousWordCacheManager import removed
 
 # Define a type for cache types for better type hinting
-CacheType = Literal["manga_list", "ocr", "translation", "persistent_translation"] # "dangerous_word" removed
+CacheType = Literal["manga_list", "ocr", "translation", "persistent_translation", "page_policy"] # "dangerous_word" removed
 
 # 事件广播函数
 async def broadcast_cache_event(event_type: str, cache_type: str, data: Dict[str, Any] = None):
@@ -52,9 +53,9 @@ class CacheManagerFactory:
     """
     工厂类，用于创建和获取不同类型的缓存管理器实例。
     """
-    _managers = {} # To store singleton instances
+    _managers: Dict[str, Union[CacheInterface, 'MangaListCacheManager']] = {} # To store singleton instances
 
-    def get_manager(self, cache_type: CacheType) -> CacheInterface:
+    def get_manager(self, cache_type: CacheType) -> Union[CacheInterface, 'MangaListCacheManager']:
         """
         获取指定类型的缓存管理器实例。
         使用单例模式确保每种类型的管理器只有一个实例。
@@ -77,6 +78,8 @@ class CacheManagerFactory:
                 self._managers[cache_type] = TranslationCacheManager()
             elif cache_type == "persistent_translation":
                 self._managers[cache_type] = get_persistent_translation_cache()
+            elif cache_type == "page_policy":
+                self._managers[cache_type] = PagePolicyCacheManager()
             # "dangerous_word" case removed
             else:
                 # This case should ideally be caught by Literal type hinting

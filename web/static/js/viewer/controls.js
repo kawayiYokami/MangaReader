@@ -17,6 +17,7 @@ export function createControls(state, viewerManager) {
     async function loadCurrentPage() {
        try {
            const modeToSend = displayMode.value === 'auto' ? 'double' : displayMode.value;
+           
            const result = await viewerManager.getPageImages(
                currentPage.value,
                modeToSend,

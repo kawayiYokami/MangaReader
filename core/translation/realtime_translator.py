@@ -7,7 +7,6 @@
 
 import numpy as np
 from typing import Optional, Dict, Any
-from PIL import Image
 
 from core.translation.image_translator import ImageTranslator
 from utils import manga_logger as log
