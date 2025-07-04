@@ -119,7 +119,7 @@ def _dispatch_feedback_event(success, message, added=0, failed=0):
 
     if target_window:
         try:
-            log.debug(f"发送桌面事件反馈: 成功={success}, 消息='{message}'")
+            log.debug(f"发送桌面事件反馈: success={success}, message='{message}'")
             detail_payload = {"success": success, "message": message, "added": added, "failed": failed}
             # 使用json.dumps确保特殊字符被正确转义
             detail_json = json.dumps(detail_payload, ensure_ascii=False)
@@ -128,7 +128,7 @@ def _dispatch_feedback_event(success, message, added=0, failed=0):
             js_code = f'window.dispatchEvent(new CustomEvent("desktopImportComplete", {{ detail: {detail_json} }}));'
 
             target_window.evaluate_js(js_code)
-            log.debug("桌面事件已发送")
+            log.debug("桌面事件已成功发送")
         except Exception as e:
             log.error(f"发送桌面事件失败: {e}", exc_info=True)
     else:
@@ -392,8 +392,8 @@ class MangaTranslatorDesktop:
             log.info(f"设置PyWebView持久化存储路径: {storage_path}")
 
             webview.start(
-                debug=True,
-                private_mode=True,  # 禁用私有模式以保留缓存
+                debug=False,
+                private_mode=False,  # 禁用私有模式以保留缓存
                 # storage_path=str(storage_path) # 指定持久化存储路径
             )
 

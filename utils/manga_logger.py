@@ -76,7 +76,8 @@ class MangaLogger:
         self.logger.addHandler(file_handler)
 
         self.logger.propagate = False
-        self.set_level(config.log_level.value)
+        # 强制设置为DEBUG级别进行诊断
+        self.set_level("DEBUG")
         
     def set_level(self, level_str):
         level_map = {

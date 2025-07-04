@@ -16,6 +16,7 @@ from pathlib import Path # 新增导入
 
 # 导入核心业务逻辑
 from core.config import config, ReadingOrder, DisplayMode, Theme
+from core.translation.translator import OpenAITranslator, GeminiTranslator
 from utils import manga_logger as log
 
 router = APIRouter()
@@ -55,6 +56,10 @@ class SettingUpdateRequest(BaseModel):
     """设置更新请求模型"""
     key: str
     value: Any
+
+class ModelListRequest(BaseModel):
+    apiKey: str
+    baseUrl: Optional[str] = None
 
 @router.get("/health")
 async def settings_health():
@@ -150,10 +155,8 @@ async def get_all_settings():
             description="选择使用的翻译引擎",
             value=config.translator_type.value,
             type="enum",
-            options=[
-                {"value": "Google", "label": "Google翻译"},
-                {"value": "智谱", "label": "智谱AI"}
-            ]
+            # options 将由新的 /translator-options 接口动态提供
+            options=[]
         ))
 
         # 智谱AI翻译设置
@@ -184,6 +187,29 @@ async def get_all_settings():
             name="Google API Key",
             description="Google翻译服务的API Key",
             value="***" if config.google_api_key.value else "",  # 隐藏API密钥
+            type="string"
+        ))
+
+        # OpenAI 额外设置
+        settings.append(SettingItem(
+            key="openai_api_key",
+            name="OpenAI API Key",
+            description="OpenAI 翻译服务的API Key",
+            value="***" if config.openai_api_key.value else "",
+            type="string"
+        ))
+        settings.append(SettingItem(
+            key="openai_model",
+            name="OpenAI 模型",
+            description="OpenAI 翻译使用的模型",
+            value=config.openai_model.value,
+            type="string" # 允许用户输入自定义模型
+        ))
+        settings.append(SettingItem(
+            key="openai_api_base_url",
+            name="OpenAI API Base URL",
+            description="用于兼容第三方服务或代理的OpenAI API地址",
+            value=config.openai_api_base_url.value,
             type="string"
         ))
         
@@ -285,6 +311,32 @@ async def get_available_fonts():
     log.debug(f"最终返回的字体列表: {fonts}")
     return {"success": True, "fonts": fonts}
 
+@router.get("/translator-options")
+async def get_translator_options():
+    """获取可用的翻译器选项列表"""
+    try:
+        # 从config对象中获取OptionsConfigItem
+        translator_config_item = config.translator_type
+        # 获取验证器中的选项列表
+        options = translator_config_item.validator.options
+        
+        # 将选项格式化为前端需要的格式
+        formatted_options = []
+        for option_value in options:
+            # 这里可以根据需要添加更友好的显示名称
+            label = option_value
+            if option_value == "Google":
+                label = "Google 翻译"
+            elif option_value == "智谱":
+                label = "智谱AI"
+            
+            formatted_options.append({"value": option_value, "label": label})
+            
+        return {"success": True, "translators": formatted_options}
+    except Exception as e:
+        log.error(f"获取翻译器选项失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="无法获取翻译器选项")
+
 @router.get("/{setting_key}")
 async def get_setting(setting_key: str):
     """获取单个设置项"""
@@ -350,6 +402,9 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
             if new_value in ["glm-4-flash", "glm-4", "glm-3-turbo", "glm-4-flash-250414"]: config_item.value = new_value
             else: raise HTTPException(status_code=400, detail="无效的智谱AI模型")
         elif setting_key == "google_api_key": config_item.value = new_value
+        elif setting_key == "openai_api_key": config_item.value = new_value
+        elif setting_key == "openai_model": config_item.value = new_value
+        elif setting_key == "openai_api_base_url": config_item.value = new_value
         elif setting_key == "font_name": config_item.value = new_value
         elif setting_key == "logLevel": # 注意这里应该是 logLevel 不是 log_level
             valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -501,3 +556,29 @@ async def import_settings(settings_data: Dict[str, Any]):
     except Exception as e:
         log.error(f"导入设置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/openai/models")
+async def get_openai_models(request: ModelListRequest):
+    """获取OpenAI模型列表"""
+    try:
+        models = OpenAITranslator.list_models(api_key=request.apiKey, api_base_url=request.baseUrl)
+        return {"success": True, "models": models}
+    except ValueError as e:
+        log.error(f"获取 OpenAI 模型失败 (值错误): {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log.error(f"获取 OpenAI 模型时发生未知错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="获取模型列表时发生内部错误")
+
+@router.post("/gemini/models")
+async def get_gemini_models(request: ModelListRequest):
+    """获取Gemini模型列表"""
+    try:
+        models = GeminiTranslator.list_models(api_key=request.apiKey)
+        return {"success": True, "models": models}
+    except ValueError as e:
+        log.error(f"获取 Gemini 模型失败 (值错误): {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log.error(f"获取 Gemini 模型时发生未知错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="获取模型列表时发生内部错误")

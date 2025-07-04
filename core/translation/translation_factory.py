@@ -1,41 +1,37 @@
 """
-翻译工厂 - 核心翻译服务组件
-
-实现全局单例的翻译工厂，提供统一的翻译接口。
-集成现有的翻译队列管理器和防重复翻译逻辑。
+翻译工厂 - V2 适配器
+该文件现在作为新版 MangaTranslationService 的适配器，
+为旧的、依赖此工厂的模块（如 viewer.py）提供兼容接口。
 """
 
 import threading
-import time
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict
 from enum import Enum
-import cv2
-import numpy as np
+import asyncio
 
-from core.core_cache.cache_key_generator import get_cache_key_generator
-from core.translation.realtime_translator import get_realtime_translator
-from core.manga.data_source import DataSourceFactory
-from core.core_cache.persistent_translation_cache import get_persistent_translation_cache
-from core.config import config
+# 导入新的翻译服务和它的依赖
+from web.api.translation import get_manga_translation_service
+from core.manga_translation.service import MangaTranslationService
 from utils import manga_logger as log
 
-
 class PageStatus(Enum):
-    """页面翻译状态枚举"""
-    UNKNOWN = "unknown"          # 未知状态
-    QUEUED = "queued"           # 已排队
-    TRANSLATING = "translating"  # 翻译中
-    TRANSLATED = "translated"    # 已翻译
-    FAILED = "failed"           # 翻译失败
-
+    """页面翻译状态枚举 (保持与旧版兼容)"""
+    UNKNOWN = "unknown"
+    QUEUED = "queued"
+    TRANSLATING = "translating"
+    TRANSLATED = "translated"
+    FAILED = "failed"
 
 class TranslationFactory:
-    """翻译工厂 - 全局单例服务"""
+    """
+    翻译工厂 (V2 适配器)
+    这是一个全局单例，它包装了新的 MangaTranslationService。
+    """
     
     _instance = None
     _lock = threading.Lock()
     
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -46,233 +42,71 @@ class TranslationFactory:
         if hasattr(self, '_initialized'):
             return
         
-        self._initialized = True
-
-        # 使用现有的持久化翻译缓存
-        self.persistent_cache = get_persistent_translation_cache()
-        self.key_generator = get_cache_key_generator()
-
-        # 页面状态跟踪器
-        self.page_status: Dict[str, PageStatus] = {}
-        self.status_lock = threading.RLock()
-
-        # 翻译器
-        self.translator = get_realtime_translator()
-
-        # 初始化翻译器配置
-        self._init_translator_config()
-
-        log.info("翻译工厂初始化完成 - 全局单例服务")
-    
-    def _init_translator_config(self):
-        """初始化翻译器配置"""
+        # 获取新翻译服务的实例
         try:
-            translator_type = config.translator_type.value
-
-            # 根据翻译器类型设置参数
-            if translator_type == "智谱":
-                success = self.translator.set_translator_config(
-                    translator_type=translator_type,
-                    api_key=config.zhipu_api_key.value,
-                    model=config.zhipu_model.value
-                )
-            elif translator_type == "Google":
-                success = self.translator.set_translator_config(
-                    translator_type=translator_type,
-                    api_key=config.google_api_key.value
-                )
-            else:
-                # 默认使用Google翻译器
-                success = self.translator.set_translator_config(translator_type="Google")
-
-            if success:
-                log.info(f"翻译工厂: 翻译器配置成功 - {translator_type}")
-            else:
-                log.warning(f"翻译工厂: 翻译器配置失败 - {translator_type}")
-
+            self.service: MangaTranslationService = get_manga_translation_service()
+            self._initialized = True
+            log.info("TranslationFactory (V2 Adapter) 初始化完成，已连接到 MangaTranslationService。")
         except Exception as e:
-            log.error(f"翻译工厂: 翻译器配置异常: {e}")
-    
-    def get_translated_page(self, manga_path: str, page_index: int, translator_id: str) -> Optional[bytes]:
-        """
-        获取翻译页面 - 唯一对外接口
-        
-        Args:
-            manga_path: 漫画路径
-            page_index: 页面索引
-            translator_id: 翻译引擎ID
-            
-        Returns:
-            翻译后的图像数据（WebP格式）或None
-        """
-        try:
-            status_key = self.key_generator.generate_translation_key(manga_path, page_index, translator_id)
-            
-            # 1. 检查持久化缓存
-            cached_data = self.persistent_cache.get_cached_translation(manga_path, page_index, "zh", translator_id)
-            if cached_data is not None:
-                with self.status_lock:
-                    self.page_status[status_key] = PageStatus.TRANSLATED
-                return cached_data
-            
-            # 2. 检查当前状态
-            with self.status_lock:
-                current_status = self.page_status.get(status_key, PageStatus.UNKNOWN)
-            
-            if current_status == PageStatus.TRANSLATING:
-                log.info(f"翻译工厂: 页面正在翻译中，等待完成 {manga_path}:{page_index}")
-                return self._wait_for_translation(manga_path, page_index, translator_id)
-            elif current_status == PageStatus.QUEUED:
-                log.info(f"翻译工厂: 页面已在队列中，等待完成 {manga_path}:{page_index}")
-                return self._wait_for_translation(manga_path, page_index, translator_id)
-            elif current_status == PageStatus.FAILED:
-                log.info(f"翻译工厂: 页面翻译失败，重新翻译 {manga_path}:{page_index}")
-                # 重置状态
-                with self.status_lock:
-                    if status_key in self.page_status:
-                        del self.page_status[status_key]
+            log.error(f"TranslationFactory (V2 Adapter) 初始化失败: {e}", exc_info=True)
+            self.service = None
+            self._initialized = False
 
-            # 3. 启动翻译并等待完成
-            if self._start_translation(manga_path, page_index, translator_id):
-                with self.status_lock:
-                    self.page_status[status_key] = PageStatus.QUEUED
-                log.info(f"翻译工厂: 已添加到翻译队列，等待完成 {manga_path}:{page_index}")
-                return self._wait_for_translation(manga_path, page_index, translator_id)
-            else:
-                with self.status_lock:
-                    self.page_status[status_key] = PageStatus.FAILED
-                log.error(f"翻译工厂: 添加到翻译队列失败 {manga_path}:{page_index}")
-                return None
-            
-        except Exception as e:
-            log.error(f"翻译工厂: 获取翻译页面失败: {e}")
+    async def get_translated_page(self, manga_path: str, page_index: int, **kwargs) -> Optional[bytes]:
+        """
+        获取翻译页面 - 直接委托给新服务。
+        kwargs 用于兼容旧接口 (translator_id)，但在此版本中被忽略。
+        """
+        if not self.is_service_running():
+            log.error("无法获取翻译页面，因为 MangaTranslationService 未成功初始化。")
             return None
-    
-    def _wait_for_translation(self, manga_path: str, page_index: int, translator_id: str, timeout: int = 60) -> Optional[bytes]:
-        """等待翻译完成"""
-        status_key = self.key_generator.generate_translation_key(manga_path, page_index, translator_id)
-        start_time = time.time()
-
-        log.info(f"翻译工厂: 等待翻译完成 {manga_path}:{page_index} (超时: {timeout}秒)")
-
-        while time.time() - start_time < timeout:
-            # 检查是否已完成
-            with self.status_lock:
-                current_status = self.page_status.get(status_key, PageStatus.UNKNOWN)
-
-            if current_status == PageStatus.TRANSLATED:
-                # 翻译完成，从缓存获取结果
-                cached_data = self.persistent_cache.get_cached_translation(manga_path, page_index, "zh", translator_id)
-                if cached_data is not None:
-                    log.info(f"翻译工厂: 翻译等待完成 {manga_path}:{page_index}")
-                    return cached_data
-                else:
-                    log.warning(f"翻译工厂: 翻译完成但缓存为空 {manga_path}:{page_index}")
-                    return None
-            elif current_status == PageStatus.FAILED:
-                log.warning(f"翻译工厂: 翻译失败 {manga_path}:{page_index}")
-                return None
-
-            # 等待一小段时间再检查
-            time.sleep(0.5)
-
-        # 超时
-        log.warning(f"翻译工厂: 翻译等待超时 {manga_path}:{page_index}")
-        return None
-
-    def _start_translation(self, manga_path: str, page_index: int, translator_id: str) -> bool:
-        """启动翻译任务"""
+            
         try:
-            if not self.translator.is_ready():
-                log.error("翻译工厂: 翻译器未准备就绪")
-                return False
-
-            # 在后台线程中执行翻译
-            def translate_task():
-                self._execute_translation(manga_path, page_index, translator_id)
-
-            thread = threading.Thread(target=translate_task, daemon=True)
-            thread.start()
-
-            return True
-
-        except Exception as e:
-            log.error(f"启动翻译任务失败: {e}")
-            return False
-
-    def _execute_translation(self, manga_path: str, page_index: int, translator_id: str):
-        """执行翻译任务"""
-        status_key = self.key_generator.generate_translation_key(manga_path, page_index, translator_id)
-
-        try:
-            # 更新状态为翻译中
-            with self.status_lock:
-                self.page_status[status_key] = PageStatus.TRANSLATING
-
-            log.info(f"翻译工厂: 开始翻译 {manga_path}:{page_index}")
-
-            # 使用DataSource加载图像数据
-            data_source = DataSourceFactory.create(manga_path)
-            if not data_source:
-                raise Exception(f"无法为路径创建数据源: {manga_path}")
-
-            image_data = data_source.get_page_image_data(page_index)
-            if not image_data:
-                raise Exception(f"无法获取页面 {page_index} 的图像数据")
-
-            nparr = np.frombuffer(image_data, np.uint8)
-            image_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            if image_np is None:
-                raise Exception(f"无法使用 cv2 解码图像数据: {page_index}")
-
-            # 执行翻译
-            translation_result = self.translator.translate_image_with_cache_data(
-                image=image_np,
-                target_language="zh",
-                file_path_for_cache=manga_path,
-                page_num_for_cache=page_index
+            # 新服务会自动处理缓存和后台任务，所以这里的逻辑大大简化
+            # 它返回翻译好的图像字节或 None (如果任务已启动)
+            translated_page_bytes = await self.service.get_translated_page(
+                manga_path=manga_path,
+                page_index=page_index
             )
-
-            if translation_result and translation_result.get("translated_image") is not None:
-                translated_image = translation_result["translated_image"]
-
-                # 保存到持久化WebP缓存
-                if self.persistent_cache.save_translated_image(manga_path, page_index, translated_image, "zh", translator_id):
-                    # 更新状态为已翻译
-                    with self.status_lock:
-                        self.page_status[status_key] = PageStatus.TRANSLATED
-                    log.info(f"翻译工厂: 翻译完成并保存 {manga_path}:{page_index}")
-                else:
-                    raise Exception("保存翻译结果失败")
-            else:
-                raise Exception("翻译返回空结果")
-
+            return translated_page_bytes
         except Exception as e:
-            # 更新状态为失败
-            with self.status_lock:
-                self.page_status[status_key] = PageStatus.FAILED
-            log.error(f"翻译工厂: 翻译失败 {manga_path}:{page_index} - {e}")
-    
-    def get_page_status(self, manga_path: str, page_index: int, translator_id: str) -> PageStatus:
-        """获取页面翻译状态"""
-        status_key = self.key_generator.generate_translation_key(manga_path, page_index, translator_id)
+            log.error(f"Adapter get_translated_page 失败: {e}", exc_info=True)
+            return None
+
+    def get_page_status(self, manga_path: str, page_index: int, **kwargs) -> PageStatus:
+        """
+        获取页面翻译状态 - 通过查询新服务的状态来模拟。
+        """
+        if not self.is_service_running():
+            return PageStatus.FAILED
+
+        # 1. 直接检查缓存，如果存在，则肯定是已翻译
+        # (注意：这里的缓存检查逻辑与 service.get_translated_page 中的逻辑重复，但对于状态检查是必要的)
+        if self.service.cache.get_cached_translation(manga_path, page_index, "zh", "any"):
+             return PageStatus.TRANSLATED
+
+        # 2. 检查任务是否正在运行
+        with self.service._active_tasks_lock:
+            if manga_path in self.service._active_tasks:
+                # 无法区分是排队还是翻译中，对于UI来说，都算正在处理
+                return PageStatus.TRANSLATING
         
-        with self.status_lock:
-            return self.page_status.get(status_key, PageStatus.UNKNOWN)
-    
+        # 3. 如果既不在缓存中，也不在运行任务中，那就是未知状态
+        return PageStatus.UNKNOWN
+
     def is_service_running(self) -> bool:
-        """检查翻译服务是否运行"""
-        return self.translator is not None and self.translator.is_ready()
-
-
-
+        """检查新服务是否已成功初始化。"""
+        return self.service is not None
 
 # 全局实例获取函数
-_translation_factory = None
+_translation_factory_instance = None
+_factory_lock = threading.Lock()
 
-def get_translation_factory() -> TranslationFactory:
-    """获取全局翻译工厂实例"""
-    global _translation_factory
-    if _translation_factory is None:
-        _translation_factory = TranslationFactory()
-    return _translation_factory
+def get_translation_factory() -> "TranslationFactory":
+    """获取全局翻译工厂实例 (单例)"""
+    global _translation_factory_instance
+    if _translation_factory_instance is None:
+        with _factory_lock:
+            if _translation_factory_instance is None:
+                _translation_factory_instance = TranslationFactory()
+    return _translation_factory_instance

@@ -102,8 +102,15 @@ class OCRManager:
                 cache_key = self.ocr_cache_manager.generate_key(image_path=key_path, page_index=page_num_for_cache)
                 cached_results = self.ocr_cache_manager.get(cache_key)
                 if cached_results is not None:
-                    log.info(f"OCR result loaded from cache for {key_path} page {page_num_for_cache}")
-                    return cached_results
+                    log.info(f"OCR结果已从缓存加载: {key_path} 页 {page_num_for_cache}。正在重构对象。")
+                    # 当从缓存（如JSON）加载时，对象会被反序列化为字典。
+                    # 我们需要将这些字典重新构造成OCRResult对象实例。
+                    try:
+                        return [OCRResult(**data) for data in cached_results]
+                    except TypeError as e:
+                        log.error(f"从 {key_path} 第 {page_num_for_cache} 页的缓存数据重构 OCRResult 失败。缓存数据可能已损坏。错误: {e}")
+                        # 如果缓存数据损坏，则继续执行OCR
+                        pass
             except Exception as e:
                 log.error(f"Error checking or getting OCR cache for {file_path_for_cache} page {page_num_for_cache}: {e}")
 
@@ -112,7 +119,7 @@ class OCRManager:
             current_ocr_options.update(options)
 
         try:
-            log.info(f"No cache found. Starting async OCR for {file_path_for_cache or 'in-memory data'}...")
+            log.info(f"未找到缓存。开始对 {file_path_for_cache or '内存中的数据'} 进行异步OCR...")
             
             def do_ocr():
                 return self.ocr_engine.ocr(
@@ -141,18 +148,24 @@ class OCRManager:
                         
                         ocr_results_list.append(OCRResult(text, bbox, confidence, direction=direction, image_width=img_width, image_height=img_height))
             
-            log.info(f"Async OCR completed. Found {len(ocr_results_list)} text regions.")
+            log.info(f"异步OCR完成。找到 {len(ocr_results_list)} 个文本区域。")
 
             if file_path_for_cache and page_num_for_cache is not None and ocr_results_list:
                 try:
                     key_path_to_save = original_archive_path or file_path_for_cache
                     cache_key_to_save = self.ocr_cache_manager.generate_key(image_path=key_path_to_save, page_index=page_num_for_cache)
+                    
+                    # 将OCRResult对象列表转换为字典列表以进行序列化
+                    serializable_results = [result.to_dict() for result in ocr_results_list]
+                    
                     self.ocr_cache_manager.set(
-                        cache_key_to_save, ocr_results_list,
-                        file_path=file_path_for_cache, page_num=page_num_for_cache,
-                        original_archive_path=original_archive_path
+                        key=cache_key_to_save,
+                        data=serializable_results,
+                        manga_path=key_path_to_save,
+                        page_index=page_num_for_cache,
+                        manga_name=os.path.basename(key_path_to_save)
                     )
-                    log.info(f"OCR result cached for {key_path_to_save} page {page_num_for_cache}")
+                    log.info(f"OCR结果已缓存: {key_path_to_save} 页 {page_num_for_cache}")
                 except Exception as e_cache_set:
                     log.error(f"Failed to cache OCR result for {file_path_for_cache}: {e_cache_set}")
 
@@ -174,9 +187,9 @@ class OCRManager:
         """
         根据置信度过滤OCR结果
         """
-        log.debug(f"Filtering {len(ocr_results)} OCR results with threshold {min_confidence}")
+        log.debug(f"正在使用阈值 {min_confidence} 过滤 {len(ocr_results)} 个OCR结果")
         filtered = [result for result in ocr_results if result.confidence >= min_confidence]
-        log.debug(f"Confidence filtering: {len(ocr_results)} -> {len(filtered)}")
+        log.debug(f"置信度过滤: {len(ocr_results)} -> {len(filtered)}")
         return filtered
 
     def _merge_bboxes(self, bbox1: List[List[int]], bbox2: List[List[int]]) -> List[List[int]]:

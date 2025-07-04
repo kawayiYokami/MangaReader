@@ -51,17 +51,41 @@ class OcrCacheManager(CacheInterface):
             return True
 
     def _init_db(self):
-        """初始化数据库和表"""
+        """初始化数据库和表，并确保向后兼容。"""
         try:
             conn = self._connect()
             cursor = conn.cursor()
+
+            # 创建表
             cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
+                manga_path TEXT,
+                page_index INTEGER,
+                manga_name TEXT,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """)
+
+            # 检查并添加新列以实现向后兼容
+            cursor.execute(f"PRAGMA table_info({TABLE_NAME})")
+            columns = [info['name'] for info in cursor.fetchall()]
+            
+            new_columns = {
+                "manga_path": "TEXT",
+                "page_index": "INTEGER",
+                "manga_name": "TEXT"
+            }
+
+            for col, col_type in new_columns.items():
+                if col not in columns:
+                    try:
+                        cursor.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN {col} {col_type}")
+                        log.info(f"成功向表 '{TABLE_NAME}' 添加 '{col}' 列。")
+                    except sqlite3.OperationalError as e:
+                        log.warning(f"尝试添加 '{col}' 列时出错 (可能是并发操作): {e}")
+
             conn.commit()
         except sqlite3.Error as e:
             log.error(f"初始化数据库表 {TABLE_NAME} 失败: {e}")
@@ -95,19 +119,25 @@ class OcrCacheManager(CacheInterface):
             self.delete(key)
             return None
 
-    def set(self, key: str, data: Any, **kwargs):
-        """设置缓存数据"""
+    def set(self, key: str, data: Any, manga_path: str, page_index: int, manga_name: Optional[str] = None):
+        """
+        设置缓存数据，并包含丰富的元数据。
+        """
         try:
             value_json = json.dumps(data, ensure_ascii=False)
             conn = self._connect()
             cursor = conn.cursor()
+            
+            # 如果未提供 manga_name，则从路径中提取
+            display_manga_name = manga_name or os.path.basename(manga_path)
+
             cursor.execute(f"""
-            INSERT OR REPLACE INTO {TABLE_NAME} (key, value, last_updated)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-            """, (key, value_json))
+            INSERT OR REPLACE INTO {TABLE_NAME} (key, value, manga_path, page_index, manga_name, last_updated)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (key, value_json, manga_path, page_index, display_manga_name))
             conn.commit()
         except sqlite3.Error as e:
-            log.error(f"设置缓存数据失败 (键: {key}): {e}")
+            log.error(f"设置OCR缓存数据失败 (键: {key}): {e}")
         except TypeError as e:
             log.error(f"序列化OCR数据失败 (键: {key}): {e}")
 
@@ -133,29 +163,26 @@ class OcrCacheManager(CacheInterface):
             log.error(f"清空 OCR 缓存失败: {e}")
 
     def get_all_entries_for_display(self) -> List[Dict[str, Any]]:
-        """获取所有缓存条目用于UI显示，并进行模式检查"""
-        entries = []
+        """获取所有缓存条目及其元数据用于UI显示。"""
         try:
             conn = self._connect()
-            with conn:
-                cursor = conn.cursor()
-                
-                # 模式健壮性检查
-                cursor.execute(f"PRAGMA table_info({TABLE_NAME})")
-                columns = [info['name'] for info in cursor.fetchall()]
-                if 'key' not in columns or 'value' not in columns:
-                    log.error(f"数据库表 '{TABLE_NAME}' 模式不正确，缺少 'key' 或 'value' 列。文件路径: {self.db_path}")
-                    log.error("请考虑删除此数据库文件以允许程序重新生成。")
-                    return [] # 返回空列表以避免崩溃
-
-                cursor.execute(f"SELECT key, value, last_updated FROM {TABLE_NAME}")
-                rows = cursor.fetchall()
-                for row in rows:
-                    entries.append(dict(row))
-                log.info(f"成功检索到 {len(entries)} 条OCR缓存条目以供显示。")
+            cursor = conn.cursor()
+            
+            # 选择所有需要的列
+            cursor.execute(f"SELECT key, value, manga_path, page_index, manga_name, last_updated FROM {TABLE_NAME} ORDER BY last_updated DESC")
+            
+            rows = cursor.fetchall()
+            entries = [dict(row) for row in rows]
+            
+            log.info(f"成功检索到 {len(entries)} 条OCR缓存条目以供显示。")
+            return entries
         except sqlite3.Error as e:
+            # 如果出现 no such column 错误，可能是旧版数据库，返回空列表
+            if "no such column" in str(e):
+                log.warning(f"数据库 '{self.db_path}' 模式过时，缺少元数据列。将返回空列表。请考虑重建缓存。")
+                return []
             log.error(f"获取所有OCR缓存条目失败: {e}")
-        return entries
+            return []
         
     def get_cache_size_bytes(self) -> int:
         """获取OCR缓存数据库文件大小"""

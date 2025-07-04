@@ -220,10 +220,10 @@ class Config:
 
         # ==================== 翻译设置 ====================
         self.translator_type = OptionsConfigItem(
-            "Translation", 
-            "TranslatorType", 
-            "Google", 
-            validator=OptionsValidator(["Google", "智谱"])
+            "Translation",
+            "TranslatorType",
+            "Google",
+            validator=OptionsValidator(["Google", "智谱", "OpenAI", "Gemini"])
         )
 
         # 文字替换设置
@@ -245,6 +245,15 @@ class Config:
         
         # Google翻译设置
         self.google_api_key = ConfigItem("Translation", "GoogleApiKey", "")
+
+        # OpenAI翻译设置
+        self.openai_api_key = ConfigItem("Translation", "OpenaiApiKey", "")
+        self.openai_api_base_url = ConfigItem("Translation", "OpenaiApiBaseUrl", "https://api.openai.com/v1")
+        self.openai_model = ConfigItem("Translation", "OpenaiModel", "gpt-4o")
+
+        # Gemini翻译设置
+        self.gemini_api_key = ConfigItem("Translation", "GeminiApiKey", "")
+        self.gemini_model = ConfigItem("Translation", "GeminiModel", "gemini-1.5-flash")
         
         # 主题设置
         self.themeMode = ConfigItem("UI", "ThemeMode", Theme.AUTO)
