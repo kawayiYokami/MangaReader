@@ -357,7 +357,6 @@ class CoreInterface:
             elif isinstance(last_modified_val, str):
                 last_modified_str = last_modified_val
             
-            # 标签由 MangaRepository 返回时已经是列表
             tag_list = manga_dict.get('tags', [])
             if not isinstance(tag_list, list):
                 # 添加一层保护，以防万一返回的是字符串
@@ -526,9 +525,6 @@ class CoreInterface:
 
             page_paths = shuffled_paths[start_index:end_index]
             
-            # 由于不再有内存列表，我们需要为每个路径单独获取信息
-            # 这效率不高，但对于随机功能是可接受的。
-            # 更好的方法是在 MangaRepository 中添加一个 get_mangas_by_paths 方法。
             page_manga_info = []
             for path in page_paths:
                 manga_info = await self.manga_manager.get_manga_by_path(path)
