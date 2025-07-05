@@ -6,7 +6,7 @@ import os
 import abc
 from zipfile import ZipFile
 from typing import List, Dict, Any, Type, Tuple, Optional
-from utils import manga_logger as log
+import logging
 from PIL import Image
 import io
 
@@ -27,7 +27,7 @@ def _get_image_dimensions_fast(image_data: bytes) -> Optional[Tuple[int, int]]:
         with Image.open(io.BytesIO(image_data)) as img:
             return img.size  # (width, height)
     except Exception as e:
-        log.warning(f"使用Pillow快速获取图像尺寸失败: {e}")
+        logging.warning(f"使用Pillow快速获取图像尺寸失败: {e}")
         return None
 
 class DataSource(abc.ABC):
@@ -82,7 +82,7 @@ class FolderDataSource(DataSource):
         return image_files
 
     def get_properties(self) -> Dict[str, Any]:
-        log.debug(f"正在从文件夹处理属性: {self.path}")
+        logging.debug(f"正在从文件夹处理属性: {self.path}")
         try:
             image_files = self._get_image_files()
             latest_mtime = 0.0
@@ -95,7 +95,7 @@ class FolderDataSource(DataSource):
                     # 如果获取文件时间失败，则回退到目录时间
                     latest_mtime = os.path.getmtime(self.path)
             else:
-                log.warning(f"文件夹中未找到图片: {self.path}")
+                logging.warning(f"文件夹中未找到图片: {self.path}")
                 latest_mtime = os.path.getmtime(self.path)
 
             props = {
@@ -105,10 +105,10 @@ class FolderDataSource(DataSource):
                 'pages': image_files,
                 'file_type': 'folder'
             }
-            log.info(f"[数据源-文件夹] '{self.path}' 的属性: last_modified={props['last_modified']}")
+            logging.info(f"[数据源-文件夹] '{self.path}' 的属性: last_modified={props['last_modified']}")
             return props
         except Exception as e:
-            log.error(f"处理文件夹数据源时出错 {self.path}: {e}")
+            logging.error(f"处理文件夹数据源时出错 {self.path}: {e}")
             return None
     
     def get_page_image_data(self, page_index: int) -> bytes | None:
@@ -119,10 +119,10 @@ class FolderDataSource(DataSource):
                 with open(image_path, 'rb') as f:
                     return f.read()
             else:
-                log.warning(f"页面索引越界: {page_index}, 总页数: {len(image_files)}")
+                logging.warning(f"页面索引越界: {page_index}, 总页数: {len(image_files)}")
                 return None
         except Exception as e:
-            log.error(f"从文件夹读取页面图像失败 {self.path} - page {page_index}: {e}")
+            logging.error(f"从文件夹读取页面图像失败 {self.path} - page {page_index}: {e}")
             return None
 
     def get_all_page_dimensions(self) -> List[Tuple[int, int]]:
@@ -136,7 +136,7 @@ class FolderDataSource(DataSource):
                 dimensions.append(dim if dim else (0, 0))
             return dimensions
         except Exception as e:
-            log.error(f"从文件夹获取所有页面尺寸失败 {self.path}: {e}")
+            logging.error(f"从文件夹获取所有页面尺寸失败 {self.path}: {e}")
             # 根据错误策略，可以返回空列表或部分结果
             return dimensions
 
@@ -156,12 +156,12 @@ class ZipDataSource(DataSource):
             return image_files
 
     def get_properties(self) -> Dict[str, Any]:
-        log.debug(f"正在从ZIP文件处理属性: {self.path}")
+        logging.debug(f"正在从ZIP文件处理属性: {self.path}")
         try:
             with ZipFile(self.path, "r") as zip_file:
                 image_files = self._get_image_files()
                 if not image_files:
-                    log.warning(f"ZIP文件中未找到图片: {self.path}")
+                    logging.warning(f"ZIP文件中未找到图片: {self.path}")
                     return None
 
             props = {
@@ -171,10 +171,10 @@ class ZipDataSource(DataSource):
                 'pages': image_files,
                 'file_type': 'zip'
             }
-            log.info(f"[数据源-ZIP] '{self.path}' 的属性: last_modified={props['last_modified']}")
+            logging.info(f"[数据源-ZIP] '{self.path}' 的属性: last_modified={props['last_modified']}")
             return props
         except Exception as e:
-            log.error(f"处理ZIP数据源时出错 {self.path}: {e}")
+            logging.error(f"处理ZIP数据源时出错 {self.path}: {e}")
             return None
 
     def get_page_image_data(self, page_index: int) -> bytes | None:
@@ -185,10 +185,10 @@ class ZipDataSource(DataSource):
                     file_name = image_files[page_index]
                     return zip_file.read(file_name)
                 else:
-                    log.warning(f"页面索引越界: {page_index}, 总页数: {len(image_files)}")
+                    logging.warning(f"页面索引越界: {page_index}, 总页数: {len(image_files)}")
                     return None
         except Exception as e:
-            log.error(f"从ZIP读取页面图像失败 {self.path} - page {page_index}: {e}")
+            logging.error(f"从ZIP读取页面图像失败 {self.path} - page {page_index}: {e}")
             return None
 
     def get_all_page_dimensions(self) -> List[Tuple[int, int]]:
@@ -202,7 +202,7 @@ class ZipDataSource(DataSource):
                     dimensions.append(dim if dim else (0, 0))
             return dimensions
         except Exception as e:
-            log.error(f"从ZIP获取所有页面尺寸失败 {self.path}: {e}")
+            logging.error(f"从ZIP获取所有页面尺寸失败 {self.path}: {e}")
             return dimensions
 
 
@@ -226,7 +226,7 @@ class DataSourceFactory:
             DataSource: 一个具体的DataSource实例，如果类型不支持则返回None。
         """
         if not os.path.exists(path):
-            log.error(f"路径不存在，无法创建数据源: {path}")
+            logging.error(f"路径不存在，无法创建数据源: {path}")
             return None
 
         if os.path.isdir(path):
@@ -236,5 +236,5 @@ class DataSourceFactory:
         if file_ext == '.zip':
             return DataSourceFactory._strategies['zip'](path)
             
-        log.warning(f"不支持的数据源类型: {path}")
+        logging.warning(f"不支持的数据源类型: {path}")
         return None

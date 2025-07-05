@@ -14,9 +14,9 @@ import json
 import hashlib
 from pathlib import Path
 from typing import Optional, Dict, Any
+import logging
 
 from core.core_cache.cache_key_generator import get_cache_key_generator
-from utils import manga_logger as log
 
 
 class PageCache:
@@ -46,7 +46,7 @@ class PageCache:
         self.metadata_file = self.cache_dir / "metadata.json"
         self.metadata = self._load_metadata()
 
-        log.info(
+        logging.info(
             f"页面缓存初始化完成: {self.cache_dir}, "
             f"质量: {self.webp_quality}, "
             f"容量上限: {max_cache_size_mb}MB"
@@ -59,7 +59,7 @@ class PageCache:
                 with open(self.metadata_file, "r", encoding="utf-8") as f:
                     return json.load(f)
         except Exception as e:
-            log.warning(f"加载页面缓存元数据失败: {e}")
+            logging.warning(f"加载页面缓存元数据失败: {e}")
         return {}
 
     def _save_metadata(self):
@@ -68,7 +68,7 @@ class PageCache:
             with open(self.metadata_file, "w", encoding="utf-8") as f:
                 json.dump(self.metadata, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            log.error(f"保存页面缓存元数据失败: {e}")
+            logging.error(f"保存页面缓存元数据失败: {e}")
 
     def _get_cache_file_path(self, cache_key: str) -> Path:
         """
@@ -100,7 +100,7 @@ class PageCache:
             # self._save_metadata()
             return cache_file.read_bytes()
 
-        log.debug(f"页面缓存未命中: {manga_path} [Page {page_index}]")
+        logging.debug(f"页面缓存未命中: {manga_path} [Page {page_index}]")
         return None
 
     def store_page(self, manga_path: str, page_index: int, image_bytes: bytes):
@@ -126,13 +126,13 @@ class PageCache:
                 "file_size": len(image_bytes),
             }
             self._save_metadata()
-            log.info(f"页面已存入缓存: {cache_file.name}")
+            logging.info(f"页面已存入缓存: {cache_file.name}")
 
             # 每次生成新文件后，检查缓存容量
             self._enforce_size_limit()
             
         except Exception as e:
-            log.error(f"存储页面到缓存失败: {cache_file}, 错误: {e}")
+            logging.error(f"存储页面到缓存失败: {cache_file}, 错误: {e}")
 
     def _enforce_size_limit(self):
         """强制执行缓存大小限制"""
@@ -141,7 +141,7 @@ class PageCache:
             if current_size <= self.max_cache_size_bytes:
                 return
 
-            log.info(
+            logging.info(
                 f"页面缓存超出容量 ({current_size / 1024**2:.2f}MB > {self.max_cache_size_bytes / 1024**2:.2f}MB)，开始清理..."
             )
 
@@ -149,7 +149,7 @@ class PageCache:
             orphaned_size = self._cleanup_orphans()
             current_size -= orphaned_size
             if current_size <= self.max_cache_size_bytes:
-                log.info("清理孤立文件后，页面缓存大小已达标。")
+                logging.info("清理孤立文件后，页面缓存大小已达标。")
                 return
 
             # 第二步：按LRU策略清理
@@ -170,14 +170,14 @@ class PageCache:
                         if cache_key in self.metadata:
                             del self.metadata[cache_key]
                     except OSError as e:
-                        log.warning(f"LRU清理页面缓存失败 {cache_file}: {e}")
+                        logging.warning(f"LRU清理页面缓存失败 {cache_file}: {e}")
             
             if cleaned_count > 0:
                 self._save_metadata()
-                log.info(f"LRU策略清理了 {cleaned_count} 个页面缓存文件。")
+                logging.info(f"LRU策略清理了 {cleaned_count} 个页面缓存文件。")
 
         except Exception as e:
-            log.error(f"执行页面缓存大小限制失败: {e}")
+            logging.error(f"执行页面缓存大小限制失败: {e}")
 
     def _cleanup_orphans(self) -> int:
         """清理源文件已不存在的缓存条目"""
@@ -194,14 +194,14 @@ class PageCache:
                         cache_file.unlink()
                         orphaned_size += file_size
                     except OSError as e:
-                        log.warning(f"删除孤立页面缓存文件失败 {cache_file}: {e}")
+                        logging.warning(f"删除孤立页面缓存文件失败 {cache_file}: {e}")
 
         if orphaned_keys:
             for key in orphaned_keys:
                 if key in self.metadata:
                     del self.metadata[key]
             self._save_metadata()
-            log.info(f"清理了 {len(orphaned_keys)} 个孤立的页面缓存元数据。")
+            logging.info(f"清理了 {len(orphaned_keys)} 个孤立的页面缓存元数据。")
 
         return orphaned_size
 

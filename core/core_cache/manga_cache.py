@@ -2,8 +2,8 @@ import os
 import json
 import sqlite3
 import asyncio
+import logging
 from typing import Any, List, Optional, Dict, Tuple, TYPE_CHECKING # Added Dict, Tuple, sqlite3
-from utils import manga_logger as log
 from core.core_cache.cache_interface import CacheInterface
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ class MangaListCacheManager(CacheInterface):
         # self.conn is no longer used. Each thread will have its own connection.
         self._ensure_cache_dir_exists()
         self._init_db()
-        log.info(f"MangaListCacheManager 初始化完成，数据库路径: {self.db_path}")
+        logging.info(f"MangaListCacheManager 初始化完成，数据库路径: {self.db_path}")
 
     def _ensure_cache_dir_exists(self):
         """确保缓存目录存在"""
@@ -38,9 +38,9 @@ class MangaListCacheManager(CacheInterface):
         if directory and not os.path.exists(directory):
             try:
                 os.makedirs(directory)
-                log.info(f"创建缓存目录: {directory}")
+                logging.info(f"创建缓存目录: {directory}")
             except OSError as e:
-                log.error(f"创建缓存目录 {directory} 失败: {e}")
+                logging.error(f"创建缓存目录 {directory} 失败: {e}")
                 raise
 
     def _init_db(self):
@@ -87,9 +87,9 @@ class MangaListCacheManager(CacheInterface):
                 FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE
             )
             """)
-            log.info("结构化的漫画缓存数据库表已准备就绪。")
+            logging.info("结构化的漫画缓存数据库表已准备就绪。")
         except sqlite3.Error as e:
-            log.error(f"初始化数据库表失败: {e}")
+            logging.error(f"初始化数据库表失败: {e}")
 
 
     async def add_or_update_manga_batch(self, mangas: List['MangaInfo']):
@@ -108,7 +108,7 @@ class MangaListCacheManager(CacheInterface):
                     
                     all_tags = set()
                     for manga in mangas:
-                        log.info(f"[CacheManager] Preparing to cache '{manga.file_path}' with last_modified: {manga.last_modified}")
+                        logging.info(f"[CacheManager] Preparing to cache '{manga.file_path}' with last_modified: {manga.last_modified}")
                         all_tags.update(manga.tags)
                     
                     if all_tags:
@@ -153,9 +153,9 @@ class MangaListCacheManager(CacheInterface):
                     if manga_tags_to_insert:
                         cursor.executemany("INSERT INTO manga_tags (manga_path, tag_id) VALUES (?, ?)", manga_tags_to_insert)
 
-                log.info(f"成功批量添加/更新 {len(mangas)} 本漫画到数据库。")
+                logging.info(f"成功批量添加/更新 {len(mangas)} 本漫画到数据库。")
             except sqlite3.Error as e:
-                log.error(f"批量更新漫画时发生数据库错误: {e}", exc_info=True)
+                logging.error(f"批量更新漫画时发生数据库错误: {e}", exc_info=True)
         
         await asyncio.to_thread(_db_operation)
 
@@ -206,7 +206,7 @@ class MangaListCacheManager(CacheInterface):
                         result.append(row_dict)
                     return result
             except sqlite3.Error as e:
-                log.error(f"从数据库获取漫画列表时出错: {e}", exc_info=True)
+                logging.error(f"从数据库获取漫画列表时出错: {e}", exc_info=True)
                 return []
         
         return await asyncio.to_thread(_db_operation)
@@ -221,7 +221,7 @@ class MangaListCacheManager(CacheInterface):
                     count = cursor.fetchone()[0]
                     return count if count is not None else 0
             except sqlite3.Error as e:
-                log.error(f"获取漫画总数时出错: {e}", exc_info=True)
+                logging.error(f"获取漫画总数时出错: {e}", exc_info=True)
                 return 0
         
         return await asyncio.to_thread(_db_operation)
@@ -236,7 +236,7 @@ class MangaListCacheManager(CacheInterface):
                     cursor.execute("SELECT name FROM tags ORDER BY name")
                     return [row['name'] for row in cursor.fetchall()]
             except sqlite3.Error as e:
-                log.error(f"获取所有标签时出错: {e}", exc_info=True)
+                logging.error(f"获取所有标签时出错: {e}", exc_info=True)
                 return []
         
         return await asyncio.to_thread(_db_operation)
@@ -249,9 +249,9 @@ class MangaListCacheManager(CacheInterface):
                     conn.execute("DELETE FROM manga_tags")
                     conn.execute("DELETE FROM tags")
                     conn.execute("DELETE FROM mangas")
-                log.info("所有漫画缓存表已清空。")
+                logging.info("所有漫画缓存表已清空。")
             except sqlite3.Error as e:
-                log.error(f"清空漫画缓存表时发生错误: {e}")
+                logging.error(f"清空漫画缓存表时发生错误: {e}")
         
         await asyncio.to_thread(_db_operation)
 
@@ -263,13 +263,13 @@ class MangaListCacheManager(CacheInterface):
         try:
             if os.path.exists(self.db_path):
                 size_bytes = os.path.getsize(self.db_path)
-                log.debug(f"漫画列表缓存数据库大小: {size_bytes} 字节")
+                logging.debug(f"漫画列表缓存数据库大小: {size_bytes} 字节")
                 return size_bytes
             else:
-                log.debug("漫画列表缓存数据库文件不存在")
+                logging.debug("漫画列表缓存数据库文件不存在")
                 return 0
         except OSError as e:
-            log.error(f"获取漫画列表缓存大小失败: {e}")
+            logging.error(f"获取漫画列表缓存大小失败: {e}")
             return 0
 
     def close(self) -> None:
@@ -338,7 +338,7 @@ class MangaListCacheManager(CacheInterface):
 
                     return MangaInfo(**manga_data)
             except sqlite3.Error as e:
-                log.error(f"从数据库获取漫画 '{file_path}' 时出错: {e}", exc_info=True)
+                logging.error(f"从数据库获取漫画 '{file_path}' 时出错: {e}", exc_info=True)
                 return None
-
+        
         return await asyncio.to_thread(_db_operation)

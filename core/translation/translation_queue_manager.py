@@ -16,10 +16,10 @@ import sqlite3
 from pathlib import Path
 
 from .translation_queue_models import (
-    TranslationTask, TaskStatus, TaskPriority, QueueStatistics, 
+    TranslationTask, TaskStatus, TaskPriority, QueueStatistics,
     QueueConfig, QueueEvent
 )
-from utils import manga_logger as log
+import logging
 
 
 class TranslationQueueManager:
@@ -114,10 +114,10 @@ class TranslationQueueManager:
                 
                 conn.commit()
                 
-            log.info(f"翻译队列数据库初始化完成: {self.db_path}")
+            logging.info(f"翻译队列数据库初始化完成: {self.db_path}")
             
         except Exception as e:
-            log.error(f"初始化翻译队列数据库失败: {e}")
+            logging.error(f"初始化翻译队列数据库失败: {e}")
             raise
     
     def _load_from_database(self):
@@ -149,10 +149,10 @@ class TranslationQueueManager:
                     self._queue.append(task)
                     self._task_keys.add(self._get_task_key(task))
                 
-                log.info(f"从数据库加载了 {len(self._queue)} 个翻译任务")
+                logging.info(f"从数据库加载了 {len(self._queue)} 个翻译任务")
                 
         except Exception as e:
-            log.error(f"从数据库加载翻译任务失败: {e}")
+            logging.error(f"从数据库加载翻译任务失败: {e}")
     
     def _get_task_key(self, task: TranslationTask) -> str:
         """获取任务唯一键"""
@@ -181,7 +181,7 @@ class TranslationQueueManager:
             self._persistence_thread = threading.Thread(target=self._persistence_worker, daemon=True)
             self._persistence_thread.start()
         
-        log.info("翻译队列管理器已启动")
+        logging.info("翻译队列管理器已启动")
     
     def stop(self):
         """停止队列管理器"""
@@ -197,7 +197,7 @@ class TranslationQueueManager:
         if self.config.enable_persistence:
             self._save_to_database()
         
-        log.info("翻译队列管理器已停止")
+        logging.info("翻译队列管理器已停止")
     
     def add_task(self, manga_path: str, page_index: int, target_language: str = "zh",
                  priority: Optional[TaskPriority] = None, user_id: Optional[str] = None,
@@ -220,7 +220,7 @@ class TranslationQueueManager:
         with self._lock:
             # 检查队列是否已满
             if len(self._queue) >= self.config.max_queue_size:
-                log.warning(f"翻译队列已满，无法添加新任务: {manga_path}:{page_index}")
+                logging.warning(f"翻译队列已满，无法添加新任务: {manga_path}:{page_index}")
                 return None
             
             # 生成任务键
@@ -228,7 +228,7 @@ class TranslationQueueManager:
             
             # 检查是否已存在（去重）
             if not force_retranslate and task_key in self._task_keys:
-                log.debug(f"翻译任务已存在，跳过添加: {task_key}")
+                logging.debug(f"翻译任务已存在，跳过添加: {task_key}")
                 return None
             
             # 创建任务
@@ -252,7 +252,7 @@ class TranslationQueueManager:
             # 触发事件
             self._emit_event(QueueEvent(QueueEvent.TASK_ADDED, task))
             
-            log.info(f"添加翻译任务: {task.task_id} - {manga_path}:{page_index} (优先级: {task.priority.name})")
+            logging.info(f"添加翻译任务: {task.task_id} - {manga_path}:{page_index} (优先级: {task.priority.name})")
             
             return task.task_id
 
@@ -309,7 +309,7 @@ class TranslationQueueManager:
             # 触发事件
             self._emit_event(QueueEvent(QueueEvent.TASK_STARTED, task))
 
-            log.info(f"开始处理翻译任务: {task.task_id}")
+            logging.info(f"开始处理翻译任务: {task.task_id}")
 
             return task
 
@@ -327,7 +327,7 @@ class TranslationQueueManager:
         with self._lock:
             task = self._processing_tasks.pop(task_id, None)
             if not task:
-                log.warning(f"尝试完成不存在的任务: {task_id}")
+                logging.warning(f"尝试完成不存在的任务: {task_id}")
                 return
 
             # 更新任务状态
@@ -346,7 +346,7 @@ class TranslationQueueManager:
                 # 触发事件
                 self._emit_event(QueueEvent(QueueEvent.TASK_COMPLETED, task))
 
-                log.info(f"翻译任务完成: {task_id} (耗时: {task.processing_duration:.2f}秒)")
+                logging.info(f"翻译任务完成: {task_id} (耗时: {task.processing_duration:.2f}秒)")
 
             else:
                 task.status = TaskStatus.FAILED
@@ -368,7 +368,7 @@ class TranslationQueueManager:
                     # 触发重试事件
                     self._emit_event(QueueEvent(QueueEvent.TASK_RETRIED, task))
 
-                    log.info(f"翻译任务重试: {task_id} (第{task.retry_count}次重试)")
+                    logging.info(f"翻译任务重试: {task_id} (第{task.retry_count}次重试)")
 
                 else:
                     # 标记为最终失败
@@ -377,7 +377,7 @@ class TranslationQueueManager:
                     # 触发失败事件
                     self._emit_event(QueueEvent(QueueEvent.TASK_FAILED, task))
 
-                    log.error(f"翻译任务失败: {task_id} - {error_message}")
+                    logging.error(f"翻译任务失败: {task_id} - {error_message}")
 
     def cancel_task(self, task_id: str) -> bool:
         """
@@ -403,7 +403,7 @@ class TranslationQueueManager:
                     # 触发事件
                     self._emit_event(QueueEvent(QueueEvent.TASK_CANCELLED, task))
 
-                    log.info(f"取消翻译任务: {task_id}")
+                    logging.info(f"取消翻译任务: {task_id}")
                     return True
 
             # 从处理中任务查找
@@ -411,10 +411,10 @@ class TranslationQueueManager:
             if task:
                 # 注意：正在处理的任务需要外部处理器配合取消
                 task.status = TaskStatus.CANCELLED
-                log.warning(f"任务正在处理中，需要外部配合取消: {task_id}")
+                logging.warning(f"任务正在处理中，需要外部配合取消: {task_id}")
                 return True
 
-            log.warning(f"未找到要取消的任务: {task_id}")
+            logging.warning(f"未找到要取消的任务: {task_id}")
             return False
 
     def get_task(self, task_id: str) -> Optional[TranslationTask]:
@@ -524,7 +524,7 @@ class TranslationQueueManager:
                     'current_page': current_page_index
                 }))
 
-                log.info(f"重新排序队列，更新了 {updated_count} 个任务的优先级")
+                logging.info(f"重新排序队列，更新了 {updated_count} 个任务的优先级")
 
     def clear_queue(self, status_filter: Optional[List[TaskStatus]] = None):
         """
@@ -569,7 +569,7 @@ class TranslationQueueManager:
                 'status_filter': [s.value for s in status_filter] if status_filter else None
             }))
 
-            log.info(f"清空队列，移除了 {cleared_count} 个任务")
+            logging.info(f"清空队列，移除了 {cleared_count} 个任务")
 
 
 
@@ -588,7 +588,7 @@ class TranslationQueueManager:
             try:
                 callback(event)
             except Exception as e:
-                log.error(f"事件回调执行失败: {e}")
+                logging.error(f"事件回调执行失败: {e}")
 
     def _get_statistics(self) -> QueueStatistics:
         """获取队列统计信息"""
@@ -642,7 +642,7 @@ class TranslationQueueManager:
                 self._cleanup_expired_tasks()
                 time.sleep(self.config.cleanup_interval_seconds)
             except Exception as e:
-                log.error(f"清理工作线程异常: {e}")
+                logging.error(f"清理工作线程异常: {e}")
                 time.sleep(5)
 
     def _cleanup_expired_tasks(self):
@@ -668,7 +668,7 @@ class TranslationQueueManager:
                 # 触发事件
                 self._emit_event(QueueEvent(QueueEvent.TASK_FAILED, task))
 
-                log.warning(f"清理超时任务: {task_id}")
+                logging.warning(f"清理超时任务: {task_id}")
 
             # 清理旧的已完成和失败任务（保留最近24小时的）
             cutoff_time = current_time - timedelta(hours=24)
@@ -690,7 +690,7 @@ class TranslationQueueManager:
                 del self._failed_tasks[task_id]
 
             if completed_to_remove or failed_to_remove:
-                log.info(f"清理旧任务: {len(completed_to_remove)} 个已完成, {len(failed_to_remove)} 个失败")
+                logging.info(f"清理旧任务: {len(completed_to_remove)} 个已完成, {len(failed_to_remove)} 个失败")
 
     def _persistence_worker(self):
         """持久化工作线程"""
@@ -699,7 +699,7 @@ class TranslationQueueManager:
                 self._save_to_database()
                 time.sleep(self.config.persistence_interval_seconds)
             except Exception as e:
-                log.error(f"持久化工作线程异常: {e}")
+                logging.error(f"持久化工作线程异常: {e}")
                 time.sleep(5)
 
     def _save_to_database(self):
@@ -740,7 +740,7 @@ class TranslationQueueManager:
                 conn.commit()
 
         except Exception as e:
-            log.error(f"保存翻译队列到数据库失败: {e}")
+            logging.error(f"保存翻译队列到数据库失败: {e}")
 
     def __del__(self):
         """析构函数"""

@@ -14,8 +14,7 @@ import threading
 import warnings
 import numpy as np
 import io
-
-from utils import manga_logger as log
+import logging
 
 class ImageCompressor:
     """
@@ -106,7 +105,7 @@ class ImageCompressor:
                             return {"should_compress": False, "reason": f"压缩效果不佳 ({compression_ratio:.1%})"}
 
         except Exception as e:
-            log.error(f"预检测过程出错 {os.path.basename(file_path)}: {e}")
+            logging.error(f"预检测过程出错 {os.path.basename(file_path)}: {e}")
             return {"should_compress": True, "reason": "预检测异常，默认压缩"}
         
     def compress_manga_file(
@@ -120,7 +119,7 @@ class ImageCompressor:
         如果操作失败或被取消，则返回 None。
         """
         if self.is_cancellation_requested():
-            log.warning("Operation cancelled before starting.")
+            logging.warning("Operation cancelled before starting.")
             return None
 
         try:
@@ -138,7 +137,7 @@ class ImageCompressor:
                 if self.is_cancellation_requested(): return None
                 # 如果所有图片都转换失败，则中止
                 if not converted_files:
-                    log.error(f"未能成功转换任何图片: {Path(file_path).name}")
+                    logging.error(f"未能成功转换任何图片: {Path(file_path).name}")
                     return None
                 
                 temp_zip_path = self._create_output_package(converted_files)
@@ -152,7 +151,7 @@ class ImageCompressor:
                 return temp_zip_path
                 
         except Exception as e:
-            log.error(f"压缩文件 '{Path(file_path).name}' 失败: {e}", exc_info=True)
+            logging.error(f"压缩文件 '{Path(file_path).name}' 失败: {e}", exc_info=True)
             return None
     
     def _extract_images(self, file_path: str, extract_dir: str) -> List[str]:
@@ -192,7 +191,7 @@ class ImageCompressor:
                         extracted_path = zip_ref.extract(member_info, path=extract_dir)
                         image_files.append(extracted_path)
                     except Exception as extract_error:
-                        log.warning(f"Failed to extract file '{decoded_filename}': {extract_error}")
+                        logging.warning(f"Failed to extract file '{decoded_filename}': {extract_error}")
         
         except Exception as e:
             raise Exception(f"打开或读取zip文件失败: {e}")
@@ -201,7 +200,7 @@ class ImageCompressor:
             raise Exception("压缩包中没有找到可处理的图片文件")
         
         image_files.sort()
-        log.debug(f"在 {Path(file_path).name} 中找到 {len(image_files)} 个图片文件")
+        logging.debug(f"在 {Path(file_path).name} 中找到 {len(image_files)} 个图片文件")
         return image_files
 
     def _convert_images(self, image_files: List[str], output_dir: str, webp_quality: int, preserve_original_names: bool) -> Tuple[List[str], List[str]]:
@@ -234,7 +233,7 @@ class ImageCompressor:
                     bad_files.append(original_path)
         
         if not preserve_original_names: converted_files.sort()
-        log.debug(f"多线程转换完成: {len(converted_files)} 成功, {len(bad_files)} 失败 / 总计 {total_images} 个图片")
+        logging.debug(f"多线程转换完成: {len(converted_files)} 成功, {len(bad_files)} 失败 / 总计 {total_images} 个图片")
         return converted_files, bad_files
 
     def _convert_single_image(self, img_path: str, output_dir: str, webp_quality: int, preserve_original_names: bool, index: int) -> Optional[str]:
@@ -243,7 +242,7 @@ class ImageCompressor:
         try:
             img = self._read_image_robustly(img_path)
             if img is None:
-                log.warning(f"Could not read image {img_path}, skipping.")
+                logging.warning(f"Could not read image {img_path}, skipping.")
                 return None
 
             output_filename = f"{Path(img_path).stem}.webp" if preserve_original_names else f"page_{index+1:03d}.webp"
@@ -253,7 +252,7 @@ class ImageCompressor:
             success = cv2.imwrite(output_path, img, encode_params)
             return output_path if success else None
         except Exception as e:
-            log.error(f"处理图片时发生错误 {img_path}: {e}")
+            logging.error(f"处理图片时发生错误 {img_path}: {e}")
             return None
 
     def _convert_images_single_thread(self, image_files: List[str], output_dir: str, webp_quality: int, preserve_original_names: bool) -> Tuple[List[str], List[str]]:
@@ -281,7 +280,7 @@ class ImageCompressor:
                     zipf.write(file_path, os.path.basename(file_path))
             return temp_zip_file.name
         except Exception as e:
-            log.error(f"创建临时压缩包失败: {e}")
+            logging.error(f"创建临时压缩包失败: {e}")
             return None
 
     def _verify_compressed_package(self, original_path: str, compressed_temp_path: str, bad_files: List[str]) -> bool:
@@ -295,13 +294,13 @@ class ImageCompressor:
                 actual_count = len(compressed_file_infos)
 
                 if expected_count != actual_count:
-                    log.error(f"验证失败: 文件数量不一致。预期: {expected_count} (原始: {len(original_file_infos)} - 坏图: {len(bad_files)}), 实际压缩: {actual_count}")
+                    logging.error(f"验证失败: 文件数量不一致。预期: {expected_count} (原始: {len(original_file_infos)} - 坏图: {len(bad_files)}), 实际压缩: {actual_count}")
                     return False
             
-            log.info(f"文件 {Path(original_path).name} 的压缩验证通过 (已跳过 {len(bad_files)} 个坏图)。")
+            logging.info(f"文件 {Path(original_path).name} 的压缩验证通过 (已跳过 {len(bad_files)} 个坏图)。")
             return True
         except Exception as e:
-            log.error(f"验证压缩包时发生严重错误: {e}")
+            logging.error(f"验证压缩包时发生严重错误: {e}")
             return False
 
     def _read_image_robustly(self, img_path: str) -> Optional[np.ndarray]:
@@ -313,7 +312,7 @@ class ImageCompressor:
                 img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
 
             if img is None:
-                log.warning(f"OpenCV could not read {img_path}")
+                logging.warning(f"OpenCV could not read {img_path}")
                 return None
 
             # 保持原有的通道转换逻辑，确保输出是BGR
@@ -325,12 +324,12 @@ class ImageCompressor:
             return img
 
         except Exception as e:
-            log.error(f"读取图片时发生意外错误 {img_path}: {e}")
+            logging.error(f"读取图片时发生意外错误 {img_path}: {e}")
             return None
 
     def cancel_compression(self):
         """(由Manager调用) 取消所有正在进行的操作"""
-        log.info("ImageCompressor 收到取消请求")
+        logging.info("ImageCompressor 收到取消请求")
         self.cancel_flag.set()
 
     def reset_cancel_flag(self):

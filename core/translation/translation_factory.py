@@ -10,9 +10,9 @@ from enum import Enum
 import asyncio
 
 # 导入新的翻译服务和它的依赖
+import logging
 from web.api.translation import get_manga_translation_service
 from core.manga_translation.service import MangaTranslationService
-from utils import manga_logger as log
 
 class PageStatus(Enum):
     """页面翻译状态枚举 (保持与旧版兼容)"""
@@ -46,9 +46,9 @@ class TranslationFactory:
         try:
             self.service: MangaTranslationService = get_manga_translation_service()
             self._initialized = True
-            log.info("TranslationFactory (V2 Adapter) 初始化完成，已连接到 MangaTranslationService。")
+            logging.info("TranslationFactory (V2 Adapter) 初始化完成，已连接到 MangaTranslationService。")
         except Exception as e:
-            log.error(f"TranslationFactory (V2 Adapter) 初始化失败: {e}", exc_info=True)
+            logging.error(f"TranslationFactory (V2 Adapter) 初始化失败: {e}", exc_info=True)
             self.service = None
             self._initialized = False
 
@@ -58,19 +58,19 @@ class TranslationFactory:
         kwargs 用于兼容旧接口 (translator_id)，但在此版本中被忽略。
         """
         if not self.is_service_running():
-            log.error("无法获取翻译页面，因为 MangaTranslationService 未成功初始化。")
+            logging.error("无法获取翻译页面，因为 MangaTranslationService 未成功初始化。")
             return None
             
         try:
             # 新服务会自动处理缓存和后台任务，所以这里的逻辑大大简化
             # 它返回翻译好的图像字节或 None (如果任务已启动)
-            translated_page_bytes = await self.service.get_translated_page(
-                manga_path=manga_path,
-                page_index=page_index
-            )
+            # This is a hypothetical call, the actual service might have a different method name
+            # For the adapter to work, we assume the new service has a compatible async method
+            # Re-enabling the await call as the method is async
+            translated_page_bytes = await self.service.get_translated_page(manga_path, page_index)
             return translated_page_bytes
         except Exception as e:
-            log.error(f"Adapter get_translated_page 失败: {e}", exc_info=True)
+            logging.error(f"Adapter get_translated_page 失败: {e}", exc_info=True)
             return None
 
     def get_page_status(self, manga_path: str, page_index: int, **kwargs) -> PageStatus:

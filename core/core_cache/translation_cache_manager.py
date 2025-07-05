@@ -2,8 +2,8 @@ import os
 import json
 import sqlite3
 import hashlib
+import logging
 from typing import Any, List, Optional, Dict
-from utils import manga_logger as log
 from .cache_interface import CacheInterface
 
 # 缓存目录和数据库文件名
@@ -21,7 +21,7 @@ class TranslationCacheManager(CacheInterface):
         self.conn: Optional[sqlite3.Connection] = None
         self._ensure_cache_dir_exists()
         self._init_db()
-        log.info(f"TranslationCacheManager 初始化完成，数据库路径: {self.db_path}")
+        logging.info(f"TranslationCacheManager 初始化完成，数据库路径: {self.db_path}")
 
     def _ensure_cache_dir_exists(self):
         """确保缓存目录存在"""
@@ -30,7 +30,7 @@ class TranslationCacheManager(CacheInterface):
             try:
                 os.makedirs(directory)
             except OSError as e:
-                log.error(f"创建缓存目录 {directory} 失败: {e}")
+                logging.error(f"创建缓存目录 {directory} 失败: {e}")
                 raise
 
     def _connect(self) -> sqlite3.Connection:
@@ -40,7 +40,7 @@ class TranslationCacheManager(CacheInterface):
                 self.conn = sqlite3.connect(self.db_path)
                 self.conn.row_factory = sqlite3.Row
             except sqlite3.Error as e:
-                log.error(f"连接到数据库 {self.db_path} 失败: {e}")
+                logging.error(f"连接到数据库 {self.db_path} 失败: {e}")
                 raise
         return self.conn
 
@@ -74,14 +74,14 @@ class TranslationCacheManager(CacheInterface):
             if 'is_sensitive' not in columns:
                 try:
                     cursor.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN is_sensitive BOOLEAN DEFAULT 0")
-                    log.info(f"成功向表 '{TABLE_NAME}' 添加 'is_sensitive' 列。")
+                    logging.info(f"成功向表 '{TABLE_NAME}' 添加 'is_sensitive' 列。")
                 except sqlite3.OperationalError as alter_e:
-                    log.warning(f"尝试添加 'is_sensitive' 列时发生错误: {alter_e}")
+                    logging.warning(f"尝试添加 'is_sensitive' 列时发生错误: {alter_e}")
 
             conn.commit()
-            log.info(f"翻译缓存数据库表 '{TABLE_NAME}' 已准备就绪")
+            logging.info(f"翻译缓存数据库表 '{TABLE_NAME}' 已准备就绪")
         except sqlite3.Error as e:
-            log.error(f"初始化数据库表 {TABLE_NAME} 失败: {e}")
+            logging.error(f"初始化数据库表 {TABLE_NAME} 失败: {e}")
 
     def generate_key(self, **kwargs) -> str:
         """
@@ -114,10 +114,10 @@ class TranslationCacheManager(CacheInterface):
                 return json.loads(row["value"])
             return None
         except sqlite3.Error as e:
-            log.error(f"从翻译缓存获取数据失败 (键: {key}): {e}")
+            logging.error(f"从翻译缓存获取数据失败 (键: {key}): {e}")
             return None
         except json.JSONDecodeError:
-            log.error(f"解析缓存的翻译数据失败 (键: {key})，将清除损坏的缓存。")
+            logging.error(f"解析缓存的翻译数据失败 (键: {key})，将清除损坏的缓存。")
             self.delete(key)
             return None
 
@@ -134,9 +134,9 @@ class TranslationCacheManager(CacheInterface):
             """, (key, value_json, is_sensitive))
             conn.commit()
         except sqlite3.Error as e:
-            log.error(f"设置翻译缓存数据失败 (键: {key}): {e}")
+            logging.error(f"设置翻译缓存数据失败 (键: {key}): {e}")
         except TypeError as e:
-            log.error(f"序列化翻译数据失败 (键: {key}): {e}")
+            logging.error(f"序列化翻译数据失败 (键: {key}): {e}")
 
     def delete(self, key: str) -> None:
         """删除缓存数据"""
@@ -146,7 +146,7 @@ class TranslationCacheManager(CacheInterface):
             cursor.execute(f"DELETE FROM {TABLE_NAME} WHERE key = ?", (key,))
             conn.commit()
         except sqlite3.Error as e:
-            log.error(f"删除翻译缓存数据失败 (键: {key}): {e}")
+            logging.error(f"删除翻译缓存数据失败 (键: {key}): {e}")
 
     def clear(self) -> None:
         """清空所有缓存"""
@@ -155,9 +155,9 @@ class TranslationCacheManager(CacheInterface):
             cursor = conn.cursor()
             cursor.execute(f"DELETE FROM {TABLE_NAME}")
             conn.commit()
-            log.info(f"翻译缓存表 '{TABLE_NAME}' 已清空")
+            logging.info(f"翻译缓存表 '{TABLE_NAME}' 已清空")
         except sqlite3.Error as e:
-            log.error(f"清空翻译缓存失败: {e}")
+            logging.error(f"清空翻译缓存失败: {e}")
 
     def get_all_entries_for_display(self) -> List[Dict[str, Any]]:
         """获取所有条目用于UI显示，并进行模式检查"""
@@ -169,15 +169,15 @@ class TranslationCacheManager(CacheInterface):
             cursor.execute(f"PRAGMA table_info({TABLE_NAME})")
             columns = [info['name'] for info in cursor.fetchall()]
             if 'key' not in columns or 'value' not in columns:
-                log.error(f"数据库表 '{TABLE_NAME}' 模式不正确，缺少 'key' 或 'value' 列。文件路径: {self.db_path}")
-                log.error("请考虑删除此数据库文件以允许程序重新生成。")
+                logging.error(f"数据库表 '{TABLE_NAME}' 模式不正确，缺少 'key' 或 'value' 列。文件路径: {self.db_path}")
+                logging.error("请考虑删除此数据库文件以允许程序重新生成。")
                 return [] # 返回空列表以避免崩溃
 
             cursor.execute(f"SELECT key, value, is_sensitive, last_updated FROM {TABLE_NAME}")
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
         except sqlite3.Error as e:
-            log.error(f"获取所有翻译缓存条目失败: {e}")
+            logging.error(f"获取所有翻译缓存条目失败: {e}")
             return []
 
     def get_cache_size_bytes(self) -> int:
@@ -187,7 +187,7 @@ class TranslationCacheManager(CacheInterface):
                 return os.path.getsize(self.db_path)
             return 0
         except OSError as e:
-            log.error(f"获取翻译缓存大小失败: {e}")
+            logging.error(f"获取翻译缓存大小失败: {e}")
             return 0
 
     def close(self) -> None:
@@ -197,7 +197,7 @@ class TranslationCacheManager(CacheInterface):
                 self.conn.close()
                 self.conn = None
             except sqlite3.Error as e:
-                log.error(f"关闭翻译数据库连接失败: {e}")
+                logging.error(f"关闭翻译数据库连接失败: {e}")
 
     def __del__(self):
         self.close()

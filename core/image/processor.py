@@ -38,7 +38,7 @@ def read_image(source: Union[str, bytes]) -> Optional[ImageType]:
         if img is None:
             from io import BytesIO
             from PIL import Image
-            log.warning(f"OpenCV could not decode image, trying with Pillow...")
+            logging.warning(f"OpenCV could not decode image, trying with Pillow...")
             try:
                 if isinstance(source, str):
                      # 如果是从路径来的，我们已经读取了字节
@@ -50,15 +50,15 @@ def read_image(source: Union[str, bytes]) -> Optional[ImageType]:
                 # 将Pillow图像 (RGB) 转换为OpenCV图像 (BGR)
                 img = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
             except Exception as e:
-                log.error(f"Pillow也无法解码图像: {e}")
+                logging.error(f"Pillow也无法解码图像: {e}")
                 return None
 
         return img
     except Exception as e:
-        log.error(f"读取图像时发生未知错误: {e}")
+        logging.error(f"读取图像时发生未知错误: {e}")
         return None
 
-from utils import manga_logger as log
+import logging
 
 def write_image(image: ImageType, ext: str = '.jpg', quality: int = 85) -> Optional[bytes]:
     """
@@ -70,7 +70,7 @@ def write_image(image: ImageType, ext: str = '.jpg', quality: int = 85) -> Optio
     :return: 编码后的字节流，如果失败则返回None。
     """
     if image is None or image.size == 0:
-        log.error(f"严重错误: processor.write_image 接收到无效图像。Image is None: {image is None}, Size: {getattr(image, 'size', 'N/A')}")
+        logging.error(f"严重错误: processor.write_image 接收到无效图像。Image is None: {image is None}, Size: {getattr(image, 'size', 'N/A')}")
         return None
         
     try:
@@ -85,16 +85,16 @@ def write_image(image: ImageType, ext: str = '.jpg', quality: int = 85) -> Optio
         
         # 如果 params 为空，说明是不支持的格式
         if not params:
-            log.error(f"不支持的编码格式: {ext} (cleaned: {clean_ext})")
+            logging.error(f"不支持的编码格式: {ext} (cleaned: {clean_ext})")
             return None
 
         success, buffer = cv2.imencode(clean_ext, image, params)
         if not success:
-            log.warning(f"cv2.imencode failed to encode to {clean_ext}.")
+            logging.warning(f"cv2.imencode failed to encode to {clean_ext}.")
             return None
         return buffer.tobytes()
     except Exception as e:
-        log.error(f"processor.write_image 编码时发生异常: {e}", exc_info=True)
+        logging.error(f"processor.write_image 编码时发生异常: {e}", exc_info=True)
         return None
 
 # --- 核心算法 ---

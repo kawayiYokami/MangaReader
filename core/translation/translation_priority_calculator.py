@@ -7,8 +7,8 @@
 
 from typing import Dict, List, Tuple, Optional
 import os
+import logging
 from .translation_queue_models import TaskPriority
-from utils import manga_logger as log
 
 
 class TranslationPriorityCalculator:

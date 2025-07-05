@@ -16,7 +16,7 @@ import uuid
 from web.manga_viewer_manager import get_viewer_manager, cleanup_session, get_active_sessions
 from core.translation.translation_factory import get_translation_factory
 from core.config import config
-from utils import manga_logger as log
+import logging
 
 router = APIRouter()
 
@@ -71,7 +71,7 @@ async def create_session():
         session_id = str(uuid.uuid4())
         manager = get_viewer_manager(session_id)
         
-        log.info(f"创建新查看器会话: {session_id}")
+        logging.info(f"创建新查看器会话: {session_id}")
         
         return {
             "success": True,
@@ -79,7 +79,7 @@ async def create_session():
             "message": "会话创建成功"
         }
     except Exception as e:
-        log.error(f"创建会话失败: {e}")
+        logging.error(f"创建会话失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/session/{session_id}")
@@ -92,7 +92,7 @@ async def delete_session(session_id: str):
             "message": f"会话 {session_id} 已删除"
         }
     except Exception as e:
-        log.error(f"删除会话失败: {e}")
+        logging.error(f"删除会话失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/session/list")
@@ -106,7 +106,7 @@ async def list_sessions():
             "count": len(sessions)
         }
     except Exception as e:
-        log.error(f"获取会话列表失败: {e}")
+        logging.error(f"获取会话列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/manga/set")
@@ -123,14 +123,14 @@ async def set_current_manga(
         
         if result["success"]:
             result["session_id"] = session_id
-            log.info(f"会话 {session_id}: 设置漫画成功 {request.manga_path}")
+            logging.info(f"会话 {session_id}: 设置漫画成功 {request.manga_path}")
         else:
-            log.warning(f"会话 {session_id}: 设置漫画失败 {result['message']}")
+            logging.warning(f"会话 {session_id}: 设置漫画失败 {result['message']}")
         
         return result
         
     except Exception as e:
-        log.error(f"设置当前漫画失败: {e}")
+        logging.error(f"设置当前漫画失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/page/get")
@@ -151,14 +151,14 @@ async def get_page_images(
         
         if result["success"]:
             result["session_id"] = session_id
-            log.debug(f"会话 {session_id}: 获取页面图像成功 req_page={request.page}")
+            logging.debug(f"会话 {session_id}: 获取页面图像成功 req_page={request.page}")
         else:
-            log.warning(f"会话 {session_id}: 获取页面图像失败 {result['message']}")
+            logging.warning(f"会话 {session_id}: 获取页面图像失败 {result['message']}")
         
         return result
         
     except Exception as e:
-        log.error(f"获取页面图像失败: {e}")
+        logging.error(f"获取页面图像失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/session/info")
@@ -176,7 +176,7 @@ async def get_session_info(x_session_id: Optional[str] = Header(None)):
         }
         
     except Exception as e:
-        log.error(f"获取会话信息失败: {e}")
+        logging.error(f"获取会话信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/translation/toggle")
@@ -198,7 +198,7 @@ async def toggle_translation(
         if not enabled:
             with manager.cache_lock:
                 manager.translated_cache.clear()
-            log.info(f"会话 {session_id}: 翻译已禁用，清空翻译缓存")
+            logging.info(f"会话 {session_id}: 翻译已禁用，清空翻译缓存")
         
         return {
             "success": True,
@@ -207,7 +207,7 @@ async def toggle_translation(
         }
         
     except Exception as e:
-        log.error(f"切换翻译状态失败: {e}")
+        logging.error(f"切换翻译状态失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/translation/status")
@@ -227,7 +227,7 @@ async def get_translation_status(x_session_id: Optional[str] = Header(None)):
         }
         
     except Exception as e:
-        log.error(f"获取翻译状态失败: {e}")
+        logging.error(f"获取翻译状态失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/preload")
@@ -256,7 +256,7 @@ async def preload_pages(
         }
         
     except Exception as e:
-        log.error(f"预载页面失败: {e}")
+        logging.error(f"预载页面失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/cache/stats")
@@ -283,7 +283,7 @@ async def get_cache_stats(x_session_id: Optional[str] = Header(None)):
         }
         
     except Exception as e:
-        log.error(f"获取缓存统计失败: {e}")
+        logging.error(f"获取缓存统计失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cache/clear")
@@ -301,5 +301,5 @@ async def clear_cache(x_session_id: Optional[str] = Header(None)):
         }
         
     except Exception as e:
-        log.error(f"清空缓存失败: {e}")
+        logging.error(f"清空缓存失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

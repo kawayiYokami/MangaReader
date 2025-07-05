@@ -15,9 +15,10 @@ import sys # 新增导入
 from pathlib import Path # 新增导入
 
 # 导入核心业务逻辑
+import logging
 from core.config import config, ReadingOrder, DisplayMode, Theme
 from core.translation.translator import OpenAITranslator, GeminiTranslator
-from utils import manga_logger as log
+from utils.manga_logger import set_level
 
 router = APIRouter()
 
@@ -37,7 +38,7 @@ else:
     project_root = Path(__file__).resolve().parent.parent.parent
     FONT_DIR = (project_root / "font").resolve()
 
-log.info(f"字体目录 (FONT_DIR) 设置为: {FONT_DIR}")
+logging.info(f"字体目录 (FONT_DIR) 设置为: {FONT_DIR}")
 # --- 修改结束 ---
 
 # 数据模型
@@ -225,7 +226,7 @@ async def get_all_settings():
         return {"settings": settings}
         
     except Exception as e:
-        log.error(f"获取设置失败: {e}")
+        logging.error(f"获取设置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 def _get_preferred_font_name(font: TTFont) -> str:
@@ -250,7 +251,7 @@ def _get_preferred_font_name(font: TTFont) -> str:
         try:
             found_names[key] = record.toUnicode()
         except UnicodeDecodeError:
-            log.warning(f"无法解码字体名称记录: {key} in font {str(getattr(font, 'reader', {}).get('file', 'N/A'))}")
+            logging.warning(f"无法解码字体名称记录: {key} in font {str(getattr(font, 'reader', {}).get('file', 'N/A'))}")
             found_names[key] = record.string.decode('latin-1', errors='replace')
 
     for p_nameID, p_platformID, p_langID in priorities:
@@ -275,16 +276,16 @@ async def get_available_fonts():
     """获取可用的字体列表"""
     fonts = []
     # FONT_DIR 已经是 Path 对象并且是绝对路径
-    absolute_font_dir = FONT_DIR 
-    log.debug(f"开始扫描字体目录: {absolute_font_dir}")
+    absolute_font_dir = FONT_DIR
+    logging.debug(f"开始扫描字体目录: {absolute_font_dir}")
 
     if absolute_font_dir.exists() and absolute_font_dir.is_dir():
         try:
             all_files = os.listdir(absolute_font_dir) # os.listdir 也能接受 Path 对象
-            log.debug(f"在目录 {absolute_font_dir} 中找到的文件: {all_files}")
+            logging.debug(f"在目录 {absolute_font_dir} 中找到的文件: {all_files}")
 
             font_files = [f for f in all_files if f.lower().endswith(('.ttf', '.otf'))]
-            log.debug(f"过滤后的字体文件 (.ttf, .otf): {font_files}")
+            logging.debug(f"过滤后的字体文件 (.ttf, .otf): {font_files}")
 
             for filename in font_files:
                 font_path = absolute_font_dir / filename # 使用 Path 对象的 / 操作符
@@ -294,21 +295,21 @@ async def get_available_fonts():
                     display_name = _get_preferred_font_name(font)
 
                     if not display_name:
-                        display_name = os.path.splitext(filename) # filename 是字符串
-                        log.warning(f"  > 无法从元数据提取字体名称，回退到文件名: '{display_name}' for file '{filename}'")
+                        display_name = os.path.splitext(filename)[0] # filename 是字符串
+                        logging.warning(f"  > 无法从元数据提取字体名称，回退到文件名: '{display_name}' for file '{filename}'")
                     
                     fonts.append({
                         "file_name": filename, # 返回文件名字符串
                         "display_name": display_name
                     })
                 except Exception as e:
-                    log.error(f"处理字体文件 {str(font_path)} 时出错: {e}", exc_info=True)
+                    logging.error(f"处理字体文件 {str(font_path)} 时出错: {e}", exc_info=True)
         except Exception as e:
-             log.error(f"扫描字体目录 {str(absolute_font_dir)} 时出错: {e}", exc_info=True)
+             logging.error(f"扫描字体目录 {str(absolute_font_dir)} 时出错: {e}", exc_info=True)
     else:
-        log.warning(f"字体目录不存在或不是一个目录: {str(absolute_font_dir)}")
+        logging.warning(f"字体目录不存在或不是一个目录: {str(absolute_font_dir)}")
 
-    log.debug(f"最终返回的字体列表: {fonts}")
+    logging.debug(f"最终返回的字体列表: {fonts}")
     return {"success": True, "fonts": fonts}
 
 @router.get("/translator-options")
@@ -334,7 +335,7 @@ async def get_translator_options():
             
         return {"success": True, "translators": formatted_options}
     except Exception as e:
-        log.error(f"获取翻译器选项失败: {e}", exc_info=True)
+        logging.error(f"获取翻译器选项失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="无法获取翻译器选项")
 
 @router.get("/{setting_key}")
@@ -357,73 +358,58 @@ async def get_setting(setting_key: str):
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"获取设置 {setting_key} 失败: {e}")
+        logging.error(f"获取设置 {setting_key} 失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{setting_key}")
 async def update_setting(setting_key: str, request: SettingUpdateRequest):
     """更新单个设置项"""
-    log.info(f"收到更新设置请求: key={setting_key}, value={request.value}")
-    try:
+    logging.info(f"收到更新设置请求: key={setting_key}, value={request.value}")
+    
+    new_value = request.value
+    config_item = None
+    
+    # 修复: 特殊处理 logLevel，因为它在 config 中的 key 是 log_level
+    if setting_key == "logLevel":
+        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        if new_value in valid_levels:
+            config.log_level.value = new_value
+            set_level(new_value) # 动态更新全局日志级别
+            config_item = config.log_level
+        else:
+            raise HTTPException(status_code=400, detail="无效的日志等级")
+    else:
+        # 其他所有配置项
         if not hasattr(config, setting_key):
-            log.error(f"更新失败: 设置项 {setting_key} 不存在")
+            logging.error(f"更新失败: 设置项 {setting_key} 不存在")
             raise HTTPException(status_code=404, detail=f"设置项 {setting_key} 不存在")
         
         config_item = getattr(config, setting_key)
-        new_value = request.value
         
+        # 对特定类型进行验证和转换
         if setting_key == "ThemeMode":
-            log.info(f"正在处理主题模式更新，新值为: {new_value}")
             if new_value == "Light": config_item.value = Theme.LIGHT
             elif new_value == "Dark": config_item.value = Theme.DARK
             elif new_value == "Auto": config_item.value = Theme.AUTO
-            else:
-                log.error(f"无效的主题模式: {new_value}")
-                raise HTTPException(status_code=400, detail="无效的主题模式")
-                
+            else: raise HTTPException(status_code=400, detail="无效的主题模式")
         elif setting_key == "readingOrder":
-            if new_value == ReadingOrder.RIGHT_TO_LEFT.value: config_item.value = ReadingOrder.RIGHT_TO_LEFT.value
-            elif new_value == ReadingOrder.LEFT_TO_RIGHT.value: config_item.value = ReadingOrder.LEFT_TO_RIGHT.value
-            else: raise HTTPException(status_code=400, detail="无效的阅读方向")
-                
-        elif setting_key == "displayMode":
-            if new_value == DisplayMode.SINGLE.value: config_item.value = DisplayMode.SINGLE.value
-            elif new_value == DisplayMode.DOUBLE.value: config_item.value = DisplayMode.DOUBLE.value
-            elif new_value == DisplayMode.ADAPTIVE.value: config_item.value = DisplayMode.ADAPTIVE.value
-            else: raise HTTPException(status_code=400, detail="无效的显示模式")
-        
-        elif setting_key == "translatorType":
-            if new_value in ["Google", "智谱"]: config_item.value = new_value
-            else:
-                log.error(f"更新设置 translatorType 失败: 无效的翻译引擎类型 '{new_value}'")
-                raise HTTPException(status_code=400, detail="无效的翻译引擎类型")
-        elif setting_key == "zhipu_api_key": config_item.value = new_value
-        elif setting_key == "zhipu_model":
-            if new_value in ["glm-4-flash", "glm-4", "glm-3-turbo", "glm-4-flash-250414"]: config_item.value = new_value
-            else: raise HTTPException(status_code=400, detail="无效的智谱AI模型")
-        elif setting_key == "google_api_key": config_item.value = new_value
-        elif setting_key == "openai_api_key": config_item.value = new_value
-        elif setting_key == "openai_model": config_item.value = new_value
-        elif setting_key == "openai_api_base_url": config_item.value = new_value
-        elif setting_key == "font_name": config_item.value = new_value
-        elif setting_key == "logLevel": # 注意这里应该是 logLevel 不是 log_level
-            valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-            if new_value in valid_levels:
-                config_item.value = new_value
-                # 确保 MangaLogger 实例存在并更新其级别
-                if hasattr(log, 'MangaLogger'): # manga_logger.py 中定义的类名
-                    manga_logger_instance = log.MangaLogger.get_instance()
-                    if manga_logger_instance:
-                        manga_logger_instance.set_level(new_value)
-                log.info(f"日志等级已更新为: {new_value}")
-            else:
-                raise HTTPException(status_code=400, detail="无效的日志等级")
-        else:
+            if new_value not in [e.value for e in ReadingOrder]: raise HTTPException(status_code=400, detail="无效的阅读方向")
             config_item.value = new_value
-        
-        log.info(f"准备保存配置, key={setting_key}, new_value_to_save={config_item.value}")
+        elif setting_key == "displayMode":
+            if new_value not in [e.value for e in DisplayMode]: raise HTTPException(status_code=400, detail="无效的显示模式")
+            config_item.value = new_value
+        else:
+            # 对于其他配置项，直接赋值
+            # 类型验证由 ConfigItem 的 setter 自动处理
+            try:
+                config_item.value = new_value
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"无效的值: {e}")
+
+    try:
+        logging.info(f"准备保存配置, key={setting_key}, new_value_to_save={config_item.value}")
         config.save()
-        log.info(f"配置已保存。")
+        logging.info("配置已保存。")
         
         final_value = config_item.value
         if hasattr(final_value, 'value'): # 处理枚举回显
@@ -435,11 +421,10 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
             "key": setting_key,
             "value": final_value
         }
-        
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"更新设置 {setting_key} 失败: {e}", exc_info=True)
+        logging.error(f"更新或保存设置 {setting_key} 失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/reset")
@@ -466,7 +451,7 @@ async def reset_settings():
         }
         
     except Exception as e:
-        log.error(f"重置设置失败: {e}")
+        logging.error(f"重置设置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/export")
@@ -503,7 +488,7 @@ async def export_settings():
         }
         
     except Exception as e:
-        log.error(f"导出设置失败: {e}")
+        logging.error(f"导出设置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/import")
@@ -539,7 +524,7 @@ async def import_settings(settings_data: Dict[str, Any]):
                 else:
                     failed_keys.append(key)
             except Exception as e:
-                log.warning(f"导入设置 {key} 失败: {e}")
+                logging.warning(f"导入设置 {key} 失败: {e}")
                 failed_keys.append(key)
         
         config.save()
@@ -554,7 +539,7 @@ async def import_settings(settings_data: Dict[str, Any]):
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"导入设置失败: {e}")
+        logging.error(f"导入设置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/openai/models")
@@ -564,10 +549,10 @@ async def get_openai_models(request: ModelListRequest):
         models = OpenAITranslator.list_models(api_key=request.apiKey, api_base_url=request.baseUrl)
         return {"success": True, "models": models}
     except ValueError as e:
-        log.error(f"获取 OpenAI 模型失败 (值错误): {e}")
+        logging.error(f"获取 OpenAI 模型失败 (值错误): {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        log.error(f"获取 OpenAI 模型时发生未知错误: {e}", exc_info=True)
+        logging.error(f"获取 OpenAI 模型时发生未知错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="获取模型列表时发生内部错误")
 
 @router.post("/gemini/models")
@@ -577,8 +562,8 @@ async def get_gemini_models(request: ModelListRequest):
         models = GeminiTranslator.list_models(api_key=request.apiKey)
         return {"success": True, "models": models}
     except ValueError as e:
-        log.error(f"获取 Gemini 模型失败 (值错误): {e}")
+        logging.error(f"获取 Gemini 模型失败 (值错误): {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        log.error(f"获取 Gemini 模型时发生未知错误: {e}", exc_info=True)
+        logging.error(f"获取 Gemini 模型时发生未知错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="获取模型列表时发生内部错误")

@@ -6,8 +6,8 @@ import time
 import yaml
 import numpy as np
 import asyncio
+import logging
 from typing import List, Tuple, Optional, Dict, Any
-from utils import manga_logger as log
 from core.config import config
 from core.core_cache.cache_factory import get_cache_factory_instance
 from core.core_cache.cache_interface import CacheInterface
@@ -19,16 +19,16 @@ class OCRManager:
     """OCR管理器 - 负责图像文字识别功能 (Async Version)"""
 
     def __init__(self):
-        log.info("OCRManager (Async) 初始化开始")
+        logging.info("OCRManager (Async) 初始化开始")
         self.ocr_cache_manager: CacheInterface = get_cache_factory_instance().get_manager("ocr")
         self.ocr_engine = None
         self.is_model_loaded = False
         self.ocr_options = self._load_config_from_yaml()
-        log.info("OCRManager (Async) 初始化完成")
+        logging.info("OCRManager (Async) 初始化完成")
 
     def _get_default_options(self) -> Dict[str, Any]:
         """返回一个安全的默认OCR配置"""
-        log.warning("无法加载或解析 ocr_config.yaml，将使用默认安全配置。")
+        logging.warning("无法加载或解析 ocr_config.yaml，将使用默认安全配置。")
         return {
             'use_angle_cls': True,
             'use_gpu': False,
@@ -56,16 +56,16 @@ class OCRManager:
                 if isinstance(settings, dict):
                     flat_options.update(settings)
             
-            log.info(f"从 {config_path} 加载OCR配置成功。")
+            logging.info(f"从 {config_path} 加载OCR配置成功。")
             return flat_options
         except (yaml.YAMLError, IOError) as e:
-            log.error(f"加载或解析YAML配置文件 {config_path} 时出错: {e}")
+            logging.error(f"加载或解析YAML配置文件 {config_path} 时出错: {e}")
             return self._get_default_options()
     
     def load_model(self, model_options: Optional[Dict[str, Any]] = None):
         """加载OCR模型"""
         try:
-            log.info("开始加载OCR模型...")
+            logging.info("开始加载OCR模型...")
             
             options = self.ocr_options.copy()
             if model_options:
@@ -73,10 +73,10 @@ class OCRManager:
             
             self.ocr_engine = ONNXPaddleOcr(**options)
             self.is_model_loaded = True
-            log.info(f"OCR模型加载成功，配置: {options}")
+            logging.info(f"OCR模型加载成功，配置: {options}")
         except Exception as e:
             error_msg = f"加载OCR模型时发生错误: {str(e)}"
-            log.error(error_msg)
+            logging.error(error_msg)
             self.is_model_loaded = False
             raise RuntimeError(error_msg) from e
 
@@ -102,24 +102,24 @@ class OCRManager:
                 cache_key = self.ocr_cache_manager.generate_key(image_path=key_path, page_index=page_num_for_cache)
                 cached_results = self.ocr_cache_manager.get(cache_key)
                 if cached_results is not None:
-                    log.info(f"OCR结果已从缓存加载: {key_path} 页 {page_num_for_cache}。正在重构对象。")
+                    logging.info(f"OCR结果已从缓存加载: {key_path} 页 {page_num_for_cache}。正在重构对象。")
                     # 当从缓存（如JSON）加载时，对象会被反序列化为字典。
                     # 我们需要将这些字典重新构造成OCRResult对象实例。
                     try:
                         return [OCRResult(**data) for data in cached_results]
                     except TypeError as e:
-                        log.error(f"从 {key_path} 第 {page_num_for_cache} 页的缓存数据重构 OCRResult 失败。缓存数据可能已损坏。错误: {e}")
+                        logging.error(f"从 {key_path} 第 {page_num_for_cache} 页的缓存数据重构 OCRResult 失败。缓存数据可能已损坏。错误: {e}")
                         # 如果缓存数据损坏，则继续执行OCR
                         pass
             except Exception as e:
-                log.error(f"Error checking or getting OCR cache for {file_path_for_cache} page {page_num_for_cache}: {e}")
+                logging.error(f"Error checking or getting OCR cache for {file_path_for_cache} page {page_num_for_cache}: {e}")
 
         current_ocr_options = self.ocr_options.copy()
         if options:
             current_ocr_options.update(options)
 
         try:
-            log.info(f"未找到缓存。开始对 {file_path_for_cache or '内存中的数据'} 进行异步OCR...")
+            logging.info(f"未找到缓存。开始对 {file_path_for_cache or '内存中的数据'} 进行异步OCR...")
             
             def do_ocr():
                 return self.ocr_engine.ocr(
@@ -148,7 +148,7 @@ class OCRManager:
                         
                         ocr_results_list.append(OCRResult(text, bbox, confidence, direction=direction, image_width=img_width, image_height=img_height))
             
-            log.info(f"异步OCR完成。找到 {len(ocr_results_list)} 个文本区域。")
+            logging.info(f"异步OCR完成。找到 {len(ocr_results_list)} 个文本区域。")
 
             if file_path_for_cache and page_num_for_cache is not None and ocr_results_list:
                 try:
@@ -165,14 +165,14 @@ class OCRManager:
                         page_index=page_num_for_cache,
                         manga_name=os.path.basename(key_path_to_save)
                     )
-                    log.info(f"OCR结果已缓存: {key_path_to_save} 页 {page_num_for_cache}")
+                    logging.info(f"OCR结果已缓存: {key_path_to_save} 页 {page_num_for_cache}")
                 except Exception as e_cache_set:
-                    log.error(f"Failed to cache OCR result for {file_path_for_cache}: {e_cache_set}")
+                    logging.error(f"Failed to cache OCR result for {file_path_for_cache}: {e_cache_set}")
 
             return ocr_results_list
 
         except Exception as e:
-            log.error(f"An error occurred during async OCR processing: {e}", exc_info=True)
+            logging.error(f"An error occurred during async OCR processing: {e}", exc_info=True)
             raise RuntimeError(f"Async OCR recognition failed: {e}") from e
 
     def get_text_only(self, ocr_results: List[OCRResult]) -> str:
@@ -187,9 +187,9 @@ class OCRManager:
         """
         根据置信度过滤OCR结果
         """
-        log.debug(f"正在使用阈值 {min_confidence} 过滤 {len(ocr_results)} 个OCR结果")
+        logging.debug(f"正在使用阈值 {min_confidence} 过滤 {len(ocr_results)} 个OCR结果")
         filtered = [result for result in ocr_results if result.confidence >= min_confidence]
-        log.debug(f"置信度过滤: {len(ocr_results)} -> {len(filtered)}")
+        logging.debug(f"置信度过滤: {len(ocr_results)} -> {len(filtered)}")
         return filtered
 
     def _merge_bboxes(self, bbox1: List[List[int]], bbox2: List[List[int]]) -> List[List[int]]:
@@ -284,7 +284,7 @@ class OCRManager:
 
         processed_groups = self._sort_and_group_ocr_results(ocr_results)
 
-        log.info(f"结构化文本识别完成，共识别到 {len(processed_groups)} 个文本区域。")
+        logging.info(f"结构化文本识别完成，共识别到 {len(processed_groups)} 个文本区域。")
         return processed_groups
 
     def filter_numeric_and_symbols(self, ocr_results: List[OCRResult]) -> List[OCRResult]:
@@ -302,6 +302,6 @@ class OCRManager:
         
         removed_count = len(ocr_results) - len(filtered_results)
         if removed_count > 0:
-            log.info(f"过滤纯数字和符号文本: {len(ocr_results)} -> {len(filtered_results)} (移除了 {removed_count} 个纯数字/符号文本)")
+            logging.info(f"过滤纯数字和符号文本: {len(ocr_results)} -> {len(filtered_results)} (移除了 {removed_count} 个纯数字/符号文本)")
         
         return filtered_results

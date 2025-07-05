@@ -17,7 +17,7 @@ from enum import Enum
 
 from core.ocr.ocr_manager import OCRResult
 from core.config import config
-from utils import manga_logger as log
+import logging
 from ..data_models import TranslationResult
 
 
@@ -73,7 +73,7 @@ class MangaTextReplacer:
         """初始化漫画文本替换器"""
         self.font_cache = {}  # 字体缓存
         self.font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'font')
-        log.info("MangaTextReplacer初始化完成")
+        logging.info("MangaTextReplacer初始化完成")
 
     def _get_default_font_path(self) -> str:
         """获取默认字体路径"""
@@ -81,14 +81,14 @@ class MangaTextReplacer:
         font_name = config.font_name.value
         if font_name:
             font_path = os.path.join(self.font_dir, font_name)
-            # if os.path.exists(font_path):
-            #     log.debug(f"使用配置的字体: {font_path}")
-            #     return font_path
-            # else:
-            #     log.warning(f"配置的字体不存在: {font_path}")
-
-        # 如果配置的字体不可用，尝试使用系统字体
-        # 首先使用项目字体目录中的字体
+            if os.path.exists(font_path):
+                logging.debug(f"使用配置的字体: {font_path}")
+                return font_path
+            else:
+                        logging.warning(f"配置的字体不存在: {font_path}")
+    
+            # 如果配置的字体不可用，尝试使用系统字体
+            # 首先使用项目字体目录中的字体
         system_fonts = []
         if os.path.exists(self.font_dir):
             for f in os.listdir(self.font_dir):
@@ -111,10 +111,10 @@ class MangaTextReplacer:
         
         for font_path in system_fonts:
             if os.path.exists(font_path):
-                # log.info(f"使用系统字体: {font_path}")
+                logging.info(f"使用系统字体: {font_path}")
                 return font_path
         
-        log.warning("未找到合适的字体文件，将使用PIL默认字体")
+        logging.warning("未找到合适的字体文件，将使用PIL默认字体")
         return None
     
     def _get_font(self, size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
@@ -128,18 +128,18 @@ class MangaTextReplacer:
             if font_path:
                 try:
                     font = ImageFont.truetype(font_path, size)
-                    # log.debug(f"成功加载字体: {font_path} (大小: {size}px)")
+                    logging.debug(f"成功加载字体: {font_path} (大小: {size}px)")
                 except Exception as e:
-                    # log.error(f"加载字体 {font_path} 失败: {e}")
+                    logging.error(f"加载字体 {font_path} 失败: {e}")
                     font = ImageFont.load_default()
             else:
                 font = ImageFont.load_default()
-                # log.warning("使用PIL默认字体")
+                logging.warning("使用PIL默认字体")
             
             self.font_cache[cache_key] = font
             return font
         except Exception as e:
-            log.error(f"获取字体时出错: {e}")
+            logging.error(f"获取字体时出错: {e}")
             font = ImageFont.load_default()
             self.font_cache[cache_key] = font
             return font
@@ -178,14 +178,14 @@ class MangaTextReplacer:
         if direction == TextDirection.VERTICAL:
             # 垂直文本，字体大小主要由宽度和列数决定
             estimated_size = width / (line_or_column_count * spacing_factor)
-            log.debug(f"估算原文垂直字号: width({width}) / (cols({line_or_column_count}) * factor({spacing_factor})) = {estimated_size}")
+            logging.debug(f"估算原文垂直字号: width({width}) / (cols({line_or_column_count}) * factor({spacing_factor})) = {estimated_size}")
         else:
             # 水平文本，字体大小主要由高度和行数决定
             estimated_size = height / (line_or_column_count * spacing_factor)
-            log.debug(f"估算原文水平字号: height({height}) / (lines({line_or_column_count}) * factor({spacing_factor})) = {estimated_size}")
+            logging.debug(f"估算原文水平字号: height({height}) / (lines({line_or_column_count}) * factor({spacing_factor})) = {estimated_size}")
         
         final_size = max(8, int(estimated_size))
-        log.debug(f"最终估算基准字号 (不小于8): {final_size}")
+        logging.debug(f"最终估算基准字号 (不小于8): {final_size}")
         return final_size
 
     def _calculate_adaptive_font_size(self, text: str,
@@ -199,7 +199,7 @@ class MangaTextReplacer:
         1. 向上搜索：尝试放大字体以填充空间。
         2. 向下搜索：如果放大后或基准大小本身就溢出，则缩小字体以确保能放下。
         """
-        log.debug(f"开始双向计算自适应字体: text='{text[:20]}...', max_w={max_width}, max_h={max_height}, base_size={base_font_size}, dir={direction.value}, count={line_or_column_count}")
+        logging.debug(f"开始双向计算自适应字体: text='{text[:20]}...', max_w={max_width}, max_h={max_height}, base_size={base_font_size}, dir={direction.value}, count={line_or_column_count}")
 
         # --- Helper function to check if a font size overflows ---
         def does_it_overflow(size):
@@ -221,7 +221,7 @@ class MangaTextReplacer:
             return False
 
         # --- Phase 1: Upward search to find the largest possible font size ---
-        log.info(f"  (Phase 1) 向上搜索最大可用字号...")
+        logging.info(f"  (Phase 1) 向上搜索最大可用字号...")
         low = base_font_size
         high = min(max_height, int(max_width / (line_or_column_count if direction == TextDirection.VERTICAL else 1)) * 2) # A reasonable upper bound
         high = max(low, high) # Ensure high is not smaller than low
@@ -230,7 +230,7 @@ class MangaTextReplacer:
 
         # Check if base_font_size is already overflowing
         if does_it_overflow(base_font_size):
-            log.warning(f"  => 基准字号 {base_font_size} 已溢出, 直接进入向下搜索阶段。")
+            logging.warning(f"  => 基准字号 {base_font_size} 已溢出, 直接进入向下搜索阶段。")
         else:
             # Binary search for the largest size that does NOT overflow
             best_fit_size = low
@@ -243,14 +243,14 @@ class MangaTextReplacer:
                     low = mid + 1
                 else:
                     high = mid - 1 # This size is too big
-            log.info(f"  => 向上搜索完成, 找到最佳填充字号: {best_fit_size}")
+            logging.info(f"  => 向上搜索完成, 找到最佳填充字号: {best_fit_size}")
 
 
         # --- Phase 2: Downward search (if needed) to ensure the text fits ---
         # This is a fallback, especially if the upward search resulted in an overflowing size
         # or if the initial base_font_size was already too large.
         if does_it_overflow(best_fit_size):
-            log.warning(f"  (Phase 2) 字号 {best_fit_size} 仍然溢出, 开始向下搜索以保证内容完整。")
+            logging.warning(f"  (Phase 2) 字号 {best_fit_size} 仍然溢出, 开始向下搜索以保证内容完整。")
             low = 6
             high = best_fit_size
             final_size = low
@@ -266,9 +266,9 @@ class MangaTextReplacer:
                     high = mid - 1 # It overflows, must be smaller
             
             best_fit_size = final_size
-            log.info(f"  => 向下搜索完成, 最终确定的安全字号为: {best_fit_size}")
+            logging.info(f"  => 向下搜索完成, 最终确定的安全字号为: {best_fit_size}")
 
-        log.info(f"最终自适应字号确定为: {best_fit_size}")
+        logging.info(f"最终自适应字号确定为: {best_fit_size}")
         return best_fit_size
 
     def _split_text_to_lines(self, text: str, max_width: int, font_size: int) -> List[str]:
@@ -399,12 +399,12 @@ class MangaTextReplacer:
                 translation_result = self._find_fuzzy_translation(original_text, translation_map)
 
             if not translation_result:
-                log.warning(f"未找到原文 '{original_text}' 的翻译，跳过此文本块。")
+                logging.warning(f"未找到原文 '{original_text}' 的翻译，跳过此文本块。")
                 continue
 
             # **核心逻辑：如果LLM决定不翻译，我们就跳过这个文本块。**
             if not translation_result.translated:
-                log.debug(f"文本 '{original_text}' 被标记为无需翻译，已跳过。")
+                logging.debug(f"文本 '{original_text}' 被标记为无需翻译，已跳过。")
                 continue
 
             translated_text = translation_result.text
@@ -433,8 +433,8 @@ class MangaTextReplacer:
             else: # VERTICAL
                 column_count = ocr_item.merged_count if ocr_item.merged_count and ocr_item.merged_count > 0 else 1
 
-            log.info(f"--- 开始处理文本框: original_text='{original_text[:20]}...' ---")
-            log.debug(f"原始方向: {original_direction.value}, 目标方向: {target_direction.value}, 原始合并数: {ocr_item.merged_count}")
+            logging.info(f"--- 开始处理文本框: original_text='{original_text[:20]}...' ---")
+            logging.debug(f"原始方向: {original_direction.value}, 目标方向: {target_direction.value}, 原始合并数: {ocr_item.merged_count}")
             # 1. 估算原文的基准字体大小
             base_font_size = self._estimate_original_font_size(
                 ocr_item.bbox,
@@ -451,7 +451,7 @@ class MangaTextReplacer:
                 direction=target_direction,
                 line_or_column_count=line_count if target_direction == TextDirection.HORIZONTAL else column_count
             )
-            log.info(f"最终确定字体大小: {font_size}")
+            logging.info(f"最终确定字体大小: {font_size}")
             
             alignment = self._determine_alignment(target_direction, target_language)
             line_spacing, char_spacing = self._calculate_spacing(
@@ -583,10 +583,10 @@ class MangaTextReplacer:
             return inpainted_image
 
         except Exception as e:
-            log.error(f"背景涂白失败: {e}", exc_info=True)
+            logging.error(f"背景涂白失败: {e}", exc_info=True)
             return image.copy() # 返回原始图像副本以避免崩溃
 
-    def _draw_text_with_layout(self, image: np.ndarray, 
+    def _draw_text_with_layout(self, image: np.ndarray,
                                replacement: MangaTextReplacement) -> np.ndarray:
         """根据布局绘制文本"""
         try:
@@ -616,10 +616,10 @@ class MangaTextReplacer:
 
             return cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
         except Exception as e:
-            log.error(f"绘制文本时出错: {e}", exc_info=True)
+            logging.error(f"绘制文本时出错: {e}", exc_info=True)
             return image # 返回原始图像
 
-    def _draw_horizontal_text(self, draw: ImageDraw.Draw, 
+    def _draw_horizontal_text(self, draw: ImageDraw.Draw,
                               replacement: MangaTextReplacement, 
                               font: ImageFont.FreeTypeFont,
                               box_center_x: int, box_center_y: int,
@@ -791,7 +791,7 @@ class MangaTextReplacer:
         )
         
         if not replacements:
-            log.warning("在 process_manga_image 中没有生成可替换的漫画文本")
+            logging.warning("在 process_manga_image 中没有生成可替换的漫画文本")
             return image.copy()
         
         # 执行漫画文本替换
@@ -805,8 +805,8 @@ class MangaTextReplacer:
         """保存处理结果图像"""
         try:
             cv2.imwrite(output_path, image)
-            log.info(f"结果图像已保存到: {output_path}")
+            logging.info(f"结果图像已保存到: {output_path}")
             return True
         except Exception as e:
-            log.error(f"保存图像失败: {e}", exc_info=True)
+            logging.error(f"保存图像失败: {e}", exc_info=True)
             return False

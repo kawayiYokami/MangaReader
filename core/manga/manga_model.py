@@ -1,6 +1,6 @@
 import os
 import re
-from utils import manga_logger as log
+import logging
 from dataclasses import dataclass, field
 from typing import List, Set, Optional, Tuple
 
@@ -100,13 +100,13 @@ class MangaInfo:
             manga_threshold = config.dimension_variance_threshold.value
             self.is_likely_manga = self.dimension_variance < manga_threshold
 
-            log.debug(f"尺寸分析完成 {self.file_path}: "
+            logging.debug(f"尺寸分析完成 {self.file_path}: "
                      f"方差分数={self.dimension_variance:.3f}, "
                      f"可能是漫画={self.is_likely_manga}, "
                      f"页数={len(self.page_dimensions)}")
 
         except Exception as e:
-            log.warning(f"页面尺寸分析失败 {self.file_path}: {e}")
+            logging.warning(f"页面尺寸分析失败 {self.file_path}: {e}")
             # 分析失败时保守处理
             self.dimension_variance = 0.0
             self.is_likely_manga = True

@@ -23,7 +23,7 @@ from core.translation.translator import TranslatorFactory
 from core.manga_translation.processor import MangaPageProcessor
 from core.manga_translation.service import MangaTranslationService
 from core.core_cache.cache_factory import get_cache_factory_instance
-from utils import manga_logger as log
+import logging
 
 router = APIRouter()
 
@@ -53,7 +53,7 @@ def create_manga_translation_service_singleton() -> MangaTranslationService:
     This function should only be called once when the module is loaded.
     """
     try:
-        log.info("正在创建 MangaTranslationService 单例实例...")
+        logging.info("正在创建 MangaTranslationService 单例实例...")
         ocr_manager = OCRManager()
         ocr_manager.load_model()
 
@@ -76,10 +76,10 @@ def create_manga_translation_service_singleton() -> MangaTranslationService:
             page_processor=page_processor,
             image_cache=image_cache
         )
-        log.info("MangaTranslationService 单例创建成功。")
+        logging.info("MangaTranslationService 单例创建成功。")
         return service_instance
     except Exception as e:
-        log.critical(f"致命错误：创建 MangaTranslationService 单例失败: {e}", exc_info=True)
+        logging.critical(f"致命错误：创建 MangaTranslationService 单例失败: {e}", exc_info=True)
         # In a real production app, you might want to exit here if the service is critical
         raise
 
@@ -127,7 +127,7 @@ async def translate_file_and_download_api(
             temp_upload_path = temp_upload_file.name
 
         # 调用同步翻译服务
-        log.info(f"正在为 {temp_upload_path} 调用同步翻译服务")
+        logging.info(f"正在为 {temp_upload_path} 调用同步翻译服务")
         translated_temp_path = await asyncio.to_thread(
             service.translate_manga_file,
             manga_path=temp_upload_path,
@@ -135,7 +135,7 @@ async def translate_file_and_download_api(
         )
 
         if not translated_temp_path or not os.path.exists(translated_temp_path):
-            log.error(f"文件 {file.filename} 翻译失败，服务未返回有效的文件路径。")
+            logging.error(f"文件 {file.filename} 翻译失败，服务未返回有效的文件路径。")
             raise HTTPException(status_code=500, detail="翻译失败，服务未产出结果文件。")
 
         # Prepare for download
@@ -154,7 +154,7 @@ async def translate_file_and_download_api(
         )
 
     except Exception as e:
-        log.error(f"为 {file.filename} 进行翻译和下载时出错: {e}", exc_info=True)
+        logging.error(f"为 {file.filename} 进行翻译和下载时出错: {e}", exc_info=True)
         # Cleanup temp files immediately on error
         cleanup_temp_files([temp_upload_path, translated_temp_path])
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
@@ -166,9 +166,9 @@ def cleanup_temp_files(paths: list):
         if path and os.path.exists(path):
             try:
                 os.unlink(path)
-                log.info(f"已清理临时文件: {path}")
+                logging.info(f"已清理临时文件: {path}")
             except OSError as e:
-                log.error(f"删除临时文件 {path} 时出错: {e}")
+                logging.error(f"删除临时文件 {path} 时出错: {e}")
 
 @router.post(
     "/page",
@@ -204,7 +204,7 @@ async def get_translated_page_from_cache_api(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="在缓存中未找到已翻译页面。")
 
     except Exception as e:
-        log.error(f"获取 {manga_path} 第 {page_index} 页的缓存页面时出错: {e}", exc_info=True)
+        logging.error(f"获取 {manga_path} 第 {page_index} 页的缓存页面时出错: {e}", exc_info=True)
         # Re-raise known HTTP exceptions, otherwise return a generic 500
         if isinstance(e, HTTPException):
             raise
@@ -230,5 +230,5 @@ async def translate_text_api(text: str, target_lang: str = "zh"):
             "target_lang": target_lang
         }
     except Exception as e:
-       log.error(f"文本翻译失败: {e}", exc_info=True)
+       logging.error(f"文本翻译失败: {e}", exc_info=True)
        raise HTTPException(status_code=500, detail=f"文本翻译失败: {e}")

@@ -9,7 +9,7 @@ from core.config import config
 
 if TYPE_CHECKING:
     from core.core_cache.manga_cache import MangaListCacheManager
-from utils import manga_logger as log
+import logging
 from core.translation.translator import TranslatorFactory
 from core.core_cache.cache_factory import get_cache_factory_instance
 from core.core_cache.cache_interface import CacheInterface
@@ -26,21 +26,21 @@ class MangaManager:
         self.translation_cache_manager: CacheInterface = get_cache_factory_instance().get_manager("translation")
         self.update_queue = asyncio.Queue()
         self.current_manga: MangaInfo | None = None
-        log.info("MangaManager (v2) 初始化完成。")
+        logging.info("MangaManager (v2) 初始化完成。")
             
     def save_config(self):
         """保存配置到文件"""
         try:
             config.save()
-            log.info("配置已保存")
+            logging.info("配置已保存")
         except Exception as e:
-            log.error(f"保存配置时发生错误: {str(e)}")
+            logging.error(f"保存配置时发生错误: {str(e)}")
             
     def create_translator(self):
         """根据配置创建翻译器实例"""
         try:
             translator_type = config.translator_type.value
-            log.info(f"创建翻译器: {translator_type}")
+            logging.info(f"创建翻译器: {translator_type}")
             
             if translator_type == "智谱":
                 return TranslatorFactory.create_translator(
@@ -54,31 +54,31 @@ class MangaManager:
                     api_key=config.google_api_key.value
                 )
             else:
-                log.warning(f"未知的翻译器类型: {translator_type}，使用Google翻译作为默认选项")
+                logging.warning(f"未知的翻译器类型: {translator_type}，使用Google翻译作为默认选项")
                 return TranslatorFactory.create_translator("Google")
         except Exception as e:
-            log.error(f"创建翻译器时发生错误: {str(e)}，使用Google翻译作为备选")
+            logging.error(f"创建翻译器时发生错误: {str(e)}，使用Google翻译作为备选")
             return TranslatorFactory.create_translator("Google")
             
     def clear_translation_cache(self):
         """清空翻译缓存"""
         try:
             self.translation_cache_manager.clear()
-            log.info("翻译缓存已通过 TranslationCacheManager 清空")
+            logging.info("翻译缓存已通过 TranslationCacheManager 清空")
         except Exception as e:
-            log.error(f"通过 TranslationCacheManager 清空翻译缓存时发生错误: {str(e)}")
+            logging.error(f"通过 TranslationCacheManager 清空翻译缓存时发生错误: {str(e)}")
             
     async def clear_manga_cache(self):
         """清空漫画扫描缓存"""
         try:
             await self.manga_repo.clear()
-            log.info("漫画扫描缓存已通过 MangaListCacheManager (manga_repo) 清空")
+            logging.info("漫画扫描缓存已通过 MangaListCacheManager (manga_repo) 清空")
         except Exception as e:
-            log.error(f"通过 MangaListCacheManager (manga_repo) 清空漫画扫描缓存时发生错误: {str(e)}")
+            logging.error(f"通过 MangaListCacheManager (manga_repo) 清空漫画扫描缓存时发生错误: {str(e)}")
 
     async def clear_all_data(self):
         """清空数据库中的所有漫画数据"""
-        log.info("开始清空所有漫画数据...")
+        logging.info("开始清空所有漫画数据...")
         await self.manga_repo.clear()
         self.current_manga = None
         
@@ -92,23 +92,23 @@ class MangaManager:
         self.clear_translation_cache()
 
         self._emit_event('data_loaded', {'manga_count': 0, 'tags_count': 0})
-        log.info("所有漫画数据已清空。")
+        logging.info("所有漫画数据已清空。")
 
     async def add_manga_from_path(self, path: str):
         """扫描路径，并将发现的漫画信息存入数据库。"""
         if not os.path.exists(path):
-            log.error(f"路径不存在，无法添加: {path}")
+            logging.error(f"路径不存在，无法添加: {path}")
             return
 
         self._emit_event('data_loading')
-        log.info(f"开始扫描路径并更新数据库: {path}")
+        logging.info(f"开始扫描路径并更新数据库: {path}")
 
         try:
             # 1. 扫描文件系统获取 MangaInfo 对象列表
             newly_scanned_mangas = await asyncio.to_thread(self._scan_and_load_mangas, path)
 
             if not newly_scanned_mangas:
-                log.warning(f"路径 {path} 中未找到有效漫画。")
+                logging.warning(f"路径 {path} 中未找到有效漫画。")
                 manga_count = await self.get_manga_count()
                 tags_count = await self.get_tags_count()
                 self._emit_event('data_loaded', {'manga_count': manga_count, 'tags_count': tags_count})
@@ -117,7 +117,7 @@ class MangaManager:
             # 2. 将每个 MangaInfo 对象交给 Repository 处理
             await self.manga_repo.add_or_update_manga_batch(newly_scanned_mangas)
 
-            log.info(f"路径 {path} 的数据库更新完成。")
+            logging.info(f"路径 {path} 的数据库更新完成。")
             # 3. 发送一个简单的通知，让前端知道需要刷新了
             manga_count = await self.get_manga_count()
             tags_count = await self.get_tags_count()
@@ -125,7 +125,7 @@ class MangaManager:
 
         except Exception as e:
             error_msg = f"从路径 {path} 添加漫画时发生错误: {e}"
-            log.error(error_msg, exc_info=True)
+            logging.error(error_msg, exc_info=True)
             self._emit_event('data_load_failed', {'error': error_msg})
 
     def _scan_and_load_mangas(self, root_path: str) -> List[MangaInfo]:
@@ -142,7 +142,7 @@ class MangaManager:
                 if manga:
                     loaded_mangas.append(manga)
             else:
-                 log.warning(f"不支持的单个文件扫描类型: {root_path}")
+                 logging.warning(f"不支持的单个文件扫描类型: {root_path}")
             return loaded_mangas
             
         for root, dirs, files in os.walk(root_path):
@@ -167,17 +167,17 @@ class MangaManager:
     def _load_single_manga(self, path: str) -> MangaInfo | None:
         """使用新架构加载单个漫画"""
         try:
-            log.info(f"[_load_single_manga] 收到路径: '{path}'")
+            logging.info(f"[_load_single_manga] 收到路径: '{path}'")
             data_source = DataSourceFactory.create(path)
             if not data_source:
-                log.error(f"[_load_single_manga] DataSourceFactory failed to create a source for path: {path}")
+                logging.error(f"[_load_single_manga] DataSourceFactory failed to create a source for path: {path}")
                 return None
             
             properties = data_source.get_properties()
-            log.info(f"[_load_single_manga] 从数据源收到的属性: {properties}")
+            logging.info(f"[_load_single_manga] 从数据源收到的属性: {properties}")
 
             if not properties:
-                log.warning(f"数据源无效，跳过: {path}")
+                logging.warning(f"数据源无效，跳过: {path}")
                 return None
 
             file_basename = os.path.basename(path)
@@ -198,14 +198,14 @@ class MangaManager:
                  manga.analyze_page_dimensions()
 
             if manga.is_valid:
-                log.info(f"成功加载漫画: {manga.title} ({manga.file_path})")
+                logging.info(f"成功加载漫画: {manga.title} ({manga.file_path})")
                 return manga
             else:
-                log.warning(f"加载的漫画无效，已跳过: {path}, Tags: {tags}")
+                logging.warning(f"加载的漫画无效，已跳过: {path}, Tags: {tags}")
                 return None
 
         except Exception as e:
-            log.error(f"加载单个漫画失败: {path}, 原因: {e}", exc_info=True)
+            logging.error(f"加载单个漫画失败: {path}, 原因: {e}", exc_info=True)
             return None
 
     async def get_manga_list(self, **kwargs) -> List[Dict]:
@@ -234,11 +234,11 @@ class MangaManager:
         try:
             self.update_queue.put_nowait(event)
         except asyncio.QueueFull:
-            log.warning(f"MangaManager 事件队列已满，无法发送事件: {event_type}")
+            logging.warning(f"MangaManager 事件队列已满，无法发送事件: {event_type}")
 
     def change_page(self, page_number):
         if self.current_manga is None:
-            log.warning("未选择漫画，无法改变页码")
+            logging.warning("未选择漫画，无法改变页码")
             return
 
         total_pages = self.current_manga.total_pages
@@ -246,7 +246,7 @@ class MangaManager:
             config.current_page.value = page_number
             # self.page_changed.emit(page_number) # 页面切换暂时不广播
         else:
-            log.warning(f"页码超出范围: {page_number + 1}, 总页数: {total_pages}")
+            logging.warning(f"页码超出范围: {page_number + 1}, 总页数: {total_pages}")
 
     # TODO: [重构] 以下方法 (`filter_manga_by_tags`, `translate_titles`, `optimize_tags`, `analyze_and_merge_tags`)
     # 已被移除，因为它们依赖于一个内存中的 manga_list，这与新的数据库驱动架构不兼容。
@@ -257,7 +257,7 @@ class MangaManager:
         # TODO: [重构] 此功能的实现需要一个能在数据库中更新主键（file_path）的 repository 方法。
         # 这通常需要 "DELETE old" + "INSERT new" 事务操作。
         # 在 repository 层实现该功能前，此方法暂时禁用。
-        log.warning("rename_manga_file 功能正在重构中，暂时禁用。")
+        logging.warning("rename_manga_file 功能正在重构中，暂时禁用。")
         return False
         # old_path = manga.file_path
         # new_path = ...
@@ -268,10 +268,10 @@ class MangaManager:
         if manga == self.current_manga:
             return
             
-        log.info(f"切换当前漫画: {manga.title if manga else 'None'}")
+        logging.info(f"切换当前漫画: {manga.title if manga else 'None'}")
         
         if manga and not os.path.exists(manga.file_path):
-            log.warning(f"漫画文件不存在: {manga.file_path}，将从数据库中移除。")
+            logging.warning(f"漫画文件不存在: {manga.file_path}，将从数据库中移除。")
             # TODO: [重构] 需要一个 repository 方法来从数据库中删除漫画。
             # await self.manga_repo.delete_manga_by_path(manga.file_path)
             self.current_manga = None
