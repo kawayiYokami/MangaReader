@@ -9,7 +9,7 @@ from core.translation.translator import BaseTranslator
 from core.manga.manga_text_replacer import MangaTextReplacer
 from core.config import config
 from core.harmonization_map_manager import HarmonizationMapManager
-from utils import manga_logger as log
+import logging
 
 # 提示词现在由负责漫画翻译的业务层来定义，而不是通用的翻译器层。
 MANGA_LLM_PROMPT = """
@@ -123,12 +123,12 @@ class MangaPageProcessor:
         images_data = image_inputs
 
         try:
-            log.debug("开始批量OCR识别...")
+            logging.debug("开始批量OCR识别...")
             all_structured_texts_per_page: List[List[OCRResult]] = []
 
             for i, img_data_item in enumerate(images_data):
                 if self.cancel_event.is_set():
-                    log.warning(f"🛑 在OCR阶段（页面 {i+1}）处理被取消。")
+                    logging.warning(f"🛑 在OCR阶段（页面 {i+1}）处理被取消。")
                     raise asyncio.CancelledError("Page processing was cancelled.")
 
                 # 假设在需要时正确提供了缓存键
@@ -143,7 +143,7 @@ class MangaPageProcessor:
                 filtered_results_page = [r for r in filtered_results_page if r.confidence >= config.ocr_confidence_threshold.value]
                 structured_texts_page: List[OCRResult] = self.ocr_manager.get_structured_text(filtered_results_page)
                 all_structured_texts_per_page.append(structured_texts_page)
-                log.debug(f"页面 {i+1} OCR完成，找到 {len(structured_texts_page)} 个文本块。")
+                logging.debug(f"页面 {i+1} OCR完成，找到 {len(structured_texts_page)} 个文本块。")
 
             unique_original_texts = set()
             for structured_texts_page_item in all_structured_texts_per_page:
@@ -155,13 +155,13 @@ class MangaPageProcessor:
             texts_to_translate_mapping = {}
             actual_texts_for_api = []
             
-            log.debug("应用和谐化规则...")
+            logging.debug("应用和谐化规则...")
             for original_text in unique_original_texts:
                 harmonized_text = self.harmonization_manager.apply_mapping_to_text(original_text)
                 texts_to_translate_mapping[original_text] = harmonized_text
                 actual_texts_for_api.append(harmonized_text)
             
-            log.debug(f"开始为 {len(actual_texts_for_api)} 个独立文本进行批量翻译...")
+            logging.debug(f"开始为 {len(actual_texts_for_api)} 个独立文本进行批量翻译...")
             
             system_prompt = self._build_system_prompt(target_language, manga_title)
             
@@ -172,7 +172,7 @@ class MangaPageProcessor:
             # 1. 打包文本为用户提示词块
             packed_user_prompts = prompt_handler.pack_texts(actual_texts_for_api)
             
-            log.debug(f"已将 {len(actual_texts_for_api)} 个文本块打包成 {len(packed_user_prompts)} 个API请求。")
+            logging.debug(f"已将 {len(actual_texts_for_api)} 个文本块打包成 {len(packed_user_prompts)} 个API请求。")
 
             # 2. 调用通用翻译器，传入打包好的用户提示词
             # translator现在返回一个从“打包的提示”到“包含LLM响应的TranslationResult”的映射
@@ -197,14 +197,14 @@ class MangaPageProcessor:
                     final_translations_map[original_text] = translation_results_map.get(
                         harmonized_text,
                         final_translations_map.get(original_text) # 检查是否已经有回退
-                    )
-
-            log.debug("批量翻译完成。开始页面内文本替换...")
+                        )
+            
+            logging.debug("批量翻译完成。开始页面内文本替换...")
             final_result_images: List[np.ndarray] = []
             
             for page_idx, (img_data_item, structured_texts_page_item) in enumerate(zip(images_data, all_structured_texts_per_page)):
                 if self.cancel_event.is_set():
-                    log.warning(f"🛑 在文本替换阶段（页面 {page_idx+1}）处理被取消。")
+                    logging.warning(f"🛑 在文本替换阶段（页面 {page_idx+1}）处理被取消。")
                     raise asyncio.CancelledError("Page processing was cancelled.")
 
                 if not structured_texts_page_item:
@@ -224,17 +224,17 @@ class MangaPageProcessor:
                 page_identifier = f"页面 {page_idx+1}"
                 if file_paths_for_cache and file_paths_for_cache[page_idx]:
                     page_identifier = f"文件 '{os.path.basename(file_paths_for_cache[page_idx])}' (页码 {page_idx+1})"
-                log.debug(f"{page_identifier} 文本替换完成。")
+                logging.debug(f"{page_identifier} 文本替换完成。")
             
             return final_result_images
         
         except asyncio.CancelledError:
-            log.warning("捕获到取消请求。正在返回部分或空结果。")
+            logging.warning("捕获到取消请求。正在返回部分或空结果。")
             # 根据需求，可以返回目前已处理的内容，或者直接返回空。
             # 目前，重新引发异常，让服务层来处理它。
             raise
         except Exception as e:
-            log.error(f"处理页面时发生意外错误: {e}", exc_info=True)
+            logging.error(f"处理页面时发生意外错误: {e}", exc_info=True)
             raise RuntimeError(f"处理页面失败: {e}")
 
     async def process_page_for_diagnostics(self,
@@ -247,34 +247,34 @@ class MangaPageProcessor:
         此方法将大部分业务逻辑集中于此，供诊断服务器等工具调用。
         """
         # 1. OCR
-        log.debug("诊断模式：开始OCR...")
+        logging.debug("诊断模式：开始OCR...")
         ocr_results: List[OCRResult] = await self.ocr_manager.recognize_image_data(image_input)
         filtered_results = self.ocr_manager.filter_numeric_and_symbols(ocr_results)
         # 在诊断模式下，我们可能希望看到所有结果，所以暂时不过滤置信度
         # filtered_results = [r for r in filtered_results if r.confidence >= config.ocr_confidence_threshold.value]
         structured_ocr_results = self.ocr_manager.get_structured_text(filtered_results)
-        log.debug(f"诊断模式：OCR完成，找到 {len(structured_ocr_results)} 个文本块。")
+        logging.debug(f"诊断模式：OCR完成，找到 {len(structured_ocr_results)} 个文本块。")
 
         # 2. 翻译
         translation_map = {}
         if not structured_ocr_results:
-            log.debug("诊断模式：未找到文本，跳过翻译。")
+            logging.debug("诊断模式：未找到文本，跳过翻译。")
         else:
             # 和谐化处理
-            log.debug("诊断模式：开始和谐化处理...")
+            logging.debug("诊断模式：开始和谐化处理...")
             unique_texts = {res.text.strip() for res in structured_ocr_results if res.text.strip()}
             texts_to_translate_mapping = {text: self.harmonization_manager.apply_mapping_to_text(text) for text in unique_texts}
             actual_texts_for_api = sorted(list(set(texts_to_translate_mapping.values())))
 
             if not actual_texts_for_api:
-                log.debug("诊断模式：和谐化后无实际需要翻译的文本。")
+                logging.debug("诊断模式：和谐化后无实际需要翻译的文本。")
             else:
                 # 打包
-                log.debug(f"诊断模式：打包 {len(actual_texts_for_api)} 条文本...")
+                logging.debug(f"诊断模式：打包 {len(actual_texts_for_api)} 条文本...")
                 from core.translation.llm_prompt_handler import LLMPromptHandler
                 prompt_handler = LLMPromptHandler(max_chars=80000)
                 packed_user_prompts = prompt_handler.pack_texts(actual_texts_for_api)
-                log.debug(f"诊断模式：打包完成，生成 {len(packed_user_prompts)} 个API请求。")
+                logging.debug(f"诊断模式：打包完成，生成 {len(packed_user_prompts)} 个API请求。")
 
                 # 翻译
                 system_prompt = self._build_system_prompt(target_language, manga_title)
@@ -286,7 +286,7 @@ class MangaPageProcessor:
                 )
 
                 # 解包
-                log.debug("诊断模式：解包API响应...")
+                logging.debug("诊断模式：解包API响应...")
                 llm_responses = [res.text for res in packed_results_map.values() if res.translated and res.text]
                 unpacked_results_map = prompt_handler.unpack_results(llm_responses, actual_texts_for_api)
 
@@ -298,10 +298,10 @@ class MangaPageProcessor:
                         from core.data_models import TranslationResult
                         translation_map[original_text] = TranslationResult(text=original_text, translated=False)
         
-        log.debug("诊断模式：翻译流程完成。")
+        logging.debug("诊断模式：翻译流程完成。")
 
         # 3. 文本替换
-        log.debug("诊断模式：开始文本替换...")
+        logging.debug("诊断模式：开始文本替换...")
         replaced_image = self.text_replacer.process_manga_image(
             image_input.copy(),
             structured_ocr_results,
@@ -309,7 +309,7 @@ class MangaPageProcessor:
             target_language,
             inpaint_background=True
         )
-        log.debug("诊断模式：文本替换完成。")
+        logging.debug("诊断模式：文本替换完成。")
 
         return {
             "structured_ocr_results": structured_ocr_results,

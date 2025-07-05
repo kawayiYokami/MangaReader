@@ -27,7 +27,7 @@ from core.core_cache.cache_factory import get_cache_factory_instance
 from core.manga.data_source import _get_image_dimensions_fast
 from core.config import config
 from web.core_interface import get_core_interface
-from utils import manga_logger as log
+import logging
 
 
 class DisplayMode(Enum):
@@ -107,7 +107,7 @@ class MangaViewerManager:
         # 线程安全锁
         self.cache_lock = threading.RLock()
         
-        log.info(f"漫画查看管理器创建: 会话ID={self.session_id}")
+        logging.info(f"漫画查看管理器创建: 会话ID={self.session_id}")
     
     async def set_current_manga(self, manga_path: str, page: int = 0, force_rescan: bool = False) -> Dict[str, Any]:
         """
@@ -129,7 +129,7 @@ class MangaViewerManager:
             # 切换漫画时清空缓存
             if self.current_manga_path != manga_path:
                 self._clear_caches()
-                log.info(f"会话 {self.session_id}: 切换漫画，清空缓存")
+                logging.info(f"会话 {self.session_id}: 切换漫画，清空缓存")
             
             # 获取漫画信息
             manga_info = await self._get_manga_info(manga_path, force_rescan=force_rescan)
@@ -141,13 +141,13 @@ class MangaViewerManager:
             self.current_page = max(0, min(page, manga_info["total_pages"] - 1))
             self.total_pages = manga_info["total_pages"]
             
-            log.info(f"会话 {self.session_id}: 设置当前漫画 {manga_path}, 页面 {self.current_page}")
+            logging.info(f"会话 {self.session_id}: 设置当前漫画 {manga_path}, 页面 {self.current_page}")
             
             # V5 核心逻辑: 检查是否存在页面策略，如果不存在，则启动后台分析
             # 注意：这里需要 await，因为 get_policy 是异步的
             policy = await self.policy_manager.get_policy(manga_path, 0)
             if policy is None:
-                log.info(f"'{manga_path}' 首次打开，启动后台页面分析任务。")
+                logging.info(f"'{manga_path}' 首次打开，启动后台页面分析任务。")
                 asyncio.create_task(self._analyze_and_create_policies_async(manga_path))
             
             return {
@@ -157,7 +157,7 @@ class MangaViewerManager:
             }
             
         except Exception as e:
-            log.error(f"设置当前漫画失败: {e}")
+            logging.error(f"设置当前漫画失败: {e}")
             return {"success": False, "message": str(e)}
     
     async def get_page_images(self, page: int, display_mode: str = "single",
@@ -214,7 +214,7 @@ class MangaViewerManager:
             }
             
         except Exception as e:
-            log.error(f"获取页面图像失败: {e}")
+            logging.error(f"获取页面图像失败: {e}")
             return {"success": False, "message": str(e)}
     
     async def _get_page_image(self, page_index: int, use_translation: bool) -> Optional[Tuple[str, int, int]]:
@@ -225,7 +225,7 @@ class MangaViewerManager:
             else:
                 return await self._get_original_page(page_index)
         except Exception as e:
-            log.error(f"获取页面图像失败 (页面 {page_index}): {e}")
+            logging.error(f"获取页面图像失败 (页面 {page_index}): {e}")
             return None
 
     async def _get_original_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
@@ -233,44 +233,44 @@ class MangaViewerManager:
         获取原图页面及其尺寸, 实现V5架构中的“按需分析+预缓存”策略。
         """
         policy_str = await self.policy_manager.get_policy(self.current_manga_path, page_index)
-        log.debug(f"页面 {page_index} 的策略: {policy_str}")
+        logging.debug(f"页面 {page_index} 的策略: {policy_str}")
 
         # 情况1：策略明确为已缓存，尝试从持久化缓存中获取
         if policy_str == POLICY_CACHED:
             cached_page_bytes = self.page_cache.get_page(self.current_manga_path, page_index)
             if cached_page_bytes:
-                log.debug(f"页面缓存命中（策略：CACHED）：{self.current_manga_path} [页面 {page_index}]")
+                logging.debug(f"页面缓存命中（策略：CACHED）：{self.current_manga_path} [页面 {page_index}]")
                 try:
                     img = processor.read_image(cached_page_bytes)
                     if img is None: raise ValueError("无法解码缓存的JPEG")
                     encoded_str = base64.b64encode(cached_page_bytes).decode('utf-8')
                     return f"data:image/jpeg;base64,{encoded_str}", img.shape[1], img.shape[0]
                 except Exception as e:
-                    log.warning(f"Failed to decode cached page '{self.current_manga_path}' [Page {page_index}], resetting policy to PENDING and regenerating.")
+                    logging.warning(f"Failed to decode cached page '{self.current_manga_path}' [Page {page_index}], resetting policy to PENDING and regenerating.")
                     await self.policy_manager.set_policy(self.current_manga_path, page_index, POLICY_PENDING)
                     policy_str = POLICY_PENDING # 更新状态以便进入情况3
             else:
-                log.warning(f"Policy is CACHED but cache file is missing for '{self.current_manga_path}' [Page {page_index}], resetting policy to PENDING.")
+                logging.warning(f"Policy is CACHED but cache file is missing for '{self.current_manga_path}' [Page {page_index}], resetting policy to PENDING.")
                 await self.policy_manager.set_policy(self.current_manga_path, page_index, POLICY_PENDING)
                 policy_str = POLICY_PENDING # 更新状态以便进入情况3
 
         # 情况2：策略明确为不需要，直接获取原图，不缓存
         if policy_str == POLICY_NOT_REQUIRED:
-            log.debug(f"策略 '{policy_str}': 直接获取 {self.current_manga_path} [页面 {page_index}]")
+            logging.debug(f"策略 '{policy_str}': 直接获取 {self.current_manga_path} [页面 {page_index}]")
             return await self.core_interface.get_manga_page(self.current_manga_path, page_index, use_cache=False)
 
         # 情况3：策略是 PENDING 或 None（表示需要分析和缓存）
         # 立即获取原图返回给前端，然后启动后台任务生成缓存
-        log.debug(f"策略是 '{policy_str}': 返回原图并为 {self.current_manga_path} [页面 {page_index}] 启动后台缓存生成")
+        logging.debug(f"策略是 '{policy_str}': 返回原图并为 {self.current_manga_path} [页面 {page_index}] 启动后台缓存生成")
         
         original_image_info = await self.core_interface.get_manga_page(self.current_manga_path, page_index, use_cache=True)
         if not original_image_info:
-            log.error(f"无法获取页面 {page_index} 的原始图像信息。")
+            logging.error(f"无法获取页面 {page_index} 的原始图像信息。")
             return None
         
         # 对于 policy is None 的情况，我们需要进行一次即时分析来决定是否启动缓存任务
         if policy_str is None:
-            log.debug(f"即时分析页面 {page_index} 以决定是否需要缓存...")
+            logging.debug(f"即时分析页面 {page_index} 以决定是否需要缓存...")
             image_data_str, _, _ = original_image_info
             header, encoded = image_data_str.split(",", 1)
             image_bytes = base64.b64decode(encoded)
@@ -292,7 +292,7 @@ class MangaViewerManager:
             image_data_str, _, _ = image_info_tuple
             standard_height = config.page_cache_standard_height.value
 
-            log.debug(f"后台任务: 开始为页面 {page_index} 生成标准尺寸缓存。")
+            logging.debug(f"后台任务: 开始为页面 {page_index} 生成标准尺寸缓存。")
             header, encoded = image_data_str.split(",", 1)
             image_bytes = base64.b64decode(encoded)
             img = processor.read_image(image_bytes)
@@ -317,22 +317,22 @@ class MangaViewerManager:
             
             # 更新数据库中的策略
             await self.policy_manager.update_policy_to_cached(manga_path, page_index)
-            log.info(f"后台任务: 成功为 '{manga_path}' [Page {page_index}] 生成缓存并更新策略为 CACHED。")
+            logging.info(f"后台任务: 成功为 '{manga_path}' [Page {page_index}] 生成缓存并更新策略为 CACHED。")
 
         except Exception as e:
-            log.error(f"后台任务: 生成标准尺寸缓存失败 (页面 {page_index}): {e}", exc_info=True)
+            logging.error(f"后台任务: 生成标准尺寸缓存失败 (页面 {page_index}): {e}", exc_info=True)
 
     async def _analyze_and_create_policies_async(self, manga_path: str):
         """
         [后台任务] V5核心逻辑: 分析整本漫画的所有页面，并批量生成和存储预缓存策略。
         """
         try:
-            log.info(f"后台分析任务开始: {manga_path}")
+            logging.info(f"后台分析任务开始: {manga_path}")
             
             # 1. 获取所有页面的原始尺寸
             dimensions = await self.core_interface.get_all_page_dimensions(manga_path)
             if not dimensions:
-                log.warning(f"无法获取 '{manga_path}' 的页面尺寸，分析任务中止。")
+                logging.warning(f"无法获取 '{manga_path}' 的页面尺寸，分析任务中止。")
                 return
 
             # 2. 生成策略列表
@@ -355,10 +355,10 @@ class MangaViewerManager:
             # 3. 批量写入数据库
             if policies:
                 await self.policy_manager.set_policies_batch(policies)
-                log.info(f"后台分析任务完成: 为 '{manga_path}' 批量设置了 {len(policies)} 条页面策略。")
+                logging.info(f"后台分析任务完成: 为 '{manga_path}' 批量设置了 {len(policies)} 条页面策略。")
 
         except Exception as e:
-            log.error(f"后台分析任务失败: {manga_path}, 错误: {e}", exc_info=True)
+            logging.error(f"后台分析任务失败: {manga_path}, 错误: {e}", exc_info=True)
 
     async def _get_translated_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
         """获取翻译页面及其尺寸"""
@@ -369,7 +369,7 @@ class MangaViewerManager:
 
         with self.cache_lock:
             if cache_key in self.translated_cache:
-                log.debug(f"会话翻译缓存命中: {cache_key}")
+                logging.debug(f"会话翻译缓存命中: {cache_key}")
                 return self.translated_cache[cache_key]
 
         try:
@@ -379,7 +379,7 @@ class MangaViewerManager:
             )
 
             if not translated_data_bytes:
-                log.info(f"翻译失败或超时，返回原图: {page_index}")
+                logging.info(f"翻译失败或超时，返回原图: {page_index}")
                 return await self._get_original_page(page_index)
 
             img = processor.read_image(translated_data_bytes)
@@ -401,11 +401,11 @@ class MangaViewerManager:
                 self.translated_cache[cache_key] = final_image_info
                 self.loaded_pages.add(page_index)
             
-            log.debug(f"会话 {self.session_id}: 加载翻译页面 {page_index}")
+            logging.debug(f"会话 {self.session_id}: 加载翻译页面 {page_index}")
             return final_image_info
 
         except Exception as e:
-            log.error(f"获取翻译页面失败: {e}")
+            logging.error(f"获取翻译页面失败: {e}")
             return await self._get_original_page(page_index)
     
     def _preload_pages_async(self, page_indices: List[int], use_translation: bool):
@@ -416,9 +416,9 @@ class MangaViewerManager:
                     try:
                         await self._get_page_image(page_idx, use_translation)
                         self.preloaded_pages.add(page_idx)
-                        log.debug(f"预载页面完成: {page_idx}")
+                        logging.debug(f"预载页面完成: {page_idx}")
                     except Exception as e:
-                        log.warning(f"预载页面失败 {page_idx}: {e}")
+                        logging.warning(f"预载页面失败 {page_idx}: {e}")
         
         # 在事件循环中创建后台任务
         asyncio.create_task(preload_worker())
@@ -438,7 +438,7 @@ class MangaViewerManager:
                         "tags": getattr(manga, 'tags', [])
                     }
         except Exception as e:
-            log.error(f"获取漫画信息失败: {e}")
+            logging.error(f"获取漫画信息失败: {e}")
         return None
     
     def _is_page_translated(self, page_index: int) -> bool:
@@ -450,7 +450,7 @@ class MangaViewerManager:
             )
             return status == PageStatus.TRANSLATED
         except Exception as e:
-            log.warning(f"检查翻译状态失败: {e}")
+            logging.warning(f"检查翻译状态失败: {e}")
             return False
     
 
@@ -462,7 +462,7 @@ class MangaViewerManager:
             self.translated_cache.clear()
             self.loaded_pages.clear()
             self.preloaded_pages.clear()
-        log.debug(f"会话 {self.session_id}: 缓存已清空")
+        logging.debug(f"会话 {self.session_id}: 缓存已清空")
     
     def get_session_info(self) -> Dict[str, Any]:
         """获取会话信息"""
@@ -485,7 +485,7 @@ class MangaViewerManager:
     def cleanup(self):
         """清理会话资源"""
         self._clear_caches()
-        log.info(f"会话 {self.session_id}: 资源清理完成")
+        logging.info(f"会话 {self.session_id}: 资源清理完成")
 
 
 # 会话管理器字典
@@ -509,7 +509,7 @@ def cleanup_session(session_id: str):
         if session_id in _session_managers:
             _session_managers[session_id].cleanup()
             del _session_managers[session_id]
-            log.info(f"会话已清理: {session_id}")
+            logging.info(f"会话已清理: {session_id}")
 
 def get_active_sessions() -> List[str]:
     """获取活跃会话列表"""

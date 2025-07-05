@@ -5,7 +5,7 @@ from typing import List
 
 from core.manga.manga_model import MangaInfo
 from core.db.database_manager import db_manager
-from utils import manga_logger as log
+import logging
 
 class MangaRepository:
     def __init__(self):
@@ -58,10 +58,10 @@ class MangaRepository:
                 )
             
             conn.commit()
-            log.debug(f"成功添加/更新漫画到数据库: {manga.title}")
+            logging.debug(f"成功添加/更新漫画到数据库: {manga.title}")
 
         except sqlite3.Error as e:
-            log.error(f"添加/更新漫画 '{manga.file_path}' 时发生数据库错误: {e}", exc_info=True)
+            logging.error(f"添加/更新漫画 '{manga.file_path}' 时发生数据库错误: {e}", exc_info=True)
             conn.rollback()
 
     def get_mangas(self, order_by="last_modified DESC", search_query: str = None) -> List[MangaInfo]:
@@ -110,7 +110,7 @@ class MangaRepository:
                 manga_list.append(MangaInfo(**manga_data))
                 
         except sqlite3.Error as e:
-            log.error(f"从数据库获取漫画列表时出错: {e}", exc_info=True)
+            logging.error(f"从数据库获取漫画列表时出错: {e}", exc_info=True)
 
         return manga_list
         
@@ -123,9 +123,9 @@ class MangaRepository:
             cursor.execute("DELETE FROM tags")
             cursor.execute("DELETE FROM mangas")
             conn.commit()
-            log.info("已成功清空 mangas, tags, 和 manga_tags 表。")
+            logging.info("已成功清空 mangas, tags, 和 manga_tags 表。")
         except sqlite3.Error as e:
-            log.error(f"清空漫画数据时发生错误: {e}")
+            logging.error(f"清空漫画数据时发生错误: {e}")
             conn.rollback()
 
 # 创建一个单例实例

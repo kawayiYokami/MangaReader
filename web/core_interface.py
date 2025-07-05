@@ -38,7 +38,7 @@ from core.core_cache.thumbnail_cache import ThumbnailCache
 from core.config import config
 from core.core_cache.cache_factory import get_cache_factory_instance
 from core.image import processor
-from utils import manga_logger as log
+import logging
 
 
 # 数据模型定义
@@ -106,9 +106,9 @@ class CoreInterface:
         if self._manga_manager is None:
             try:
                 self._manga_manager = MangaManager()
-                log.info("MangaManager初始化成功")
+                logging.info("MangaManager初始化成功")
             except Exception as e:
-                log.error(f"MangaManager初始化失败: {e}", exc_info=True)
+                logging.error(f"MangaManager初始化失败: {e}", exc_info=True)
                 raise CoreInterfaceError("漫画管理器初始化失败", e)
         return self._manga_manager
 
@@ -126,9 +126,9 @@ class CoreInterface:
                     quality=config.thumbnail_quality.value,
                     max_cache_size_mb=config.thumbnail_max_size_mb.value
                 )
-                log.info("缩略图缓存管理器初始化成功")
+                logging.info("缩略图缓存管理器初始化成功")
             except Exception as e:
-                log.error(f"缩略图缓存管理器初始化失败: {e}")
+                logging.error(f"缩略图缓存管理器初始化失败: {e}")
                 raise CoreInterfaceError("缩略图缓存管理器初始化失败", e)
         return self._thumbnail_cache
 
@@ -147,7 +147,7 @@ class CoreInterface:
                 manga_count=manga_count
             )
         except Exception as e:
-            log.error(f"获取当前目录失败: {e}")
+            logging.error(f"获取当前目录失败: {e}")
             raise CoreInterfaceError("获取当前目录失败", e)
     
     async def set_directory(self, directory_path: str) -> Dict[str, Any]:
@@ -159,12 +159,12 @@ class CoreInterface:
             # 设置新目录并保存配置
             config.manga_dir.value = directory_path
             self.manga_manager.save_config()
-            log.info(f"漫画目录已成功设置为: {directory_path}")
+            logging.info(f"漫画目录已成功设置为: {directory_path}")
 
             # 设置目录被视为一个重要操作，将触发一次全新的扫描
             # 首先清空现有数据
             await self.manga_manager.clear_all_data()
-            log.info("由于设置了新目录，已清空所有旧数据以进行全新扫描。")
+            logging.info("由于设置了新目录，已清空所有旧数据以进行全新扫描。")
             
             # 然后调用统一的添加方法进行扫描
             return await self.add_mangas_from_paths([directory_path])
@@ -172,7 +172,7 @@ class CoreInterface:
         except CoreInterfaceError:
             raise
         except Exception as e:
-            log.error(f"设置目录时发生未知错误: {e}", exc_info=True)
+            logging.error(f"设置目录时发生未知错误: {e}", exc_info=True)
             raise CoreInterfaceError("设置目录时发生严重错误", e)
     
     # ==================== 漫画列表管理 ====================
@@ -180,14 +180,14 @@ class CoreInterface:
     async def get_manga_list(self, sort_by: str = "last_modified DESC", tag_filters: Optional[List[str]] = None) -> List[WebMangaInfo]:
         """从数据库获取漫画列表，并支持排序和过滤"""
         try:
-            log.info(f"获取漫画列表，排序: {sort_by}, 过滤: {tag_filters}")
+            logging.info(f"获取漫画列表，排序: {sort_by}, 过滤: {tag_filters}")
             manga_dicts = await self.manga_manager.get_manga_list(sort_by=sort_by, tag_filters=tag_filters)
             
             web_manga_list = [self._convert_dict_to_web_manga(d) for d in manga_dicts]
             return web_manga_list
 
         except Exception as e:
-            log.error(f"获取漫画列表失败: {e}", exc_info=True)
+            logging.error(f"获取漫画列表失败: {e}", exc_info=True)
             raise CoreInterfaceError("获取漫画列表失败", e)
     
     async def get_all_tags(self) -> List[str]:
@@ -195,7 +195,7 @@ class CoreInterface:
         try:
             return await self.manga_manager.get_all_tags()
         except Exception as e:
-            log.error(f"获取标签失败: {e}", exc_info=True)
+            logging.error(f"获取标签失败: {e}", exc_info=True)
             raise CoreInterfaceError("获取标签失败", e)
     
     # ==================== 漫画图片获取 ====================
@@ -212,10 +212,10 @@ class CoreInterface:
             if thumbnail_path and os.path.exists(thumbnail_path):
                 return thumbnail_path
             
-            log.warning(f"无法为漫画 '{manga_path}' 找到或生成有效的缩略图路径。")
+            logging.warning(f"无法为漫画 '{manga_path}' 找到或生成有效的缩略图路径。")
             return None
         except Exception as e:
-            log.error(f"在 CoreInterface 中获取缩略图路径失败: {e}", exc_info=True)
+            logging.error(f"在 CoreInterface 中获取缩略图路径失败: {e}", exc_info=True)
             return None
 
     async def get_manga_page(self, manga_path: str, page_num: int, use_cache: bool = True) -> Optional[Tuple[str, int, int]]:
@@ -223,21 +223,21 @@ class CoreInterface:
         try:
             manga_info = await self.get_manga_by_path(manga_path) # 改为调用封装后的方法
             if not manga_info:
-                log.warning(f"无法在管理器中找到漫画信息: {manga_path}")
+                logging.warning(f"无法在管理器中找到漫画信息: {manga_path}")
                 return None
             
             if not (0 <= page_num < manga_info.total_pages):
-                log.warning(f"页码超出范围: {page_num}, 总页数: {manga_info.total_pages}")
+                logging.warning(f"页码超出范围: {page_num}, 总页数: {manga_info.total_pages}")
                 return None
             
             data_source = DataSourceFactory.create(manga_path)
             if not data_source:
-                log.warning(f"无法为路径创建数据源: {manga_path}")
+                logging.warning(f"无法为路径创建数据源: {manga_path}")
                 return None
             
             image_data = data_source.get_page_image_data(page_num)
             if not image_data:
-                log.warning(f"无法获取页面 {page_num} 的图像数据: {manga_path}")
+                logging.warning(f"无法获取页面 {page_num} 的图像数据: {manga_path}")
                 return None
 
             width, height = -1, -1
@@ -249,7 +249,7 @@ class CoreInterface:
                     if img is not None:
                         height, width, _ = img.shape
                 except Exception as ex:
-                    log.warning(f"无法解码图像以获取尺寸: {ex}")
+                    logging.warning(f"无法解码图像以获取尺寸: {ex}")
 
             import base64
             image_base64 = base64.b64encode(image_data).decode('utf-8')
@@ -264,7 +264,7 @@ class CoreInterface:
             return f"data:{mime_type};base64,{image_base64}", width, height
 
         except Exception as e:
-            log.error(f"获取漫画页面失败 {manga_path}, 页码 {page_num}: {e}")
+            logging.error(f"获取漫画页面失败 {manga_path}, 页码 {page_num}: {e}")
             return None
 
     # ==================== 漫画详情与缓存管理 (封装) ====================
@@ -276,7 +276,7 @@ class CoreInterface:
         try:
             return await self.manga_manager.get_manga_by_path(manga_path)
         except Exception as e:
-            log.error(f"通过路径 '{manga_path}' 获取漫画信息失败: {e}", exc_info=True)
+            logging.error(f"通过路径 '{manga_path}' 获取漫画信息失败: {e}", exc_info=True)
             raise CoreInterfaceError(f"获取漫画信息失败: {manga_path}", e)
 
     def get_cache_stats(self) -> Dict[str, Any]:
@@ -284,7 +284,7 @@ class CoreInterface:
         try:
             return self.thumbnail_cache.get_cache_stats()
         except Exception as e:
-            log.error(f"获取缓存统计信息失败: {e}", exc_info=True)
+            logging.error(f"获取缓存统计信息失败: {e}", exc_info=True)
             raise CoreInterfaceError("获取缓存统计失败", e)
 
     def cleanup_cache(self, max_age_days: int) -> Dict[str, Any]:
@@ -294,16 +294,16 @@ class CoreInterface:
             # 返回清理后的状态
             return self.get_cache_stats()
         except Exception as e:
-            log.error(f"清理缓存失败: {e}", exc_info=True)
+            logging.error(f"清理缓存失败: {e}", exc_info=True)
             raise CoreInterfaceError("清理缓存失败", e)
 
     def clear_cache(self) -> None:
         """清空所有缩略图缓存 (封装ThumbnailCache调用)。"""
         try:
             self.thumbnail_cache.clear_cache()
-            log.info("缩略图缓存已通过 CoreInterface 清空。")
+            logging.info("缩略图缓存已通过 CoreInterface 清空。")
         except Exception as e:
-            log.error(f"清空缓存失败: {e}", exc_info=True)
+            logging.error(f"清空缓存失败: {e}", exc_info=True)
             raise CoreInterfaceError("清空缓存失败", e)
 
     async def get_page_dimensions(self, manga_path: str, page_num: int) -> Optional[Tuple[int, int]]:
@@ -311,21 +311,21 @@ class CoreInterface:
         try:
             manga_info = await self.manga_manager.get_manga_by_path(manga_path)
             if not manga_info:
-                log.warning(f"无法在管理器中找到漫画信息: {manga_path}")
+                logging.warning(f"无法在管理器中找到漫画信息: {manga_path}")
                 return None
 
             if not (0 <= page_num < manga_info.total_pages):
-                log.warning(f"页码超出范围: {page_num}, 总页数: {manga_info.total_pages}")
+                logging.warning(f"页码超出范围: {page_num}, 总页数: {manga_info.total_pages}")
                 return None
             
             if manga_info.page_dimensions and page_num < len(manga_info.page_dimensions):
                 return manga_info.page_dimensions[page_num]
             else:
-                log.warning(f"漫画 {manga_path} 缺少页面 {page_num} 的尺寸信息。")
+                logging.warning(f"漫画 {manga_path} 缺少页面 {page_num} 的尺寸信息。")
                 return None
 
         except Exception as e:
-            log.error(f"高效获取页面尺寸失败 {manga_path}, 页码 {page_num}: {e}")
+            logging.error(f"高效获取页面尺寸失败 {manga_path}, 页码 {page_num}: {e}")
             return None
 
     async def get_all_page_dimensions(self, manga_path: str) -> Optional[List[Tuple[int, int]]]:
@@ -333,14 +333,14 @@ class CoreInterface:
         try:
             data_source = await asyncio.to_thread(DataSourceFactory.create, manga_path)
             if not data_source:
-                log.warning(f"无法为路径创建数据源: {manga_path}")
+                logging.warning(f"无法为路径创建数据源: {manga_path}")
                 return None
             
             # get_all_page_dimensions 是一个I/O密集型操作，应在线程中运行
             return await asyncio.to_thread(data_source.get_all_page_dimensions)
 
         except Exception as e:
-            log.error(f"获取所有页面尺寸失败 {manga_path}: {e}", exc_info=True)
+            logging.error(f"获取所有页面尺寸失败 {manga_path}: {e}", exc_info=True)
             return None
 
     # ==================== 数据转换工具 ====================
@@ -374,7 +374,7 @@ class CoreInterface:
                 file_size=manga_dict.get('file_size')
             )
         except Exception as e:
-            log.error(f"从字典转换漫画信息失败: {manga_dict.get('file_path')}, 错误: {e}", exc_info=True)
+            logging.error(f"从字典转换漫画信息失败: {manga_dict.get('file_path')}, 错误: {e}", exc_info=True)
             return WebMangaInfo(
                 file_path=manga_dict.get('file_path', ''),
                 title='转换失败',
@@ -401,16 +401,16 @@ class CoreInterface:
                 self._conversion_cache_timestamps.pop(key, None)
 
             if expired_keys:
-                log.debug(f"清理了 {len(expired_keys)} 个过期的转换缓存项")
+                logging.debug(f"清理了 {len(expired_keys)} 个过期的转换缓存项")
 
         except Exception as e:
-            log.warning(f"清理转换缓存失败: {e}")
+            logging.warning(f"清理转换缓存失败: {e}")
 
     def clear_conversion_cache(self):
         """手动清空转换缓存"""
         self._conversion_cache.clear()
         self._conversion_cache_timestamps.clear()
-        log.info("转换缓存已清空")
+        logging.info("转换缓存已清空")
 
     # ==================== 清理和关闭 ====================
 
@@ -437,7 +437,7 @@ class CoreInterface:
                 else:
                     failed_paths.append({"path": path, "reason": "不支持的文件类型"})
             except Exception as e:
-                log.error(f"在 CoreInterface 中添加路径 '{path}' 失败: {e}", exc_info=True)
+                logging.error(f"在 CoreInterface 中添加路径 '{path}' 失败: {e}", exc_info=True)
                 failed_paths.append({"path": path, "reason": f"处理失败: {str(e)}"})
         
         final_count = await self.manga_manager.get_manga_count()
@@ -466,10 +466,10 @@ class CoreInterface:
         """清空所有漫画数据"""
         try:
             await self.manga_manager.clear_all_data()
-            log.info("所有漫画数据已清空")
+            logging.info("所有漫画数据已清空")
             return True
         except Exception as e:
-            log.error(f"清空数据失败: {e}")
+            logging.error(f"清空数据失败: {e}")
             raise CoreInterfaceError("清空数据失败", e)
 
 
@@ -496,14 +496,14 @@ class CoreInterface:
                     "timestamp": time.time()
                 }
 
-                log.info(f"启动新的随机播放会话: {session_id}，包含 {len(all_manga_paths)} 个项目。")
+                logging.info(f"启动新的随机播放会话: {session_id}，包含 {len(all_manga_paths)} 个项目。")
                 if len(self._random_sessions) % 10 == 0: self._cleanup_random_sessions()
             
             first_page_manga = await self.get_random_session_page(session_id, 1, limit)
             return session_id, first_page_manga
 
         except Exception as e:
-            log.error(f"启动随机播放会话失败: {e}", exc_info=True)
+            logging.error(f"启动随机播放会话失败: {e}", exc_info=True)
             raise CoreInterfaceError("启动随机播放会话失败", e)
 
     async def get_random_session_page(self, session_id: str, page: int, limit: int) -> List[WebMangaInfo]:
@@ -551,7 +551,7 @@ class CoreInterface:
         except CoreInterfaceError:
             raise
         except Exception as e:
-            log.error(f"获取随机播放会话页面失败: {e}", exc_info=True)
+            logging.error(f"获取随机播放会话页面失败: {e}", exc_info=True)
             raise CoreInterfaceError("获取随机播放会话页面失败", e)
 
     def _cleanup_random_sessions(self, max_age_seconds: int = 3600): # 1小时
@@ -567,15 +567,15 @@ class CoreInterface:
                 del self._random_sessions[sid]
             
             if expired_sessions:
-                log.info(f"清理了 {len(expired_sessions)} 个过期的随机播放会话。")
+                logging.info(f"清理了 {len(expired_sessions)} 个过期的随机播放会话。")
 
     def close(self):
         """关闭接口，清理资源"""
         try:
             get_cache_factory_instance().close_all_managers()
-            log.info("Core接口已关闭")
+            logging.info("Core接口已关闭")
         except Exception as e:
-            log.error(f"关闭Core接口时出错: {e}")
+            logging.error(f"关闭Core接口时出错: {e}")
 
 
 # 全局接口实例

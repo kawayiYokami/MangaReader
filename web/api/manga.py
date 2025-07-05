@@ -30,7 +30,7 @@ from web.core_interface import (
     WebScanResult,
     CoreInterfaceError
 )
-from utils import manga_logger as log
+import logging
 
 # 权限控制函数
 def is_local_request(request: Request) -> bool:
@@ -121,10 +121,10 @@ async def get_current_directory(interface: CoreInterface = Depends(get_interface
             "manga_count": dir_info.manga_count
         }
     except CoreInterfaceError as e:
-        log.error(f"获取当前目录失败: {e}")
+        logging.error(f"获取当前目录失败: {e}")
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"获取当前目录失败: {e}")
+        logging.error(f"获取当前目录失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/directory")
@@ -149,10 +149,10 @@ async def set_directory(
         }
 
     except CoreInterfaceError as e:
-        log.error(f"设置目录失败: {e}")
+        logging.error(f"设置目录失败: {e}")
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
-        log.error(f"设置目录失败: {e}")
+        logging.error(f"设置目录失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/list", response_model=List[MangaInfoResponse])
@@ -179,10 +179,10 @@ async def get_manga_list(
         return [MangaInfoResponse(**m.__dict__) for m in web_manga_list]
 
     except CoreInterfaceError as e:
-        log.error(f"获取漫画列表失败: {e}", exc_info=True)
+        logging.error(f"获取漫画列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"获取漫画列表时发生未知错误: {e}", exc_info=True)
+        logging.error(f"获取漫画列表时发生未知错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 @router.get("/tags")
@@ -191,10 +191,10 @@ async def get_all_tags(interface: CoreInterface = Depends(get_interface)) -> Lis
     try:
         return await interface.get_all_tags()
     except CoreInterfaceError as e:
-        log.error(f"获取标签失败: {e}")
+        logging.error(f"获取标签失败: {e}")
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"获取标签失败: {e}")
+        logging.error(f"获取标签失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 # /filter 端点已被移除，其功能已合并到 /list 端点中
@@ -221,10 +221,10 @@ async def scan_manga_files(interface: CoreInterface = Depends(get_interface)):
         return scan_result
 
     except CoreInterfaceError as e:
-        log.error(f"扫描文件失败: {e}")
+        logging.error(f"扫描文件失败: {e}")
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"扫描文件时发生未知错误: {e}", exc_info=True)
+        logging.error(f"扫描文件时发生未知错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 @router.post("/add")
@@ -239,10 +239,10 @@ async def add_manga_files(
         result = await interface.add_mangas_from_paths(request.paths)
         return result
     except CoreInterfaceError as e:
-        log.error(f"添加漫画失败: {e}")
+        logging.error(f"添加漫画失败: {e}")
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
-        log.error(f"添加漫画时发生未知错误: {e}", exc_info=True)
+        logging.error(f"添加漫画时发生未知错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 # Web版本不支持文件对话框功能，该功能已移除
@@ -261,10 +261,10 @@ async def scan_directory(
         result = await interface.add_mangas_from_paths([request.directory_path])
         return result
     except CoreInterfaceError as e:
-        log.error(f"扫描目录 '{request.directory_path}' 失败: {e}")
+        logging.error(f"扫描目录 '{request.directory_path}' 失败: {e}")
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
-        log.error(f"扫描目录 '{request.directory_path}' 时发生未知错误: {e}", exc_info=True)
+        logging.error(f"扫描目录 '{request.directory_path}' 时发生未知错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 @router.delete("/clear")
@@ -283,10 +283,10 @@ async def clear_all_data(
         }
 
     except CoreInterfaceError as e:
-        log.error(f"清空数据失败: {e}")
+        logging.error(f"清空数据失败: {e}")
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"清空数据失败: {e}")
+        logging.error(f"清空数据失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/thumbnail")
@@ -322,10 +322,10 @@ async def get_manga_thumbnail_post(
             raise HTTPException(status_code=404, detail="无法获取或生成漫画缩略图")
 
     except CoreInterfaceError as e:
-        log.error(f"获取缩略图时发生核心层错误: {e}")
+        logging.error(f"获取缩略图时发生核心层错误: {e}")
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"获取缩略图时发生未知错误: {e}", exc_info=True)
+        logging.error(f"获取缩略图时发生未知错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 
@@ -350,13 +350,13 @@ async def get_manga_info(
         if not manga_path:
             raise HTTPException(status_code=400, detail="缺少manga_path参数")
 
-        log.info(f"通过路径查找漫画信息: {manga_path}")
+        logging.info(f"通过路径查找漫画信息: {manga_path}")
         
         # 调用接口层的封装方法
         manga_info = await interface.get_manga_by_path(manga_path)
 
         if not manga_info:
-            log.warning(f"漫画未找到: {manga_path}")
+            logging.warning(f"漫画未找到: {manga_path}")
             raise HTTPException(status_code=404, detail="漫画未找到")
         
         # MangaInfo -> MangaInfoResponse
@@ -375,10 +375,10 @@ async def get_manga_info(
         )
 
     except CoreInterfaceError as e:
-        log.error(f"获取漫画信息失败: {e}")
+        logging.error(f"获取漫画信息失败: {e}")
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"获取漫画信息失败: {e}")
+        logging.error(f"获取漫画信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/viewer/page")
@@ -396,7 +396,7 @@ async def get_manga_page(
         if page_num is None:
             raise HTTPException(status_code=400, detail="缺少page_num参数")
 
-        log.info(f"获取漫画页面: {manga_path}, 页码: {page_num}")
+        logging.info(f"获取漫画页面: {manga_path}, 页码: {page_num}")
 
         # 调用核心接口获取页面图片
         image_data, _, _ = await interface.get_manga_page(manga_path, page_num)
@@ -407,10 +407,10 @@ async def get_manga_page(
             raise HTTPException(status_code=404, detail="页面图片未找到")
 
     except CoreInterfaceError as e:
-        log.error(f"获取漫画页面失败: {e}")
+        logging.error(f"获取漫画页面失败: {e}")
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"获取漫画页面失败: {e}")
+        logging.error(f"获取漫画页面失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -457,11 +457,11 @@ async def compress_file_and_download(
                 background=BackgroundTask(os.remove, compressed_temp_path)
             )
         else:
-            log.error(f"文件 {file.filename} 压缩失败，未返回有效的压缩包路径。")
+            logging.error(f"文件 {file.filename} 压缩失败，未返回有效的压缩包路径。")
             raise HTTPException(status_code=500, detail="文件压缩失败或未返回有效的压缩包路径。")
 
     except Exception as e:
-        log.error(f"处理压缩请求 {file.filename} 时发生错误: {e}", exc_info=True)
+        logging.error(f"处理压缩请求 {file.filename} 时发生错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器处理压缩时出错: {str(e)}")
     finally:
         # 确保上传的临时文件总能被清理
@@ -493,7 +493,7 @@ async def start_random_session(
     except CoreInterfaceError as e:
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
-        log.error(f"启动随机播放会话失败: {e}", exc_info=True)
+        logging.error(f"启动随机播放会话失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 @router.get("/random-session/{session_id}")
@@ -515,7 +515,7 @@ async def get_random_session_page(
     except CoreInterfaceError as e:
         raise HTTPException(status_code=404, detail=e.message) # 404 for session not found
     except Exception as e:
-        log.error(f"获取随机播放会话页面失败: {e}", exc_info=True)
+        logging.error(f"获取随机播放会话页面失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 
@@ -528,7 +528,7 @@ async def get_cache_stats(interface: CoreInterface = Depends(get_interface)):
         stats = interface.get_cache_stats()
         return {"success": True, "stats": stats}
     except Exception as e:
-        log.error(f"获取缓存统计失败: {e}")
+        logging.error(f"获取缓存统计失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cache/cleanup")
@@ -548,7 +548,7 @@ async def cleanup_cache(
             "stats": cleanup_result
         }
     except Exception as e:
-        log.error(f"清理缓存失败: {e}", exc_info=True)
+        logging.error(f"清理缓存失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 @router.post("/cache/clear")
@@ -558,5 +558,5 @@ async def clear_cache(interface: CoreInterface = Depends(get_interface)):
         interface.clear_cache()
         return {"success": True, "message": "缓存已清空"}
     except Exception as e:
-        log.error(f"清空缓存失败: {e}")
+        logging.error(f"清空缓存失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

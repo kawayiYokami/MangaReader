@@ -4,8 +4,8 @@ import asyncio
 import requests
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
+import logging
 
-from utils import manga_logger as log
 from core.core_cache.cache_factory import get_cache_factory_instance
 from core.core_cache.cache_interface import CacheInterface
 from .llm_prompt_handler import LLMPromptHandler
@@ -61,14 +61,14 @@ class BaseTranslator(ABC):
                     # 从缓存的字典重建TranslationResult对象
                     final_results[text] = TranslationResult(**cached_data)
                 except TypeError:
-                    log.warning(f"缓存中 '{text}' 的数据格式不正确，将重新翻译。数据: {cached_data}")
+                    logging.warning(f"缓存中 '{text}' 的数据格式不正确，将重新翻译。数据: {cached_data}")
                     uncached_texts.append(text)
             else:
                 uncached_texts.append(text)
 
         cached_count = len(final_results)
         if uncached_texts:
-            log.info(f"{translator_name}: 在缓存中找到 {cached_count} 条。正在翻译 {len(uncached_texts)} 条新文本。")
+            logging.info(f"{translator_name}: 在缓存中找到 {cached_count} 条。正在翻译 {len(uncached_texts)} 条新文本。")
 
         if not uncached_texts:
             return {original_texts_map[clean]: result for clean, result in final_results.items()}
@@ -81,7 +81,7 @@ class BaseTranslator(ABC):
 
             for text, result in api_results.items():
                 if not isinstance(result, TranslationResult):
-                    log.error(f"API为文本 '{text}' 返回了无效的类型: {type(result)}。已跳过。")
+                    logging.error(f"API为文本 '{text}' 返回了无效的类型: {type(result)}。已跳过。")
                     final_results[text] = TranslationResult(text=text, translated=False)
                     continue
 
@@ -91,7 +91,7 @@ class BaseTranslator(ABC):
                 self.cache.set(key=cache_key, data=result.to_dict(), is_sensitive=False)
 
         except Exception as e:
-            log.error(f"{translator_name} API调用失败: {e}", exc_info=True)
+            logging.error(f"{translator_name} API调用失败: {e}", exc_info=True)
             # 对于失败的API调用，将未缓存的文本视为未翻译
             for text in uncached_texts:
                 if text not in final_results:
@@ -110,12 +110,12 @@ class ZhipuTranslator(BaseTranslator):
         self.api_key = api_key
         self.model = model
         self.api_base_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-        log.debug(f"ZhipuTranslator已使用模型 {self.model} 初始化")
+        logging.debug(f"ZhipuTranslator已使用模型 {self.model} 初始化")
 
     @staticmethod
     def list_models(api_key: str, **kwargs) -> List[str]:
         # 智谱的API不提供模型列表接口，因此返回一个硬编码的列表
-        log.warning("Zhipu `list_models` is a placeholder and returns a fixed list.")
+        logging.warning("Zhipu `list_models` is a placeholder and returns a fixed list.")
         return ["glm-4-flash", "glm-4", "glm-3-turbo"]
 
     async def _translate_batch_api(
@@ -161,7 +161,7 @@ class ZhipuTranslator(BaseTranslator):
                 translated_content_str = response_json["choices"][0]["message"]["content"]
                 results[packed_prompt] = TranslationResult(text=translated_content_str, translated=True)
             except Exception as e:
-                log.error(f"调用智谱API时出错: {e}", exc_info=True)
+                logging.error(f"调用智谱API时出错: {e}", exc_info=True)
                 results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False)
         
         return results
@@ -174,7 +174,7 @@ class OpenAITranslator(BaseTranslator):
         self.api_key = api_key
         self.model = model
         self.api_base_url = api_base_url or "https://api.openai.com/v1"
-        log.debug(f"OpenAITranslator已使用模型 {self.model} 和基础URL {self.api_base_url} 初始化")
+        logging.debug(f"OpenAITranslator已使用模型 {self.model} 和基础URL {self.api_base_url} 初始化")
 
     @staticmethod
     def list_models(api_key: str, api_base_url: Optional[str] = None) -> List[str]:
@@ -187,7 +187,7 @@ class OpenAITranslator(BaseTranslator):
             data = response.json()
             return sorted([m['id'] for m in data.get('data', []) if 'gpt' in m['id'] and 'instruct' not in m['id']], reverse=True)
         except Exception as e:
-            log.error(f"获取OpenAI模型失败：{e}", exc_info=True)
+            logging.error(f"获取OpenAI模型失败：{e}", exc_info=True)
             raise ValueError(f"连接到OpenAI API失败：{e}")
 
     async def _translate_batch_api(
@@ -218,7 +218,7 @@ class OpenAITranslator(BaseTranslator):
             }
 
             # --- 增加详细日志 ---
-            log.debug(f"即将发送到 OpenAI API 的 Payload (请求体):\n{json.dumps(payload, indent=2, ensure_ascii=False)}")
+            logging.debug(f"即将发送到 OpenAI API 的 Payload (请求体):\n{json.dumps(payload, indent=2, ensure_ascii=False)}")
             
             loop = asyncio.get_running_loop()
             try:
@@ -235,12 +235,12 @@ class OpenAITranslator(BaseTranslator):
                 response_json = response.json()
 
                 # --- 增加详细日志 ---
-                log.debug(f"从 OpenAI API 收到的原始响应:\n{json.dumps(response_json, indent=2, ensure_ascii=False)}")
+                logging.debug(f"从 OpenAI API 收到的原始响应:\n{json.dumps(response_json, indent=2, ensure_ascii=False)}")
                 
                 translated_content_str = response_json["choices"][0]["message"]["content"]
                 results[packed_prompt] = TranslationResult(text=translated_content_str, translated=True)
             except Exception as e:
-                log.error(f"调用OpenAI API时出错: {e}", exc_info=True)
+                logging.error(f"调用OpenAI API时出错: {e}", exc_info=True)
                 results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False)
         
         return results
@@ -253,7 +253,7 @@ class GeminiTranslator(BaseTranslator):
         self.api_key = api_key
         self.model = model
         self.api_base_url = "https://generativelanguage.googleapis.com/v1beta/models"
-        log.debug(f"GeminiTranslator已使用模型 {self.model} 初始化")
+        logging.debug(f"GeminiTranslator已使用模型 {self.model} 初始化")
 
     @staticmethod
     def list_models(api_key: str, **kwargs) -> List[str]:
@@ -265,7 +265,7 @@ class GeminiTranslator(BaseTranslator):
             data = response.json()
             return sorted([m['name'].replace('models/', '') for m in data.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])])
         except Exception as e:
-            log.error(f"获取Gemini模型失败：{e}", exc_info=True)
+            logging.error(f"获取Gemini模型失败：{e}", exc_info=True)
             raise ValueError(f"连接到Gemini API失败：{e}")
 
     async def _translate_batch_api(
@@ -320,7 +320,7 @@ class GeminiTranslator(BaseTranslator):
                 translated_content_str = response_json["candidates"][0]["content"]["parts"][0]["text"]
                 results[packed_prompt] = TranslationResult(text=translated_content_str, translated=True)
             except Exception as e:
-                log.error(f"调用Gemini API时出错: {e}", exc_info=True)
+                logging.error(f"调用Gemini API时出错: {e}", exc_info=True)
                 results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False)
         
         return results
@@ -338,7 +338,7 @@ class TranslatorFactory:
     def get_translator(self, translator_type: str) -> BaseTranslator:
         """根据类型获取翻译器实例，如果不存在则创建并缓存。"""
         if translator_type not in self._instances:
-            log.info(f"翻译器 '{translator_type}' 不在缓存中。正在创建新实例...")
+            logging.info(f"翻译器 '{translator_type}' 不在缓存中。正在创建新实例...")
             translator = self._create_translator(translator_type)
             self._instances[translator_type] = translator
         

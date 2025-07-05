@@ -17,9 +17,9 @@ from typing import Optional, Dict, Any, List
 from PIL import Image
 import numpy as np
 from datetime import datetime
+import logging
 
 from core.core_cache.cache_key_generator import get_cache_key_generator
-from utils import manga_logger as log
 
 
 class PersistentTranslationCache:
@@ -52,7 +52,7 @@ class PersistentTranslationCache:
         # 加载缓存元数据
         self.metadata = self._load_metadata()
 
-        log.info(f"持久化翻译缓存初始化完成: {self.cache_root}")
+        logging.info(f"持久化翻译缓存初始化完成: {self.cache_root}")
     
     def _load_metadata(self) -> Dict[str, Any]:
         """加载缓存元数据"""
@@ -60,10 +60,10 @@ class PersistentTranslationCache:
             if self.metadata_file.exists():
                 with open(self.metadata_file, 'r', encoding='utf-8') as f:
                     metadata = json.load(f)
-                log.info(f"加载缓存元数据: {len(metadata)} 项")
+                logging.info(f"加载缓存元数据: {len(metadata)} 项")
                 return metadata
         except Exception as e:
-            log.warning(f"加载缓存元数据失败: {e}")
+            logging.warning(f"加载缓存元数据失败: {e}")
         
         return {}
     
@@ -73,7 +73,7 @@ class PersistentTranslationCache:
             with open(self.metadata_file, 'w', encoding='utf-8') as f:
                 json.dump(self.metadata, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            log.error(f"保存缓存元数据失败: {e}")
+            logging.error(f"保存缓存元数据失败: {e}")
     
     def _generate_cache_key(self, manga_path: str, page_index: int, target_language: str = "zh", translator_type: str = "unknown") -> str:
         """
@@ -165,10 +165,10 @@ class PersistentTranslationCache:
                 with open(cache_file, 'rb') as f:
                     image_data = f.read()
                 
-                log.info(f"持久化WebP缓存命中: {manga_path}:{page_index} (文件: {cache_file.name})")
+                logging.info(f"持久化WebP缓存命中: {manga_path}:{page_index} (文件: {cache_file.name})")
                 return image_data
         except Exception as e:
-            log.error(f"读取缓存文件失败: {cache_file}, 错误: {e}")
+            logging.error(f"读取缓存文件失败: {cache_file}, 错误: {e}")
         
         return None
     
@@ -210,11 +210,11 @@ class PersistentTranslationCache:
             # 更新元数据
             self._update_metadata(cache_key, manga_path, page_index, target_language, translator_type, cache_file)
             
-            log.info(f"翻译图像已保存到持久化WebP缓存: {cache_file} (大小: {cache_file.stat().st_size}字节)")
+            logging.info(f"翻译图像已保存到持久化WebP缓存: {cache_file} (大小: {cache_file.stat().st_size}字节)")
             return True
             
         except Exception as e:
-            log.error(f"保存翻译图像失败: {cache_file}, 错误: {e}")
+            logging.error(f"保存翻译图像失败: {cache_file}, 错误: {e}")
             return False
     
     def _update_metadata(self, cache_key: str, manga_path: str, page_index: int,
@@ -238,7 +238,7 @@ class PersistentTranslationCache:
 
             self._save_metadata()
         except Exception as e:
-            log.error(f"更新元数据失败: {e}")
+            logging.error(f"更新元数据失败: {e}")
     
     def _update_access_time(self, cache_key: str):
         """更新访问时间"""
@@ -265,9 +265,9 @@ class PersistentTranslationCache:
                 'access_count': 1
             }
 
-            log.info(f"重建缓存元数据: {cache_key}")
+            logging.info(f"重建缓存元数据: {cache_key}")
         except Exception as e:
-            log.error(f"重建元数据失败: {e}")
+            logging.error(f"重建元数据失败: {e}")
     
     def get_cache_statistics(self) -> Dict[str, Any]:
         """获取缓存统计信息"""
@@ -300,11 +300,11 @@ class PersistentTranslationCache:
                     del self.metadata[cache_key]
                     removed_count += 1
             except Exception as e:
-                log.warning(f"清理缓存项失败: {cache_key}, 错误: {e}")
+                logging.warning(f"清理缓存项失败: {cache_key}, 错误: {e}")
         
         if removed_count > 0:
             self._save_metadata()
-            log.info(f"清理了 {removed_count} 个旧缓存文件")
+            logging.info(f"清理了 {removed_count} 个旧缓存文件")
         
         return removed_count
 
@@ -313,20 +313,20 @@ class PersistentTranslationCache:
         removed_count = 0
 
         # 删除所有缓存文件
-        for cache_key, metadata in self.metadata.items():
+        for cache_key, metadata in list(self.metadata.items()):
             try:
                 cache_file = Path(metadata['file_path'])
                 if cache_file.exists():
                     cache_file.unlink()
-                removed_count += 1
+                    removed_count += 1
+                del self.metadata[cache_key]
             except Exception as e:
-                log.warning(f"删除缓存文件失败: {cache_file}, 错误: {e}")
+                logging.warning(f"删除缓存文件失败: {cache_key}, 错误: {e}")
 
         # 清空元数据
-        self.metadata.clear()
         self._save_metadata()
 
-        log.info(f"清空了所有持久化翻译缓存: {removed_count} 个文件")
+        logging.info(f"清空了所有持久化翻译缓存: {removed_count} 个文件")
         return removed_count
 
     def get_cached_manga_list(self) -> Dict[str, Dict[str, List[int]]]:
@@ -397,7 +397,7 @@ class PersistentTranslationCache:
                     keys_to_remove.append(cache_key)
                     removed_count += 1
                 except Exception as e:
-                    log.warning(f"删除缓存文件失败: {cache_file}, 错误: {e}")
+                    logging.warning(f"删除缓存文件失败: {cache_file}, 错误: {e}")
 
         # 从元数据中移除
         for cache_key in keys_to_remove:
@@ -405,7 +405,7 @@ class PersistentTranslationCache:
 
         if removed_count > 0:
             self._save_metadata()
-            log.info(f"删除了漫画 {manga_path} 的 {removed_count} 个缓存条目")
+            logging.info(f"删除了漫画 {manga_path} 的 {removed_count} 个缓存条目")
 
         return removed_count
 
@@ -426,7 +426,7 @@ class PersistentTranslationCache:
                     keys_to_remove.append(cache_key)
                     removed_count += 1
                 except Exception as e:
-                    log.warning(f"删除缓存文件失败: {cache_file}, 错误: {e}")
+                    logging.warning(f"删除缓存文件失败: {cache_file}, 错误: {e}")
 
         # 从元数据中移除
         for cache_key in keys_to_remove:
@@ -434,7 +434,7 @@ class PersistentTranslationCache:
 
         if removed_count > 0:
             self._save_metadata()
-            log.info(f"清理了 {manga_path} 的 {translator_type} 翻译缓存: {removed_count} 个文件")
+            logging.info(f"清理了 {manga_path} 的 {translator_type} 翻译缓存: {removed_count} 个文件")
 
         return removed_count
 

@@ -7,6 +7,7 @@ FastAPI应用的主入口，集成所有API路由和WebSocket处理。
 
 import sys # 保留 sys 以便未来可能的调试或特定检查
 import time
+import logging
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -18,7 +19,7 @@ import uvicorn
 # 导入统一接口层
 try:
     from web.core_interface import get_core_interface, CoreInterface
-    from utils import manga_logger as log
+    from utils.manga_logger import setup_logging
 except ImportError as e:
     print(f"无法导入核心模块: {e}")
     raise
@@ -65,17 +66,17 @@ try:
     static_dir.mkdir(parents=True, exist_ok=True)
     templates_dir.mkdir(parents=True, exist_ok=True)
 except Exception as e:
-    log.error(f"创建静态或模板目录失败: {e}. Static: {static_dir}, Templates: {templates_dir}")
+    logging.error(f"创建静态或模板目录失败: {e}. Static: {static_dir}, Templates: {templates_dir}")
     # 在打包环境中，如果目录不存在，这通常意味着 PyInstaller --add-data 配置问题
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        log.error("打包环境错误：请检查 PyInstaller 的 --add-data 配置是否正确地将 static 和 templates 目录包含进来，并放到了相对于 app.py 的正确位置。")
-        log.error(f"期望 app.py 位于: {current_script_dir}")
-        log.error(f"期望 static 目录位于: {static_dir}")
-        log.error(f"期望 templates 目录位于: {templates_dir}")
-        log.error(f"sys._MEIPASS (如果可用): {getattr(sys, '_MEIPASS', '不可用')}")
+        logging.error("打包环境错误：请检查 PyInstaller 的 --add-data 配置是否正确地将 static 和 templates 目录包含进来，并放到了相对于 app.py 的正确位置。")
+        logging.error(f"期望 app.py 位于: {current_script_dir}")
+        logging.error(f"期望 static 目录位于: {static_dir}")
+        logging.error(f"期望 templates 目录位于: {templates_dir}")
+        logging.error(f"sys._MEIPASS (如果可用): {getattr(sys, '_MEIPASS', '不可用')}")
 
-log.info(f"静态文件目录 (使用 __file__): {static_dir}")
-log.info(f"模板文件目录 (使用 __file__): {templates_dir}")
+logging.info(f"静态文件目录 (使用 __file__): {static_dir}")
+logging.info(f"模板文件目录 (使用 __file__): {templates_dir}")
 # --- 修改结束 ---
 
 # 挂载静态文件
@@ -94,21 +95,24 @@ async def startup_event():
     import asyncio
     from web.websocket.handlers import broadcast_manga_list_update
 
-    log.info("Web应用启动中...")
+    # 首先配置日志
+    setup_logging()
+    
+    logging.info("Web应用启动中...")
 
     # 初始化Core接口
     core_interface = get_core_interface()
-    log.info("Core接口初始化完成")
+    logging.info("Core接口初始化完成")
 
     # --- 异步事件监听器 ---
     async def manga_update_listener():
-        log.info("启动 MangaManager 事件监听器...")
+        logging.info("启动 MangaManager 事件监听器...")
         manga_manager = core_interface.manga_manager
         while True:
             try:
                 # 等待来自 MangaManager 的事件
                 event = await manga_manager.update_queue.get()
-                log.info(f"收到 MangaManager 事件: {event}")
+                logging.info(f"收到 MangaManager 事件: {event}")
 
                 if event['type'] == 'data_loaded':
                     await broadcast_manga_list_update(event['data'])
@@ -117,34 +121,34 @@ async def startup_event():
 
                 manga_manager.update_queue.task_done()
             except asyncio.CancelledError:
-                log.info("MangaManager 事件监听器被取消。")
+                logging.info("MangaManager 事件监听器被取消。")
                 break
             except Exception as e:
-                log.error(f"处理 MangaManager 事件时出错: {e}", exc_info=True)
+                logging.error(f"处理 MangaManager 事件时出错: {e}", exc_info=True)
                 # 等待一秒钟，避免在出错时快速循环
                 await asyncio.sleep(1)
 
     # 启动后台任务来监听事件
     asyncio.create_task(manga_update_listener())
-    log.info("MangaManager 事件监听任务已在后台启动。")
+    logging.info("MangaManager 事件监听任务已在后台启动。")
     # --------------------
 
-    log.info("Web应用启动完成")
+    logging.info("Web应用启动完成")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """应用关闭时的清理"""
-    log.info("Web应用关闭中...")
+    logging.info("Web应用关闭中...")
 
     # 清理接口
     try:
         if core_interface:
             core_interface.close()
-        log.info("Core接口已关闭")
+        logging.info("Core接口已关闭")
     except Exception as e:
-        log.error(f"关闭Core接口时出错: {e}")
+        logging.error(f"关闭Core接口时出错: {e}")
 
-    log.info("Web应用已关闭")
+    logging.info("Web应用已关闭")
 
 from core.config import config
 
@@ -192,9 +196,9 @@ async def favicon():
 async def manga_viewer():
     """漫画查看器页面 (桌面版)"""
     viewer_html_path = templates_dir / "viewer.html"
-    log.info(f"提供桌面版 viewer.html at: {viewer_html_path}")
+    logging.info(f"提供桌面版 viewer.html at: {viewer_html_path}")
     if not viewer_html_path.exists():
-        log.error(f"viewer.html 未找到 at {viewer_html_path}")
+        logging.error(f"viewer.html 未找到 at {viewer_html_path}")
         return HTMLResponse(content="Error: viewer.html not found.", status_code=404)
     with open(viewer_html_path, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
@@ -207,7 +211,7 @@ async def cache_management(request: Request):
 @app.get("/viewer_mobile.html", response_class=HTMLResponse)
 async def manga_viewer_mobile(request: Request):
     """移动端查看器的独立入口"""
-    log.info("提供移动版查看器: viewer_mobile.html")
+    logging.info("提供移动版查看器: viewer_mobile.html")
     return templates.TemplateResponse("viewer_mobile.html", {"request": request})
 
 @app.get("/mobile", response_class=HTMLResponse)
@@ -258,19 +262,19 @@ try:
 
     app.include_router(viewer.router, prefix="/api/viewer", tags=["漫画查看器"])
 
-    log.info("API路由注册完成")
+    logging.info("API路由注册完成")
     
 except ImportError as e:
-    log.warning(f"部分API模块未找到: {e}")
+    logging.warning(f"部分API模块未找到: {e}")
     print(f"警告: 部分API模块未找到: {e}")
 
 # 导入WebSocket处理
 try:
     from web.websocket.handlers import websocket_endpoint
     app.add_websocket_route("/ws", websocket_endpoint)
-    log.info("WebSocket路由注册完成")
+    logging.info("WebSocket路由注册完成")
 except ImportError as e:
-    log.warning(f"WebSocket模块未找到: {e}")
+    logging.warning(f"WebSocket模块未找到: {e}")
     print(f"Warning: WebSocket module not found: {e}")
 
 def get_core_interface_instance():
@@ -285,11 +289,13 @@ __all__ = ["app", "get_core_interface_instance"]
 
 if __name__ == "__main__":
     """直接运行时启动服务器"""
-    log.info("直接运行 web/app.py, 启动uvicorn服务器...")
+    # 直接运行时，确保日志也被配置
+    setup_logging()
+    logging.info("直接运行 web/app.py, 启动uvicorn服务器...")
     uvicorn.run(
         "web.app:app",
         host="0.0.0.0",
         port=8000,
-        reload=True, 
-        log_level="info"
+        reload=True,
+        log_config=None
     )

@@ -10,7 +10,7 @@ import json
 import asyncio
 from datetime import datetime
 
-from utils import manga_logger as log
+import logging
 
 class ConnectionManager:
     """WebSocket连接管理器"""
@@ -31,7 +31,7 @@ class ConnectionManager:
             "subscriptions": set()
         }
         
-        log.info(f"WebSocket客户端连接: {self.connection_info[websocket]['client_id']}")
+        logging.info(f"WebSocket客户端连接: {self.connection_info[websocket]['client_id']}")
         
         # 发送欢迎消息
         await self.send_personal_message({
@@ -51,14 +51,14 @@ class ConnectionManager:
             if websocket in self.connection_info:
                 del self.connection_info[websocket]
             
-            log.info(f"WebSocket客户端断开: {client_id}")
+            logging.info(f"WebSocket客户端断开: {client_id}")
     
     async def send_personal_message(self, message: Dict[str, Any], websocket: WebSocket):
         """发送消息给特定客户端"""
         try:
             await websocket.send_text(json.dumps(message, ensure_ascii=False))
         except Exception as e:
-            log.error(f"发送WebSocket消息失败: {e}")
+            logging.error(f"发送WebSocket消息失败: {e}")
             self.disconnect(websocket)
     
     async def broadcast(self, message: Dict[str, Any], subscription: str = None):
@@ -75,7 +75,7 @@ class ConnectionManager:
                 
                 await websocket.send_text(json.dumps(message, ensure_ascii=False))
             except Exception as e:
-                log.error(f"广播WebSocket消息失败: {e}")
+                logging.error(f"广播WebSocket消息失败: {e}")
                 disconnected_clients.append(websocket)
         
         # 清理断开的连接
@@ -86,13 +86,13 @@ class ConnectionManager:
         """订阅主题"""
         if websocket in self.connection_info:
             self.connection_info[websocket]["subscriptions"].add(subscription)
-            log.info(f"客户端 {self.connection_info[websocket]['client_id']} 订阅了 {subscription}")
+            logging.info(f"客户端 {self.connection_info[websocket]['client_id']} 订阅了 {subscription}")
     
     def unsubscribe(self, websocket: WebSocket, subscription: str):
         """取消订阅主题"""
         if websocket in self.connection_info:
             self.connection_info[websocket]["subscriptions"].discard(subscription)
-            log.info(f"客户端 {self.connection_info[websocket]['client_id']} 取消订阅了 {subscription}")
+            logging.info(f"客户端 {self.connection_info[websocket]['client_id']} 取消订阅了 {subscription}")
 
 # 全局连接管理器实例
 manager = ConnectionManager()
@@ -118,7 +118,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "message": "无效的JSON格式"
                 }, websocket)
             except Exception as e:
-                log.error(f"处理WebSocket消息失败: {e}")
+                logging.error(f"处理WebSocket消息失败: {e}")
                 await manager.send_personal_message({
                     "type": "error",
                     "message": f"处理消息失败: {str(e)}"
@@ -127,7 +127,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
-        log.error(f"WebSocket连接异常: {e}")
+        logging.error(f"WebSocket连接异常: {e}")
         manager.disconnect(websocket)
 
 async def handle_message(websocket: WebSocket, message: Dict[str, Any]):

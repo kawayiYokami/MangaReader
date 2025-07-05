@@ -1,159 +1,92 @@
+# utils/manga_logger.py
+"""
+全局日志配置模块
+
+提供一个函数来设置和配置Python的root logger。
+"""
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
 import os
-from datetime import datetime
+import coloredlogs
+from core.config import config
 
-# ANSI 颜色代码
-class Colors:
-    RESET = "\033[0m"
-    RED = "\033[31m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    BLUE = "\033[34m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
-    BOLD = "\033[1m"
-
-
-class ColoredFormatter(logging.Formatter):
-    """带颜色的日志格式化器"""
-
-    LOG_COLORS = {
-        logging.DEBUG: Colors.CYAN,
-        logging.INFO: Colors.WHITE,
-        logging.WARNING: Colors.YELLOW,
-        logging.ERROR: Colors.RED,
-        logging.CRITICAL: Colors.BOLD + Colors.RED,
+def set_level(level_str: str):
+    """动态设置 Root Logger 和所有处理器的日志级别"""
+    level_map = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL
     }
+    level = level_map.get(level_str.upper(), logging.INFO)
+    
+    # 获取根日志记录器
+    logger = logging.getLogger()
+    
+    # 1. 首先设置根日志记录器的级别
+    # 这决定了哪些级别的消息可以被传递给处理器
+    logger.setLevel(level)
 
-    def format(self, record):
-        log_color = self.LOG_COLORS.get(record.levelno, Colors.WHITE)
-        
-        # 对整个消息应用颜色
-        record.msg = f"{log_color}{record.msg}{Colors.RESET}"
-        
-        # 格式化级别名称
-        record.levelname = f"{log_color}{record.levelname}{Colors.RESET}"
+    # 2. 遍历并更新所有处理器的级别
+    # 这是确保日志级别实时生效的关键步骤
+    for handler in logger.handlers:
+        handler.setLevel(level)
+            
+    logging.info(f"全局日志级别已设置为: {level_str}")
 
-        return super().format(record)
+    # 在调试模式下，打印出每个处理器的级别以供验证
+    if level == logging.DEBUG:
+        for i, handler in enumerate(logger.handlers):
+            logging.debug(f"  > 处理器 {i} ({type(handler).__name__}) 的级别已更新为: {logging.getLevelName(handler.level)}")
 
+def setup_logging():
+    """
+    配置全局 Root Logger。
+    此函数应在应用程序启动时调用一次。
+    使用 coloredlogs 库来美化控制台输出，并保留文件日志。
+    这个版本会强制重置任何预先存在的日志处理器。
+    """
+    root_logger = logging.getLogger()
+    
+    # 强制重置：移除所有可能由第三方库添加的处理器
+    if root_logger.hasHandlers():
+        logging.debug(f"检测到预先存在的日志处理器: {root_logger.handlers}。正在移除以强制重新配置...")
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
 
-class MangaLogger:
-    _instance = None
+    # 使用 coloredlogs 配置控制台日志
+    coloredlogs.install(
+        level=config.log_level.value.upper(),
+        logger=root_logger,
+        fmt="%(asctime)s [%(name)s:%(lineno)d] [%(levelname)s] - %(message)s",
+        stream=sys.stdout
+    )
 
-    @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
-            cls._instance = MangaLogger()
-        return cls._instance
+    # 单独配置和添加文件处理器（不带颜色）
+    log_dir = ".log"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
-    def __init__(self):
-        from core.config import config
-        self.logger = logging.getLogger("MangaViewer")
+    log_file_path = os.path.join(log_dir, "manga_viewer.log")
+    
+    file_formatter = logging.Formatter("%(asctime)s - [%(name)s:%(lineno)d] [%(levelname)-8s] - %(message)s")
+    
+    file_handler = RotatingFileHandler(log_file_path, maxBytes=5*1024*1024, backupCount=5, encoding='utf-8')
+    file_handler.setFormatter(file_formatter)
+    
+    # 文件处理器将遵循根记录器的级别
+    root_logger.addHandler(file_handler)
+    
+    # 抑制第三方库的日志噪音
+    logging.getLogger("fontTools").setLevel(logging.WARNING)
+    logging.getLogger("PIL").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-        if self.logger.handlers:
-            return
-
-        # 创建格式化器
-        console_formatter = ColoredFormatter("%(asctime)s [%(levelname)-8s] %(message)s")
-        file_formatter = logging.Formatter("%(asctime)s [%(levelname)-8s] %(message)s")
-        
-        # 创建控制台处理器
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(console_formatter)
-        self.logger.addHandler(console_handler)
-
-        # 创建文件处理器
-        log_dir = ".log"
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-
-        log_file_path = os.path.join(log_dir, "manga_viewer.log")
-        file_handler = RotatingFileHandler(log_file_path, maxBytes=1*1024*1024, backupCount=5, encoding='utf-8')
-        file_handler.setFormatter(file_formatter)
-        self.logger.addHandler(file_handler)
-
-        self.logger.propagate = False
-        # 强制设置为DEBUG级别进行诊断
-        self.set_level("DEBUG")
-        
-    def set_level(self, level_str):
-        level_map = {
-            "DEBUG": logging.DEBUG,
-            "INFO": logging.INFO,
-            "WARNING": logging.WARNING,
-            "ERROR": logging.ERROR,
-            "CRITICAL": logging.CRITICAL
-        }
-        level = level_map.get(level_str.upper(), logging.WARNING)
-        self.logger.setLevel(level)
-        for handler in self.logger.handlers:
-            handler.setLevel(level)
-
-    def _log(self, level, message, *args, **kwargs):
-        self.logger.log(level, message, *args, **kwargs)
-
-    # --- 兼容旧接口 ---
-    def debug(self, message, *args, **kwargs):
-        self._log(logging.DEBUG, message, *args, **kwargs)
-
-    def info(self, message, *args, **kwargs):
-        self._log(logging.INFO, message, *args, **kwargs)
-
-    def warning(self, message, *args, **kwargs):
-        self._log(logging.WARNING, message, *args, **kwargs)
-
-    def error(self, message, *args, **kwargs):
-        self._log(logging.ERROR, message, *args, **kwargs)
-
-    def critical(self, message, *args, **kwargs):
-        self._log(logging.CRITICAL, message, *args, **kwargs)
-        
-    # --- 新增辅助函数 ---
-    def header(self, message):
-        """打印一个格式化的标题"""
-        separator = "=" * (len(message) + 4)
-        self.info(f"\n{Colors.BOLD}{Colors.MAGENTA}{separator}{Colors.RESET}")
-        self.info(f"{Colors.BOLD}{Colors.MAGENTA}  {message.upper()}  {Colors.RESET}")
-        self.info(f"{Colors.BOLD}{Colors.MAGENTA}{separator}{Colors.RESET}\n")
-
-    def separator(self, char='-', length=80):
-        """打印一条分割线"""
-        self.info(f"{Colors.BLUE}{char * length}{Colors.RESET}")
-        
-    def success(self, message):
-        """打印成功信息"""
-        self.info(f"{Colors.GREEN}{message}{Colors.RESET}")
-
-
-# --- 便捷函数 ---
-_logger = MangaLogger.get_instance()
-
-def set_level(level_str):
-    _logger.set_level(level_str)
-
-def debug(message, *args, **kwargs):
-    _logger.debug(message, *args, **kwargs)
-
-def info(message, *args, **kwargs):
-    _logger.info(message, *args, **kwargs)
-
-def warning(message, *args, **kwargs):
-    _logger.warning(message, *args, **kwargs)
-
-def error(message, *args, **kwargs):
-    _logger.error(message, *args, **kwargs)
-
-def critical(message, *args, **kwargs):
-    _logger.critical(message, *args, **kwargs)
-
-def header(message):
-    _logger.header(message)
-
-def separator(char='-', length=80):
-    _logger.separator(char, length)
-
-def success(message):
-    _logger.success(message)
+    root_logger.propagate = False
+    
+    # 根据配置设置最终的正确级别
+    set_level(config.log_level.value)
+    
+    logging.info("全局日志系统初始化完成。")

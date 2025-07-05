@@ -3,8 +3,8 @@ import sqlite3
 import json
 import os
 import hashlib
+import logging
 from typing import Optional, Any, List, Dict
-from utils import manga_logger as log
 from .cache_interface import CacheInterface
 
 # Cache directory and database file name
@@ -21,7 +21,7 @@ class OcrCacheManager(CacheInterface):
         self._ensure_cache_dir_exists()
         self.conn: Optional[sqlite3.Connection] = None
         self._init_db()
-        log.info(f"OcrCacheManager 初始化完成，数据库路径: {self.db_path}")
+        logging.info(f"OcrCacheManager 初始化完成，数据库路径: {self.db_path}")
 
     def _ensure_cache_dir_exists(self):
         directory = os.path.dirname(self.db_path)
@@ -35,7 +35,7 @@ class OcrCacheManager(CacheInterface):
                 self.conn = sqlite3.connect(self.db_path)
                 self.conn.row_factory = sqlite3.Row # Access columns by name
             except sqlite3.Error as e:
-                log.error(f"连接到数据库 {self.db_path} 失败: {e}")
+                logging.error(f"连接到数据库 {self.db_path} 失败: {e}")
                 raise
         return self.conn
     
@@ -82,13 +82,13 @@ class OcrCacheManager(CacheInterface):
                 if col not in columns:
                     try:
                         cursor.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN {col} {col_type}")
-                        log.info(f"成功向表 '{TABLE_NAME}' 添加 '{col}' 列。")
+                        logging.info(f"成功向表 '{TABLE_NAME}' 添加 '{col}' 列。")
                     except sqlite3.OperationalError as e:
-                        log.warning(f"尝试添加 '{col}' 列时出错 (可能是并发操作): {e}")
+                        logging.warning(f"尝试添加 '{col}' 列时出错 (可能是并发操作): {e}")
 
             conn.commit()
         except sqlite3.Error as e:
-            log.error(f"初始化数据库表 {TABLE_NAME} 失败: {e}")
+            logging.error(f"初始化数据库表 {TABLE_NAME} 失败: {e}")
 
     def generate_key(self, **kwargs) -> str:
         """
@@ -112,10 +112,10 @@ class OcrCacheManager(CacheInterface):
                 return json.loads(row["value"])
             return None
         except sqlite3.Error as e:
-            log.error(f"从缓存获取数据失败 (键: {key}): {e}")
+            logging.error(f"从缓存获取数据失败 (键: {key}): {e}")
             return None
         except json.JSONDecodeError:
-            log.error(f"解析缓存的OCR数据失败 (键: {key})，将清除损坏的缓存。")
+            logging.error(f"解析缓存的OCR数据失败 (键: {key})，将清除损坏的缓存。")
             self.delete(key)
             return None
 
@@ -137,9 +137,9 @@ class OcrCacheManager(CacheInterface):
             """, (key, value_json, manga_path, page_index, display_manga_name))
             conn.commit()
         except sqlite3.Error as e:
-            log.error(f"设置OCR缓存数据失败 (键: {key}): {e}")
+            logging.error(f"设置OCR缓存数据失败 (键: {key}): {e}")
         except TypeError as e:
-            log.error(f"序列化OCR数据失败 (键: {key}): {e}")
+            logging.error(f"序列化OCR数据失败 (键: {key}): {e}")
 
     def delete(self, key: str):
         """删除缓存数据"""
@@ -149,7 +149,7 @@ class OcrCacheManager(CacheInterface):
             cursor.execute(f"DELETE FROM {TABLE_NAME} WHERE key = ?", (key,))
             conn.commit()
         except sqlite3.Error as e:
-            log.error(f"删除缓存数据失败 (键: {key}): {e}")
+            logging.error(f"删除缓存数据失败 (键: {key}): {e}")
 
     def clear(self):
         """清空所有OCR缓存"""
@@ -158,9 +158,9 @@ class OcrCacheManager(CacheInterface):
             cursor = conn.cursor()
             cursor.execute(f"DELETE FROM {TABLE_NAME}")
             conn.commit()
-            log.info("OCR 缓存已清空")
+            logging.info("OCR 缓存已清空")
         except sqlite3.Error as e:
-            log.error(f"清空 OCR 缓存失败: {e}")
+            logging.error(f"清空 OCR 缓存失败: {e}")
 
     def get_all_entries_for_display(self) -> List[Dict[str, Any]]:
         """获取所有缓存条目及其元数据用于UI显示。"""
@@ -174,14 +174,14 @@ class OcrCacheManager(CacheInterface):
             rows = cursor.fetchall()
             entries = [dict(row) for row in rows]
             
-            log.info(f"成功检索到 {len(entries)} 条OCR缓存条目以供显示。")
+            logging.info(f"成功检索到 {len(entries)} 条OCR缓存条目以供显示。")
             return entries
         except sqlite3.Error as e:
             # 如果出现 no such column 错误，可能是旧版数据库，返回空列表
             if "no such column" in str(e):
-                log.warning(f"数据库 '{self.db_path}' 模式过时，缺少元数据列。将返回空列表。请考虑重建缓存。")
+                logging.warning(f"数据库 '{self.db_path}' 模式过时，缺少元数据列。将返回空列表。请考虑重建缓存。")
                 return []
-            log.error(f"获取所有OCR缓存条目失败: {e}")
+            logging.error(f"获取所有OCR缓存条目失败: {e}")
             return []
         
     def get_cache_size_bytes(self) -> int:
@@ -191,7 +191,7 @@ class OcrCacheManager(CacheInterface):
                 return os.path.getsize(self.db_path)
             return 0
         except OSError as e:
-            log.error(f"获取OCR缓存大小失败: {e}")
+            logging.error(f"获取OCR缓存大小失败: {e}")
             return 0
             
     def close(self):
@@ -201,7 +201,7 @@ class OcrCacheManager(CacheInterface):
                 self.conn.close()
                 self.conn = None
             except sqlite3.Error as e:
-                log.error(f"关闭数据库连接失败: {e}")
+                logging.error(f"关闭数据库连接失败: {e}")
 
     def __del__(self):
         self.close()
