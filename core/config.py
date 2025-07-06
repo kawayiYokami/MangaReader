@@ -222,8 +222,8 @@ class Config:
         self.translator_type = OptionsConfigItem(
             "Translation",
             "TranslatorType",
-            "Google",
-            validator=OptionsValidator(["Google", "智谱", "OpenAI", "Gemini"])
+            "OpenAI",
+            validator=OptionsValidator(["智谱", "OpenAI", "Gemini"])
         )
 
         # 文字替换设置
@@ -243,8 +243,6 @@ class Config:
             ])
         )
         
-        # Google翻译设置
-        self.google_api_key = ConfigItem("Translation", "GoogleApiKey", "")
 
         # OpenAI翻译设置
         self.openai_api_key = ConfigItem("Translation", "OpenaiApiKey", "")

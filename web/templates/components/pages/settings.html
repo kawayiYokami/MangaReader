@@ -103,18 +103,6 @@
                 </el-form-item>
             </div>
 
-            <!-- Google设置 -->
-            <div v-if="translationSettings.translator_type === 'Google'">
-                <el-form-item>
-                    <template #label>
-                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                            <span>Google API密钥 (可选)</span>
-                            <p class="setting-description">请输入Google翻译服务的API密钥（可选）。</p>
-                        </div>
-                    </template>
-                    <el-input v-model="translationSettings.googleApiKey" type="password" show-password placeholder="请输入Google API密钥 (可选)" @change="onGoogleApiKeyChange" :disabled="!isLocalAccess"></el-input>
-                </el-form-item>
-            </div>
 
             <!-- OpenAI 设置 -->
             <div v-if="translationSettings.translator_type === 'OpenAI'">

@@ -36,30 +36,6 @@ class MangaManager:
         except Exception as e:
             logging.error(f"保存配置时发生错误: {str(e)}")
             
-    def create_translator(self):
-        """根据配置创建翻译器实例"""
-        try:
-            translator_type = config.translator_type.value
-            logging.info(f"创建翻译器: {translator_type}")
-            
-            if translator_type == "智谱":
-                return TranslatorFactory.create_translator(
-                    translator_type=translator_type,
-                    api_key=config.zhipu_api_key.value,
-                    model=config.zhipu_model.value
-                )
-            elif translator_type == "Google":
-                return TranslatorFactory.create_translator(
-                    translator_type=translator_type,
-                    api_key=config.google_api_key.value
-                )
-            else:
-                logging.warning(f"未知的翻译器类型: {translator_type}，使用Google翻译作为默认选项")
-                return TranslatorFactory.create_translator("Google")
-        except Exception as e:
-            logging.error(f"创建翻译器时发生错误: {str(e)}，使用Google翻译作为备选")
-            return TranslatorFactory.create_translator("Google")
-            
     def clear_translation_cache(self):
         """清空翻译缓存"""
         try:

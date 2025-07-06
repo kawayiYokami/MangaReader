@@ -47,8 +47,8 @@ def parse_arguments():
     parser.add_argument(
         "--port", 
         type=int, 
-        default=8000,
-        help="服务器端口 (默认: 8000)"
+        default=8100,
+        help="服务器端口 (默认: 8100)"
     )
     
     parser.add_argument(
