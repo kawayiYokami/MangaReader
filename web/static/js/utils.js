@@ -384,10 +384,6 @@ window.UtilsMethods = {
         this.updateSetting('zhipu_model', value);
     },
 
-    onGoogleApiKeyChange(value) {
-        // 使用后端的 snake_case 命名
-        this.updateSetting('google_api_key', value);
-    },
 
     onFontChange(value) {
         // 使用 snake_case
@@ -520,7 +516,6 @@ window.UtilsMethods = {
                         ts.translator_type = settingsMap.translator_type ?? ts.translator_type;
                         ts.zhipuApiKey = settingsMap.zhipu_api_key ?? ts.zhipuApiKey;
                         ts.zhipuModel = settingsMap.zhipu_model ?? ts.zhipuModel;
-                        ts.googleApiKey = settingsMap.google_api_key ?? ts.googleApiKey;
                         ts.openaiApiKey = settingsMap.openai_api_key ?? ts.openaiApiKey;
                         ts.openaiApiBaseUrl = settingsMap.openai_api_base_url ?? ts.openaiApiBaseUrl;
                         ts.openaiModel = settingsMap.openai_model ?? ts.openaiModel;

@@ -182,14 +182,6 @@ async def get_all_settings():
             ]
         ))
 
-        # Google翻译设置
-        settings.append(SettingItem(
-            key="google_api_key",
-            name="Google API Key",
-            description="Google翻译服务的API Key",
-            value="***" if config.google_api_key.value else "",  # 隐藏API密钥
-            type="string"
-        ))
 
         # OpenAI 额外设置
         settings.append(SettingItem(
@@ -326,9 +318,7 @@ async def get_translator_options():
         for option_value in options:
             # 这里可以根据需要添加更友好的显示名称
             label = option_value
-            if option_value == "Google":
-                label = "Google 翻译"
-            elif option_value == "智谱":
+            if option_value == "智谱":
                 label = "智谱AI"
             
             formatted_options.append({"value": option_value, "label": label})
@@ -440,7 +430,6 @@ async def reset_settings():
         config.translator_type.value = "智谱"
         config.zhipu_api_key.value = ""
         config.zhipu_model.value = "glm-4-flash"
-        config.google_api_key.value = ""
         config.font_name.value = "SourceHanSerifCN-Heavy.ttf" # 恢复默认字体或空字符串
         
         config.save()
@@ -474,7 +463,6 @@ async def export_settings():
                 settings_data[key] = value
 
         settings_data["zhipu_api_key_set"] = bool(config.zhipu_api_key.value)
-        settings_data["google_api_key_set"] = bool(config.google_api_key.value)
         
         # 实际应该使用当前时间
         from datetime import datetime

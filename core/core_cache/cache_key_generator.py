@@ -21,7 +21,7 @@ class CacheKeyGenerator:
         Args:
             manga_path: 漫画文件路径
             page_index: 页面索引
-            translator_id: 翻译引擎ID（如：zhipu-glm4, google等）
+            translator_id: 翻译引擎ID（如：zhipu-glm4, OpenAI等）
             target_language: 目标语言
             
         Returns:
