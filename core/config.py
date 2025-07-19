@@ -21,49 +21,6 @@ from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
 
 
-class ReadingOrder(Enum):
-    """
-    漫画阅读方向枚举
-
-    取值:
-    - RIGHT_TOLEFT: 从右到左（日式漫画传统阅读方向）
-    - LEFT_TO_RIGHT: 从左到右（西式漫画阅读方向）
-    """
-
-    RIGHT_TO_LEFT = "从右到左"
-    LEFT_TO_RIGHT = "从左到右"
-
-
-class DisplayMode(Enum):
-    """
-    漫画显示模式枚举
-
-    取值:
-    - SINGLE: 单页显示（每次只显示一页）
-    - DOUBLE: 双页显示（同时显示两页，适合宽屏）
-    - ADAPTIVE: 自适应（根据内容自动选择单页或双页）
-    """
-
-    SINGLE = "单页显示"
-    DOUBLE = "双页显示"
-    ADAPTIVE = "自适应"
-
-
-class Theme(Enum):
-    """
-    主题模式枚举
-    
-    取值:
-    - LIGHT: 浅色主题
-    - DARK: 深色主题  
-    - AUTO: 自动主题（跟随系统）
-    """
-    
-    LIGHT = "light"
-    DARK = "dark"
-    AUTO = "auto"
-
-
 class ConfigItem:
     """
     简洁的配置项类
@@ -97,6 +54,23 @@ class OptionsConfigItem(ConfigItem):
 class RangeConfigItem(ConfigItem):
     """范围配置项，继承自ConfigItem"""
     pass
+
+
+class BoolConfigItem(ConfigItem):
+    """布尔配置项，继承自ConfigItem"""
+    def __init__(self, group: str, key: str, default_value: bool):
+        super().__init__(group, key, default_value, validator=None)
+    
+    @ConfigItem.value.setter
+    def value(self, new_value):
+        if isinstance(new_value, str):
+            val = new_value.lower() in ('true', '1', 't', 'y', 'yes')
+        else:
+            val = bool(new_value)
+        
+        if self.validator and not self.validator.validate(val):
+             raise ValueError(f"Invalid value for {self.group}.{self.key}: {val}")
+        self._value = val
 
 
 # 验证器类
@@ -147,20 +121,6 @@ class Config:
     def _init_config_items(self):
         """初始化所有配置项"""
         # ==================== Manga 功能设置 ====================
-        self.reading_order = OptionsConfigItem(
-            "Manga",
-            "ReadingOrder",
-            ReadingOrder.LEFT_TO_RIGHT.value,
-            validator=OptionsValidator([e.value for e in ReadingOrder]),
-        )
-
-        self.display_mode = OptionsConfigItem(
-            "Manga",
-            "DisplayMode",
-            DisplayMode.DOUBLE.value,
-            validator=OptionsValidator([e.value for e in DisplayMode]),
-        )
-
         self.page_interval = ConfigItem(
             "Manga", "PageInterval", 3, validator=RangeValidator(1, 300)
         )
@@ -176,16 +136,6 @@ class Config:
         )
         self.manga_dir = ConfigItem("Manga", "MangaDirectory", "")
 
-        # ==================== 页面尺寸分析设置 ====================
-        self.enable_dimension_analysis = ConfigItem("Manga", "EnableDimensionAnalysis", True)
-        self.dimension_variance_threshold = RangeConfigItem(
-            "Manga",
-            "DimensionVarianceThreshold",
-            0.15,  # 默认方差阈值 0.15
-            validator=RangeValidator(0.0, 1.0)  # 方差阈值范围 0.0-1.0
-        )
-        self.filter_non_manga = ConfigItem("Manga", "FilterNonManga", False)  # 是否过滤非漫画文件
-
         # ==================== 缩略图缓存设置 ====================
         self.thumbnail_cache_dir = ConfigItem("ThumbnailCache", "CacheDirectory", "cache/thumbnails")
         self.thumbnail_output_width = RangeConfigItem("ThumbnailCache", "OutputWidth", 256, validator=RangeValidator(100, 1024))
@@ -194,9 +144,14 @@ class Config:
         self.thumbnail_max_size_mb = RangeConfigItem("ThumbnailCache", "MaxSizeMB", 500, validator=RangeValidator(50, 10240))
 
         # ==================== 页面缓存设置 ====================
+        self.page_cache_enabled = BoolConfigItem("PageCache", "Enabled", True)
         self.page_cache_quality = RangeConfigItem("PageCache", "Quality", 85, validator=RangeValidator(10, 100))
         self.page_cache_max_size_mb = RangeConfigItem("PageCache", "MaxSizeMB", 2048, validator=RangeValidator(100, 20480))
-        self.page_cache_standard_height = RangeConfigItem("PageCache", "StandardHeight", 3000, validator=RangeValidator(800, 4000))
+        self.page_cache_standard_height = RangeConfigItem("PageCache", "StandardHeight", 1280, validator=RangeValidator(720, 4000))
+        # --- 页面缓存决策阈值 ---
+        self.page_cache_decision_ratio = RangeConfigItem("PageCacheDecision", "CompressionRatioThreshold", 0.25, validator=RangeValidator(0.05, 1.0))
+        self.page_cache_decision_size_mb = RangeConfigItem("PageCacheDecision", "FileSizeThresholdMB", 2.0, validator=RangeValidator(0.5, 10.0))
+        self.page_cache_decision_dimension = RangeConfigItem("PageCacheDecision", "DimensionThreshold", 4000, validator=RangeValidator(1000, 8000))
 
         # ==================== MangaManager 状态 ====================
         self.current_page = ConfigItem("Manager", "CurrentPage", 0)
@@ -252,9 +207,6 @@ class Config:
         # Gemini翻译设置
         self.gemini_api_key = ConfigItem("Translation", "GeminiApiKey", "")
         self.gemini_model = ConfigItem("Translation", "GeminiModel", "gemini-1.5-flash")
-        
-        # 主题设置
-        self.themeMode = ConfigItem("UI", "ThemeMode", Theme.AUTO)
         
     def _collect_config_items(self):
         """收集所有配置项"""
@@ -321,7 +273,4 @@ class Config:
 
 # 创建全局 config 对象
 config = Config()
-# 确保在加载前设置默认主题模式
-if config.themeMode.value not in [Theme.LIGHT, Theme.DARK, Theme.AUTO]:
-    config.themeMode.value = Theme.AUTO
 config.load()  # 加载用户已保存的配置

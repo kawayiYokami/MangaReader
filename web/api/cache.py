@@ -197,6 +197,7 @@ class MangaListCacheHandler(CacheHandler):
             "total_pages": total_pages,
             "file_size": file_size,
             "tags_count": tags_count,
+            "tags": tags_list,
             "file_type": manga.get("file_type")
         }
     
@@ -658,7 +659,7 @@ class HarmonizationMapCacheHandler(CacheHandler):
     async def update_entry(self, request: UpdateEntryRequest) -> Dict[str, Any]:
         """更新和谐映射缓存条目"""
         try:
-            self.manager.add_mapping(request.key, request.content)
+            self.manager.add_or_update_mapping(request.key, request.content)
             return {"success": True, "message": f"和谐映射已更新: {request.key[:30]}..."}
         except Exception as e:
             self.log.error(f"更新和谐映射缓存条目失败: {e}")
@@ -667,8 +668,8 @@ class HarmonizationMapCacheHandler(CacheHandler):
     async def delete_entry(self, key: str) -> Dict[str, Any]:
         """删除和谐映射缓存条目"""
         try:
-            if hasattr(self.manager, 'remove_mapping'):
-                self.manager.remove_mapping(key)
+            if hasattr(self.manager, 'delete_mapping'):
+                self.manager.delete_mapping(key)
                 return {"success": True, "message": f"和谐映射已删除: {key[:30]}..."}
             else:
                 return {"success": False, "message": "和谐映射缓存不支持删除单个条目"}

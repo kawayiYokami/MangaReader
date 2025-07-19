@@ -1,0 +1,59 @@
+<script setup lang="ts">
+import { useCompressionStore } from '@/store/compression'
+import { storeToRefs } from 'pinia'
+import FileUpload from '@/components/widgets/FileUpload.vue'
+import TaskList from '@/components/widgets/TaskList.vue'
+import OperationCard from '@/components/widgets/OperationCard.vue'
+
+const compressionStore = useCompressionStore()
+const { tasks, isProcessing, settings } = storeToRefs(compressionStore)
+
+const handleFilesSelected = (files: File[]) => {
+  files.forEach(file => compressionStore.addTask(file))
+}
+</script>
+
+<template>
+  <div class="compression-interface">
+    <div class="translation-layout"> <!-- Reusing layout class -->
+      <!-- Left Panel -->
+      <div class="translation-control">
+        <el-card>
+          <template #header><span>文件选择</span></template>
+          <FileUpload @files-selected="handleFilesSelected" />
+        </el-card>
+
+        <el-card style="margin-top: 16px;">
+          <template #header><span>压缩设置</span></template>
+          <el-form label-width="80px">
+            <el-form-item label="WebP质量">
+              <el-slider v-model="settings.quality" :min="50" :max="100" :step="5" show-input />
+            </el-form-item>
+          </el-form>
+        </el-card>
+
+        <OperationCard
+          title="开始压缩"
+          :loading="isProcessing"
+          :disabled="tasks.length === 0 || isProcessing"
+          @start="compressionStore.startCompression"
+          @clear="compressionStore.clearTasks"
+          style="margin-top: 16px;"
+        />
+      </div>
+
+      <!-- Right Panel -->
+      <div class="translation-tasks">
+        <el-card>
+          <template #header>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>压缩任务</span>
+              <span>{{ tasks.length }} 个任务</span>
+            </div>
+          </template>
+          <TaskList :tasks="tasks" :is-processing="isProcessing" @remove-task="compressionStore.removeTask" />
+        </el-card>
+      </div>
+    </div>
+  </div>
+</template>

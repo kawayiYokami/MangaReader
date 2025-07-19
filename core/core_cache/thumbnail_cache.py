@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 from PIL import Image, ImageOps
 import logging
+from io import BytesIO # 导入BytesIO
+
+from core.image import processor # 导入我们自己的图像处理器
+from core.config import config # 导入全局配置
+from core.core_cache.cache_key_generator import CacheKeyGenerator # 导入新的主键生成器
 
 log = logging.getLogger(__name__)
 
@@ -24,27 +29,19 @@ class ThumbnailCache:
     - 基于容量的智能清理
     """
 
-    def __init__(
-        self,
-        cache_dir: str = "cache/thumbnails",
-        output_size: Tuple[int, int] = (256, 342),
-        quality: int = 75,
-        max_cache_size_mb: int = 500,
-    ):
+    def __init__(self):
         """
         初始化智能缩略图缓存系统。
-
-        :param cache_dir: 缓存文件存储目录。
-        :param output_size: 缩略图的目标尺寸 (宽, 高)。
-        :param quality: 生成的 WebP 图像质量 (1-100)。
-        :param max_cache_size_mb: 缓存目录允许的最大总大小 (单位: MB)。
         """
-        self.cache_dir = Path(cache_dir)
+        self.cache_dir = Path(config.thumbnail_cache_dir.value)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        self.output_size = output_size
-        self.webp_quality = quality
-        self.max_cache_size_bytes = max_cache_size_mb * 1024 * 1024
+        self.output_size = (
+            config.thumbnail_output_width.value,
+            config.thumbnail_output_height.value,
+        )
+        self.webp_quality = config.thumbnail_quality.value
+        self.max_cache_size_bytes = config.thumbnail_max_size_mb.value * 1024 * 1024
 
         self.metadata_file = self.cache_dir / "metadata.json"
         self.metadata = self._load_metadata()
@@ -55,17 +52,22 @@ class ThumbnailCache:
             f"缩略图缓存初始化完成: {self.cache_dir}, "
             f"目标尺寸: {self.output_size}, "
             f"质量: {self.webp_quality}, "
-            f"容量上限: {max_cache_size_mb}MB"
+            f"容量上限: {config.thumbnail_max_size_mb.value}MB"
         )
 
     def _load_metadata(self) -> Dict[str, Any]:
         """加载缓存元数据"""
+        if not self.metadata_file.exists():
+            log.warning(f"元数据文件不存在: {self.metadata_file}，将创建新的元数据。")
+            return {}
         try:
-            if self.metadata_file.exists():
-                with open(self.metadata_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+            with open(self.metadata_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data
+        except json.JSONDecodeError as e:
+            log.error(f"解析元数据文件失败: {e}。文件可能已损坏。将创建新的元数据。")
         except Exception as e:
-            log.warning(f"加载缓存元数据失败: {e}")
+            log.error(f"加载缓存元数据时发生未知错误: {e}")
         return {}
 
     def _save_metadata(self):
@@ -74,11 +76,11 @@ class ThumbnailCache:
             with open(self.metadata_file, "w", encoding="utf-8") as f:
                 json.dump(self.metadata, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            log.error(f"保存缓存元数据失败: {e}")
+            log.error(f"保存缓存元数据失败: {e}", exc_info=True)
 
-    def _get_cache_key(self, manga_path: str) -> str:
-        """根据漫画路径和固定的输出尺寸生成缓存键"""
-        content = f"{manga_path}_{self.output_size[0]}x{self.output_size[1]}"
+    def _get_thumbnail_file_key(self, master_key: str, size: Tuple[int, int]) -> str:
+        """根据主键和目标尺寸生成缩略图的文件名键"""
+        content = f"{master_key}_{size[0]}x{size[1]}"
         return hashlib.md5(content.encode("utf-8")).hexdigest()
 
     def _get_cache_file_path(self, cache_key: str) -> Path:
@@ -103,7 +105,6 @@ class ThumbnailCache:
                         file_size = cache_file.stat().st_size
                         cache_file.unlink()
                         orphaned_size += file_size
-                        log.debug(f"删除孤立缓存: {cache_file.name}")
                     except OSError as e:
                         log.warning(f"删除孤立缓存文件失败 {cache_file}: {e}")
 
@@ -178,77 +179,153 @@ class ThumbnailCache:
             if not os.path.exists(manga_path):
                 return None
 
-            cache_key = self._get_cache_key(manga_path)
-            cache_file_path = self._get_cache_file_path(cache_key)
-            source_mtime = os.path.getmtime(manga_path)
+            master_key = CacheKeyGenerator.generate_master_key_for_path(manga_path)
+            if not master_key:
+                return None  # 无法获取文件信息
 
-            if cache_file_path.exists() and cache_key in self.metadata:
-                cached_mtime = self.metadata[cache_key].get("source_mtime", 0)
-                if cached_mtime == source_mtime:
-                    self.metadata[cache_key]["last_accessed"] = time.time()
-                    self._save_metadata()
-                    return str(cache_file_path)
+            master_metadata = self.metadata.get(master_key)
+            
+            # 如果主键存在，检查这个尺寸的缩略图是否存在
+            if master_metadata:
+                # 使用 str(self.output_size) 作为键
+                size_key = str(self.output_size)
+                if size_key in master_metadata.get("thumbnails", {}):
+                    thumb_info = master_metadata["thumbnails"][size_key]
+                    thumbnail_file_key = thumb_info.get("file_key")
+                    cache_file_path = self._get_cache_file_path(thumbnail_file_key)
 
-            return self._generate_thumbnail(manga_path, cache_key, source_mtime)
+                    if cache_file_path.exists():
+                        return str(cache_file_path)
+
+                # 主键存在，但当前尺寸的缩略图不存在（需要生成，但无需分析）
+                return self._generate_thumbnail(manga_path, master_key, needs_analysis=False)
+
+            # 主键不存在，需要进行完整分析和生成
+            return self._generate_thumbnail(manga_path, master_key, needs_analysis=True)
 
         except Exception as e:
-            log.error(f"获取缩略图路径失败 {manga_path}: {e}")
+            log.error(f"获取缩略图路径失败 {manga_path}: {e}", exc_info=True)
             return None
 
     def _generate_thumbnail(
-        self, manga_path: str, cache_key: str, source_mtime: float
+        self, manga_path: str, master_key: str, needs_analysis: bool
     ) -> Optional[str]:
-        """生成并保存缩略图文件"""
+        """
+        生成缩略图并按需执行压缩分析
+        """
         try:
-            first_page_image = self._get_first_page_image(manga_path)
-            if first_page_image is None:
+            # --- 步骤1: 获取源图像 ---
+            source_bytes, first_page_image = self._get_first_page_bytes_and_image(manga_path)
+            if not first_page_image or not source_bytes:
                 return None
+            
+            # --- 步骤2: 按需执行一次性分析 ---
+            if needs_analysis:
+                # 分析过程即为模拟一次缩略图生成，以计算压缩比。
+                # 因此，我们使用最终缩略图的尺寸和质量设置。
 
-            thumbnail = self._create_thumbnail(first_page_image)
-            if thumbnail is None:
-                return None
+                # 线性估算法
+                original_file_size = len(source_bytes)
+                original_pixels = first_page_image.width * first_page_image.height
 
-            cache_file_path = self._get_cache_file_path(cache_key)
-            thumbnail.save(
-                cache_file_path,
-                format="WEBP",
-                quality=self.webp_quality,
-                method=6,  # method=6 for best quality/compression ratio
-            )
+                # 步骤 A: 创建与最终缩略图完全相同的分析用图像
+                analysis_image = self._create_thumbnail(first_page_image)
+                if analysis_image is None:
+                    raise ValueError("分析时创建缩略图失败")
 
+                # 步骤 B: 使用最终的质量设置将其编码为 WebP
+                import cv2
+                import numpy as np
+                cv2_image = cv2.cvtColor(np.array(analysis_image), cv2.COLOR_RGB2BGR)
+                processed_bytes = processor.write_image(cv2_image, ext='.webp', quality=self.webp_quality)
+                if not processed_bytes:
+                    raise ValueError("分析时图像编码失败")
+
+                final_processed_size = len(processed_bytes)
+
+                # 步骤 C: 使用标准位图算法计算压缩比
+                # 估算缩放后的传统编码文件大小
+                original_file_size = len(source_bytes)
+                original_pixels = first_page_image.width * first_page_image.height
+                thumb_pixels = analysis_image.width * analysis_image.height
+                estimated_scaled_size = original_file_size * (thumb_pixels / original_pixels) if original_pixels > 0 else 0
+
+                compression_ratio = final_processed_size / estimated_scaled_size if estimated_scaled_size > 0 else float('inf')
+
+                # 创建主元数据条目
+                self.metadata[master_key] = {
+                    "source_path": manga_path,
+                    "analysis": {
+                        "policy": "UNKNOWN",  # 缓存策略设置为未知，由其他模块决定
+                        "compression_ratio": round(compression_ratio, 2),
+                        "first_page_size": original_file_size,
+                        "first_page_dimensions": (first_page_image.width, first_page_image.height),
+                    },
+                    "thumbnails": {}
+                }
+                
+
+            # --- 步骤3: 生成当前请求的缩略图 ---
+            thumbnail_file_key = self._get_thumbnail_file_key(master_key, self.output_size)
+            cache_file_path = self._get_cache_file_path(thumbnail_file_key)
+            
+            # 只有在文件不存在时才创建
+            if not cache_file_path.exists():
+                thumbnail = self._create_thumbnail(first_page_image)
+                if thumbnail is None:
+                    return None
+                
+                # 统一使用WebP格式
+                thumbnail.save(
+                    cache_file_path,
+                    format="WEBP",
+                    quality=self.webp_quality,
+                    method=6,
+                )
+            
+            # --- 步骤4: 更新元数据并保存 ---
             current_time = time.time()
-            self.metadata[cache_key] = {
-                "source_path": manga_path,
-                "source_mtime": source_mtime,
-                "size": self.output_size,  # 保存尺寸元数据
+            thumbnail_metadata = {
+                "file_key": thumbnail_file_key,
                 "created": current_time,
                 "last_accessed": current_time,
-                "file_size": cache_file_path.stat().st_size,
+                "file_size": cache_file_path.stat().st_size
             }
+            # 使用 str(self.output_size) 作为键，因为JSON的键必须是字符串
+            self.metadata[master_key]["thumbnails"][str(self.output_size)] = thumbnail_metadata
             self._save_metadata()
 
-            # 每次生成新文件后，检查缓存容量
+            # --- 步骤5: 清理并返回 ---
             self._enforce_size_limit()
-
-            log.debug(f"生成缩略图: {manga_path} -> {cache_file_path.name}")
             return str(cache_file_path)
 
         except Exception as e:
             log.error(f"生成缩略图失败 {manga_path}: {e}", exc_info=True)
+            # 如果分析失败，确保不会留下不完整的元数据条目
+            if needs_analysis and master_key in self.metadata:
+                del self.metadata[master_key]
             return None
 
-    def _get_first_page_image(self, manga_path: str) -> Optional[Image.Image]:
-        """获取漫画第一页的PIL Image对象"""
+    def _get_first_page_bytes_and_image(self, manga_path: str) -> Tuple[Optional[bytes], Optional[Image.Image]]:
+        """获取漫画第一页的原始字节流和PIL Image对象"""
         try:
+            file_ext = Path(manga_path).suffix.lower()
+            supported_archives = ['.zip', '.cbz']
+
             if os.path.isdir(manga_path):
                 return self._get_first_page_from_folder(manga_path)
-            else:
+            elif file_ext in supported_archives:
                 return self._get_first_page_from_archive(manga_path)
+            else:
+                # 对于单个图片文件，直接读取
+                with open(manga_path, 'rb') as f:
+                    source_bytes = f.read()
+                return source_bytes, Image.open(BytesIO(source_bytes))
         except Exception as e:
             log.error(f"获取第一页图片失败 {manga_path}: {e}")
-            return None
+            return None, None
 
-    def _get_first_page_from_folder(self, folder_path: str):
+    def _get_first_page_from_folder(self, folder_path: str) -> Tuple[Optional[bytes], Optional[Image.Image]]:
         """从文件夹获取第一页图片"""
         try:
             image_extensions = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
@@ -257,18 +334,21 @@ class ThumbnailCache:
                 if file_path.suffix.lower() in image_extensions:
                     image_files.append(file_path)
             if not image_files:
-                return None
+                return None, None
             image_files.sort(key=lambda x: x.name.lower())
-            return Image.open(image_files[0])
+            
+            image_path = image_files[0]
+            with open(image_path, 'rb') as f:
+                source_bytes = f.read()
+            return source_bytes, Image.open(BytesIO(source_bytes))
         except Exception as e:
             log.error(f"从文件夹获取第一页失败 {folder_path}: {e}")
-            return None
+            return None, None
 
-    def _get_first_page_from_archive(self, archive_path: str):
+    def _get_first_page_from_archive(self, archive_path: str) -> Tuple[Optional[bytes], Optional[Image.Image]]:
         """从压缩文件获取第一页图片 - 只支持ZIP格式，与核心代码保持一致"""
         try:
             import zipfile
-            from io import BytesIO
 
             image_extensions = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
             file_ext = Path(archive_path).suffix.lower()
@@ -277,19 +357,20 @@ class ThumbnailCache:
                     image_files = [
                         name
                         for name in zf.namelist()
-                        if Path(name).suffix.lower() in image_extensions
+                        if Path(name).suffix.lower() in image_extensions and not name.startswith('__MACOSX')
                     ]
                     if not image_files:
-                        return None
+                        return None, None
                     image_files.sort()
                     with zf.open(image_files[0]) as img_file:
-                        return Image.open(BytesIO(img_file.read()))
+                        source_bytes = img_file.read()
+                        return source_bytes, Image.open(BytesIO(source_bytes))
             else:
                 log.warning(f"不支持的压缩格式: {file_ext}，只支持ZIP格式")
-                return None
+                return None, None
         except Exception as e:
             log.error(f"从压缩文件获取第一页失败 {archive_path}: {e}")
-            return None
+            return None, None
 
     def _create_thumbnail(self, image: Image.Image) -> Optional[Image.Image]:
         """

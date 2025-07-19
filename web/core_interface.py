@@ -117,15 +117,7 @@ class CoreInterface:
         """获取缩略图缓存管理器实例（懒加载）"""
         if self._thumbnail_cache is None:
             try:
-                self._thumbnail_cache = ThumbnailCache(
-                    cache_dir=config.thumbnail_cache_dir.value,
-                    output_size=(
-                        config.thumbnail_output_width.value,
-                        config.thumbnail_output_height.value
-                    ),
-                    quality=config.thumbnail_quality.value,
-                    max_cache_size_mb=config.thumbnail_max_size_mb.value
-                )
+                self._thumbnail_cache = ThumbnailCache()
                 logging.info("缩略图缓存管理器初始化成功")
             except Exception as e:
                 logging.error(f"缩略图缓存管理器初始化失败: {e}")
@@ -189,6 +181,40 @@ class CoreInterface:
         except Exception as e:
             logging.error(f"获取漫画列表失败: {e}", exc_info=True)
             raise CoreInterfaceError("获取漫画列表失败", e)
+
+    async def get_manga_list_paginated(
+        self,
+        page: int,
+        page_size: int,
+        sort_by: Optional[str] = "last_modified DESC",
+        tag_filters: Optional[List[str]] = None,
+        query: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """从数据库获取分页的漫画列表，并支持排序、过滤和搜索"""
+        try:
+            logging.info(f"获取分页漫画列表: page={page}, page_size={page_size}, sort_by={sort_by}, tags={tag_filters}, query={query}")
+            
+            # 调用 MangaManager 的新方法
+            result_dict = await self.manga_manager.get_manga_list_paginated(
+                page=page,
+                page_size=page_size,
+                sort_by=sort_by,
+                tag_filters=tag_filters,
+                query=query
+            )
+            
+            # result_dict 应该包含 'items' (dict list) 和 'total' (int)
+            manga_dicts = result_dict.get('items', [])
+            total_count = result_dict.get('total', 0)
+
+            # 转换漫画列表
+            web_manga_list = [self._convert_dict_to_web_manga(d) for d in manga_dicts]
+            
+            return {'items': web_manga_list, 'total': total_count}
+
+        except Exception as e:
+            logging.error(f"获取分页漫画列表失败: {e}", exc_info=True)
+            raise CoreInterfaceError("获取分页漫画列表失败", e)
     
     async def get_all_tags(self) -> List[str]:
         """从数据库获取所有标签"""
@@ -574,24 +600,11 @@ class CoreInterface:
             logging.error(f"关闭Core接口时出错: {e}")
 
 
-# 全局接口实例
-_core_interface: Optional[CoreInterface] = None
-
-
-def get_core_interface() -> CoreInterface:
-    """获取全局Core接口实例"""
-    global _core_interface
-    if _core_interface is None:
-        _core_interface = CoreInterface()
-    return _core_interface
-
-
 # 导出
 __all__ = [
     'CoreInterface',
-    'WebMangaInfo', 
-    'WebDirectoryInfo', 
+    'WebMangaInfo',
+    'WebDirectoryInfo',
     'WebScanResult',
-    'CoreInterfaceError',
-    'get_core_interface'
+    'CoreInterfaceError'
 ]
