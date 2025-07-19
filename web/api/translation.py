@@ -42,55 +42,49 @@ translator_config = {
 }
 translator_factory = TranslatorFactory(**translator_config)
 
-# --- Singleton Service Instantiation ---
-# Create a single, shared instance of MangaTranslationService at the application
-# level. This is crucial for maintaining a consistent state of active and
-# completed tasks across all API requests.
+# --- Service Instantiation & Dependency Injection ---
 
-def create_manga_translation_service_singleton() -> MangaTranslationService:
-    """
-    Creates and configures the single instance of MangaTranslationService.
-    This function should only be called once when the module is loaded.
-    """
-    try:
-        logging.info("正在创建 MangaTranslationService 单例实例...")
-        ocr_manager = OCRManager()
-        ocr_manager.load_model()
-
-        text_replacer = MangaTextReplacer()
-        harmonization_manager = get_harmonization_map_manager_instance()
-        
-        # Translator factory is already a singleton
-        translator = translator_factory.get_translator(config.translator_type.value)
-
-        page_processor = MangaPageProcessor(
-            ocr_manager=ocr_manager,
-            translator=translator,
-            text_replacer=text_replacer,
-            harmonization_manager=harmonization_manager
-        )
-
-        image_cache = get_cache_factory_instance().get_manager("persistent_translation")
-
-        service_instance = MangaTranslationService(
-            page_processor=page_processor,
-            image_cache=image_cache
-        )
-        logging.info("MangaTranslationService 单例创建成功。")
-        return service_instance
-    except Exception as e:
-        logging.critical(f"致命错误：创建 MangaTranslationService 单例失败: {e}", exc_info=True)
-        # In a real production app, you might want to exit here if the service is critical
-        raise
-
-# Instantiate the service ONCE at module load time.
-manga_translation_service_singleton: MangaTranslationService = create_manga_translation_service_singleton()
+# 确保只创建一次服务实例
+_manga_translation_service_instance: Optional[MangaTranslationService] = None
 
 def get_manga_translation_service() -> MangaTranslationService:
     """
-    Dependency provider that simply returns the existing singleton instance.
+    Dependency provider that returns the single instance of MangaTranslationService.
+    Initializes the service lazily on first access.
     """
-    return manga_translation_service_singleton
+    global _manga_translation_service_instance # 声明使用全局变量
+    if _manga_translation_service_instance is None:
+        try:
+            logging.info("正在延迟创建 MangaTranslationService 单例实例...")
+            ocr_manager = OCRManager()
+            ocr_manager.load_model() # 确保OCR模型也在需要时加载
+
+            text_replacer = MangaTextReplacer()
+            harmonization_manager = get_harmonization_map_manager_instance()
+            
+            # Translator factory is already a singleton
+            # Translator is now fetched here, inside the lazy init
+            translator = translator_factory.get_translator(config.translator_type.value)
+
+            page_processor = MangaPageProcessor(
+                ocr_manager=ocr_manager,
+                translator=translator,
+                text_replacer=text_replacer,
+                harmonization_manager=harmonization_manager
+            )
+
+            image_cache = get_cache_factory_instance().get_manager("persistent_translation")
+
+            _manga_translation_service_instance = MangaTranslationService(
+                page_processor=page_processor,
+                image_cache=image_cache
+            )
+            logging.info("MangaTranslationService 单例延迟创建成功。")
+        except Exception as e:
+            logging.critical(f"致命错误：延迟创建 MangaTranslationService 单例失败: {e}", exc_info=True)
+            raise # 仍然抛出异常，因为服务无法创建
+
+    return _manga_translation_service_instance
 
 # --- API Endpoints ---
 

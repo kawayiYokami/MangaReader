@@ -8,6 +8,10 @@
 import hashlib
 from typing import Optional
 from pathlib import Path
+import os
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class CacheKeyGenerator:
@@ -30,6 +34,29 @@ class CacheKeyGenerator:
         # 标准化路径，确保跨平台一致性
         normalized_path = str(Path(manga_path).resolve()).replace('\\', '/')
         return f"translation:{normalized_path}:{page_index}:{target_language}:{translator_id}"
+
+    @staticmethod
+    def generate_master_key_for_path(manga_path: str) -> Optional[str]:
+        """
+        根据文件的内容（前64KB哈希）和总大小生成一个唯一的、路径无关的主键。
+        这确保了即使文件被移动，缓存依然可以命中。
+        """
+        try:
+            file_size = os.path.getsize(manga_path)
+            
+            with open(manga_path, 'rb') as f:
+                # 读取文件的前64KB作为内容样本
+                chunk = f.read(65536)
+            
+            chunk_hash = hashlib.md5(chunk).hexdigest()
+            
+            # 结合文件总大小和内容哈希，创建一个高度唯一的标识符
+            content_to_hash = f"{file_size}-{chunk_hash}"
+            master_key = hashlib.md5(content_to_hash.encode("utf-8")).hexdigest()
+            return master_key
+        except OSError as e:
+            log.warning(f"无法读取文件以生成主键 {manga_path}: {e}")
+            return None
     
     @staticmethod
     def generate_original_key(manga_path: str, page_index: int) -> str:

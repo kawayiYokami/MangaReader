@@ -5,10 +5,11 @@
 通过统一接口层与core模块交互。
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File, Form, Query
 from fastapi.responses import Response, FileResponse
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
+from math import ceil
 import os
 import base64
 from pathlib import Path
@@ -22,8 +23,8 @@ from urllib.parse import unquote
 from starlette.background import BackgroundTask
 
 from core.image.image_compressor import get_image_compressor
+from web.dependencies import get_interface
 from web.core_interface import (
-    get_core_interface,
     CoreInterface,
     WebMangaInfo,
     WebDirectoryInfo,
@@ -99,10 +100,15 @@ class SetCurrentMangaRequest(BaseModel):
     manga_path: str
     page: int = 0
 
-# 依赖注入：获取Core接口实例
-def get_interface() -> CoreInterface:
-    """获取Core接口实例"""
-    return get_core_interface()
+class PaginatedMangaResponse(BaseModel):
+    """分页漫画列表响应模型"""
+    items: List[MangaInfoResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+# 依赖注入函数已从 api_server 导入
 
 @router.get("/health")
 async def manga_health():
@@ -155,28 +161,48 @@ async def set_directory(
         logging.error(f"设置目录失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/list", response_model=List[MangaInfoResponse])
+@router.get("/list", response_model=PaginatedMangaResponse)
 async def get_manga_list(
-    sort_by: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    sort_by: Optional[str] = "last_modified DESC",
     tag_filters: Optional[str] = None, # 接收逗号分隔的字符串
+    query: Optional[str] = None, # 新增搜索查询参数
     interface: CoreInterface = Depends(get_interface)
 ):
     """
-    获取漫画列表，支持排序和标签过滤。
+    获取漫画列表，支持分页、排序、标签过滤和标题搜索。
+    - page: 页码
+    - page_size: 每页数量
     - sort_by: 排序字段和顺序, e.g., "title ASC", "last_modified DESC"
     - tag_filters: 逗号分隔的标签字符串, e.g., "tag1,tag2"
+    - query: 搜索查询字符串 (匹配标题)
     """
     try:
-        filters = tag_filters.split(',') if tag_filters else None
-        
-        # 默认排序
-        sort_order = sort_by if sort_by else "last_modified DESC"
+        filters = tag_filters.split(',') if tag_filters and tag_filters.strip() else None
 
-        web_manga_list = await interface.get_manga_list(sort_by=sort_order, tag_filters=filters)
+        # 调用核心接口，现在期望它返回一个包含 'items' 和 'total' 的字典
+        result = await interface.get_manga_list_paginated(
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            tag_filters=filters,
+            query=query
+        )
 
-        # WebMangaInfo 已经是一个足够丰富的模型，可以直接使用，无需再次转换
-        # 如果 MangaInfoResponse 有额外字段，可以在这里处理
-        return [MangaInfoResponse(**m.__dict__) for m in web_manga_list]
+        manga_list = result['items']
+        total_items = result['total']
+
+        # 将 WebMangaInfo 转换为 MangaInfoResponse
+        response_items = [MangaInfoResponse(**m.__dict__) for m in manga_list]
+
+        return PaginatedMangaResponse(
+            items=response_items,
+            total=total_items,
+            page=page,
+            page_size=page_size,
+            total_pages=ceil(total_items / page_size) if total_items > 0 else 0
+        )
 
     except CoreInterfaceError as e:
         logging.error(f"获取漫画列表失败: {e}", exc_info=True)
@@ -255,17 +281,19 @@ async def scan_directory(
     http_request: Request,
     interface: CoreInterface = Depends(get_interface)
 ):
-    """扫描指定目录中的所有漫画"""
+    """
+    接收一个目录路径，并异步触发后台扫描。
+    这是一个 'fire-and-forget' 接口，它会立即返回，扫描在后台进行。
+    """
     try:
-        # 复用 add_mangas_from_paths 逻辑，因为扫描目录就是添加一个路径
-        result = await interface.add_mangas_from_paths([request.directory_path])
-        return result
-    except CoreInterfaceError as e:
-        logging.error(f"扫描目录 '{request.directory_path}' 失败: {e}")
-        raise HTTPException(status_code=400, detail=e.message)
+        import asyncio
+        # 使用 add_mangas_from_paths，因为它似乎是核心入口点
+        logging.info(f"后台扫描任务已启动: {request.directory_path}")
+        asyncio.create_task(interface.add_mangas_from_paths([request.directory_path]))
+        return {"status": "success", "message": f"Scan for path '{request.directory_path}' started in background."}
     except Exception as e:
-        logging.error(f"扫描目录 '{request.directory_path}' 时发生未知错误: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="服务器内部错误")
+        logging.error(f"启动目录 '{request.directory_path}' 的后台扫描失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to start background scan.")
 
 @router.delete("/clear")
 @local_only
@@ -273,9 +301,14 @@ async def clear_all_data(
     http_request: Request,
     interface: CoreInterface = Depends(get_interface)
 ):
-    """清空所有漫画数据"""
+    """清空所有漫画数据，并触发刷新事件"""
     try:
         success = await interface.clear_all_data()
+
+        if success:
+            # 手动触发一个更新事件，通知所有客户端刷新列表
+            logging.info("数据已清空，正在触发 manga_list_updated 事件...")
+            interface.manga_manager._emit_event("manga_list_updated")
 
         return {
             "success": success,
@@ -289,18 +322,17 @@ async def clear_all_data(
         logging.error(f"清空数据失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/thumbnail")
-async def get_manga_thumbnail_post(
-    request: dict,
+@router.get("/thumbnail")
+async def get_manga_thumbnail(
+    manga_path: str = Query(..., description="漫画文件的绝对路径"),
     interface: CoreInterface = Depends(get_interface)
 ):
     """
-    获取漫画缩略图（POST方式）。
+    获取漫画缩略图（GET方式）。
     此接口为获取缩略图的唯一推荐方式。
     它返回文件本身，以利用浏览器缓存。
     """
     try:
-        manga_path = request.get("manga_path")
         if not manga_path:
             raise HTTPException(status_code=400, detail="缺少manga_path参数")
 

@@ -10,7 +10,7 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
+/dist/
 downloads/
 eggs/
 .eggs/
@@ -47,6 +47,7 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+node_modules/
 
 # Translations
 *.mo
@@ -118,3 +119,18 @@ storage/
 app/
 docs/
 tests/
+
+
+# Vue / Vite specific
+# ===================
+dist-ssr/
+.vite/
+.env.local
+.env.*.local
+
+# Package manager logs
+pnpm-debug.log*
+lerna-debug.log*
+
+# Keep VS Code extensions recommendations
+!.vscode/extensions.json

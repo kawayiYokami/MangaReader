@@ -2,7 +2,7 @@
 
 import os
 import asyncio
-from typing import List, Set, Dict, Optional, TYPE_CHECKING
+from typing import List, Set, Dict, Optional, TYPE_CHECKING, Any
 
 from core.manga.manga_model import MangaInfo
 from core.config import config
@@ -170,8 +170,6 @@ class MangaManager:
                 file_type=properties.get('file_type', 'unknown')
             )
             
-            if config.enable_dimension_analysis.value and manga.page_dimensions:
-                 manga.analyze_page_dimensions()
 
             if manga.is_valid:
                 logging.info(f"成功加载漫画: {manga.title} ({manga.file_path})")
@@ -187,6 +185,11 @@ class MangaManager:
     async def get_manga_list(self, **kwargs) -> List[Dict]:
         """从数据库获取用于显示的漫画列表"""
         return await self.manga_repo.get_manga_list_for_display(**kwargs)
+
+    async def get_manga_list_paginated(self, **kwargs) -> Dict[str, Any]:
+        """从数据库获取分页的漫画列表"""
+        # 直接将所有参数传递给 repository 层
+        return await self.manga_repo.get_manga_list_paginated(**kwargs)
 
     async def get_manga_by_path(self, file_path: str) -> Optional[MangaInfo]:
         """从数据库获取单个漫画的完整信息"""
@@ -207,8 +210,10 @@ class MangaManager:
     def _emit_event(self, event_type: str, data: dict = None):
         """将事件放入异步队列"""
         event = {'type': event_type, 'data': data or {}}
+        logging.info(f"[_emit_event] 准备将事件放入队列: {event}")
         try:
             self.update_queue.put_nowait(event)
+            logging.info(f"[_emit_event] 事件已成功放入队列: {event_type}")
         except asyncio.QueueFull:
             logging.warning(f"MangaManager 事件队列已满，无法发送事件: {event_type}")
 
@@ -223,22 +228,6 @@ class MangaManager:
             # self.page_changed.emit(page_number) # 页面切换暂时不广播
         else:
             logging.warning(f"页码超出范围: {page_number + 1}, 总页数: {total_pages}")
-
-    # TODO: [重构] 以下方法 (`filter_manga_by_tags`, `translate_titles`, `optimize_tags`, `analyze_and_merge_tags`)
-    # 已被移除，因为它们依赖于一个内存中的 manga_list，这与新的数据库驱动架构不兼容。
-    # 过滤应通过 get_manga_list(tag_filters=...) 直接在数据库层面完成。
-    # 翻译和标签优化需要重新设计为对数据库进行操作的独立批处理过程。
-
-    def rename_manga_file(self, manga: MangaInfo, new_name: str):
-        # TODO: [重构] 此功能的实现需要一个能在数据库中更新主键（file_path）的 repository 方法。
-        # 这通常需要 "DELETE old" + "INSERT new" 事务操作。
-        # 在 repository 层实现该功能前，此方法暂时禁用。
-        logging.warning("rename_manga_file 功能正在重构中，暂时禁用。")
-        return False
-        # old_path = manga.file_path
-        # new_path = ...
-        # self.manga_repo.rename_manga(old_path, new_path, new_name)
-        # self._emit_event(...)
 
     async def set_current_manga(self, manga):
         if manga == self.current_manga:

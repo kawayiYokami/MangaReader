@@ -105,26 +105,35 @@ class BaseTranslator(ABC):
 class ZhipuTranslator(BaseTranslator):
     """使用智谱（GLM）API的翻译器。"""
 
-    def __init__(self, api_key: str, model: str = "glm-4-flash"):
+    def __init__(self, api_key: Optional[str], model: str = "glm-4-flash"):
         super().__init__()
         self.api_key = api_key
         self.model = model
         self.api_base_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-        logging.debug(f"ZhipuTranslator已使用模型 {self.model} 初始化")
+        logging.debug(f"ZhipuTranslator已使用模型 {self.model} 初始化 (API密钥: {'已配置' if api_key else '未配置'})")
 
     @staticmethod
     def list_models(api_key: str, **kwargs) -> List[str]:
         # 智谱的API不提供模型列表接口，因此返回一个硬编码的列表
         logging.warning("Zhipu `list_models` is a placeholder and returns a fixed list.")
+        if not api_key: return [] # 如果没有密钥，返回空列表
         return ["glm-4-flash", "glm-4", "glm-3-turbo"]
 
     async def _translate_batch_api(
         self, texts: List[str], target_lang: str, cancel_flag: Optional[asyncio.Event], system_prompt: Optional[str] = None
     ) -> Dict[str, TranslationResult]:
+        results: Dict[str, TranslationResult] = {}
+
+        # 在实际发起API请求前检查API密钥
+        if not self.api_key:
+            logging.warning("智谱API密钥未配置，无法执行翻译。")
+            for text in texts:
+                results[text] = TranslationResult(text=text, translated=False, error_message="智谱API密钥未配置")
+            return results
+        
         if not system_prompt:
             raise ValueError("LLM翻译器需要一个系统提示词。")
         
-        results: Dict[str, TranslationResult] = {}
         for packed_prompt in texts:
             if cancel_flag and cancel_flag.is_set():
                 raise asyncio.CancelledError("翻译任务被取消。")
@@ -162,23 +171,24 @@ class ZhipuTranslator(BaseTranslator):
                 results[packed_prompt] = TranslationResult(text=translated_content_str, translated=True)
             except Exception as e:
                 logging.error(f"调用智谱API时出错: {e}", exc_info=True)
-                results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False)
+                results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False, error_message=str(e))
         
         return results
 
 
 class OpenAITranslator(BaseTranslator):
     """使用OpenAI（GPT）API的翻译器。"""
-    def __init__(self, api_key: str, model: str = "gpt-4o", api_base_url: Optional[str] = None):
+    def __init__(self, api_key: Optional[str], model: str = "gpt-4o", api_base_url: Optional[str] = None):
         super().__init__()
         self.api_key = api_key
         self.model = model
         self.api_base_url = api_base_url or "https://api.openai.com/v1"
-        logging.debug(f"OpenAITranslator已使用模型 {self.model} 和基础URL {self.api_base_url} 初始化")
+        logging.debug(f"OpenAITranslator已使用模型 {self.model} 和基础URL {self.api_base_url} 初始化 (API密钥: {'已配置' if api_key else '未配置'})")
 
     @staticmethod
     def list_models(api_key: str, api_base_url: Optional[str] = None) -> List[str]:
-        if not api_key: raise ValueError("列出OpenAI模型需要API密钥。")
+        if not api_key:
+            return [] # 如果没有密钥，返回空列表
         url = f"{(api_base_url or 'https://api.openai.com/v1').rstrip('/')}/models"
         headers = {"Authorization": f"Bearer {api_key}"}
         try:
@@ -188,23 +198,29 @@ class OpenAITranslator(BaseTranslator):
             return sorted([m['id'] for m in data.get('data', []) if 'gpt' in m['id'] and 'instruct' not in m['id']], reverse=True)
         except Exception as e:
             logging.error(f"获取OpenAI模型失败：{e}", exc_info=True)
-            raise ValueError(f"连接到OpenAI API失败：{e}")
+            return [] # 失败时返回空列表
 
     async def _translate_batch_api(
         self, texts: List[str], target_lang: str, cancel_flag: Optional[asyncio.Event], system_prompt: Optional[str] = None
     ) -> Dict[str, TranslationResult]:
+        results: Dict[str, TranslationResult] = {}
+
+        if not self.api_key:
+            logging.warning("OpenAI API密钥未配置，无法执行翻译。")
+            for text in texts:
+                results[text] = TranslationResult(text=text, translated=False, error_message="OpenAI API密钥未配置")
+            return results
+
         if not system_prompt:
             raise ValueError("LLM翻译器需要一个系统提示词。")
 
         api_url = f"{self.api_base_url.rstrip('/')}/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        results: Dict[str, TranslationResult] = {}
-
+        
         for packed_prompt in texts:
             if cancel_flag and cancel_flag.is_set():
                 raise asyncio.CancelledError("翻译任务被取消。")
 
-            # 方案验证成功：将用户提示词封装在Markdown代码块中
             content_with_markdown = f"```json\n{packed_prompt}\n```"
             
             payload = {
@@ -217,7 +233,6 @@ class OpenAITranslator(BaseTranslator):
                 "response_format": {"type": "json_object"}
             }
 
-            # --- 增加详细日志 ---
             logging.debug(f"即将发送到 OpenAI API 的 Payload (请求体):\n{json.dumps(payload, indent=2, ensure_ascii=False)}")
             
             loop = asyncio.get_running_loop()
@@ -227,37 +242,36 @@ class OpenAITranslator(BaseTranslator):
                     lambda: requests.post(
                         api_url,
                         headers=headers,
-                        json=payload, # 使用 `json` 参数自动处理序列化
+                        json=payload,
                         timeout=45
                     )
                 )
                 response.raise_for_status()
                 response_json = response.json()
 
-                # --- 增加详细日志 ---
                 logging.debug(f"从 OpenAI API 收到的原始响应:\n{json.dumps(response_json, indent=2, ensure_ascii=False)}")
                 
                 translated_content_str = response_json["choices"][0]["message"]["content"]
                 results[packed_prompt] = TranslationResult(text=translated_content_str, translated=True)
             except Exception as e:
                 logging.error(f"调用OpenAI API时出错: {e}", exc_info=True)
-                results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False)
+                results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False, error_message=str(e))
         
         return results
 
 
 class GeminiTranslator(BaseTranslator):
     """使用谷歌Gemini API的翻译器。"""
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: Optional[str], model: str = "gemini-1.5-flash"):
         super().__init__()
         self.api_key = api_key
         self.model = model
         self.api_base_url = "https://generativelanguage.googleapis.com/v1beta/models"
-        logging.debug(f"GeminiTranslator已使用模型 {self.model} 初始化")
+        logging.debug(f"GeminiTranslator已使用模型 {self.model} 初始化 (API密钥: {'已配置' if api_key else '未配置'})")
 
     @staticmethod
     def list_models(api_key: str, **kwargs) -> List[str]:
-        if not api_key: raise ValueError("列出Gemini模型需要API密钥。")
+        if not api_key: return [] # 如果没有密钥，返回空列表
         url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
         try:
             response = requests.get(url)
@@ -266,17 +280,25 @@ class GeminiTranslator(BaseTranslator):
             return sorted([m['name'].replace('models/', '') for m in data.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])])
         except Exception as e:
             logging.error(f"获取Gemini模型失败：{e}", exc_info=True)
-            raise ValueError(f"连接到Gemini API失败：{e}")
+            return [] # 失败时返回空列表
 
     async def _translate_batch_api(
         self, texts: List[str], target_lang: str, cancel_flag: Optional[asyncio.Event], system_prompt: Optional[str] = None
     ) -> Dict[str, TranslationResult]:
+        results: Dict[str, TranslationResult] = {}
+
+        # 在实际发起API请求前检查API密钥
+        if not self.api_key:
+            logging.warning("Gemini API密钥未配置，无法执行翻译。")
+            for text in texts:
+                results[text] = TranslationResult(text=text, translated=False, error_message="Gemini API密钥未配置")
+            return results
+
         if not system_prompt:
             raise ValueError("LLM翻译器需要一个系统提示词。")
 
         api_url = f"{self.api_base_url}/{self.model}:generateContent?key={self.api_key}"
         headers = {'Content-Type': 'application/json'}
-        results: Dict[str, TranslationResult] = {}
         
         # Gemini API的特定JSON结构
         generation_config = {"temperature": 0.2, "response_mime_type": "application/json"}
@@ -293,7 +315,7 @@ class GeminiTranslator(BaseTranslator):
 
             # 方案验证成功：将用户提示词封装在Markdown代码块中
             content_with_markdown = f"```json\n{packed_prompt}\n```"
-
+ 
             payload = {
                 "contents": [
                     # Gemini API的系统提示词是作为独立部分发送的
@@ -321,7 +343,7 @@ class GeminiTranslator(BaseTranslator):
                 results[packed_prompt] = TranslationResult(text=translated_content_str, translated=True)
             except Exception as e:
                 logging.error(f"调用Gemini API时出错: {e}", exc_info=True)
-                results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False)
+                results[packed_prompt] = TranslationResult(text=packed_prompt, translated=False, error_message=str(e))
         
         return results
 
@@ -346,23 +368,21 @@ class TranslatorFactory:
 
     def _create_translator(self, translator_type: str) -> BaseTranslator:
         """根据类型创建新的翻译器实例。"""
+        # 移除强制的API密钥检查，允许无密钥实例化
         if translator_type == "智谱":
             api_key = self.configs.get("zhipu_api_key")
             model = self.configs.get("zhipu_model")
-            if not api_key: raise ValueError("智谱翻译器需要API密钥。")
             return ZhipuTranslator(api_key=api_key, model=model or "glm-4-flash")
 
         elif translator_type == "OpenAI":
             api_key = self.configs.get("openai_api_key")
             model = self.configs.get("openai_model")
             api_base_url = self.configs.get("openai_api_base_url")
-            if not api_key: raise ValueError("OpenAI翻译器需要API密钥。")
             return OpenAITranslator(api_key=api_key, model=model or "gpt-4o", api_base_url=api_base_url)
 
         elif translator_type == "Gemini":
             api_key = self.configs.get("gemini_api_key")
             model = self.configs.get("gemini_model")
-            if not api_key: raise ValueError("Gemini翻译器需要API密钥。")
             return GeminiTranslator(api_key=api_key, model=model or "gemini-1.5-flash")
 
         else:

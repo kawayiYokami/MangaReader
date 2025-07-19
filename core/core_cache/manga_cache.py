@@ -211,6 +211,106 @@ class MangaListCacheManager(CacheInterface):
         
         return await asyncio.to_thread(_db_operation)
 
+    async def get_manga_list_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 50,
+        sort_by="last_modified DESC",
+        tag_filters: List[str] = None,
+        query: str = None
+    ) -> Dict[str, Any]:
+        """
+        一个高效的分页查询，支持排序、标签过滤和标题搜索。
+        返回一个包含项目列表和总数的字典。
+        """
+        def _db_operation():
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    
+                    where_clauses = []
+                    params = []
+
+                    # 构建基础查询，不包含 WHERE, GROUP BY, ORDER BY, LIMIT
+                    base_select_from = """
+                    FROM mangas m
+                    LEFT JOIN manga_tags mt ON m.file_path = mt.manga_path
+                    LEFT JOIN tags t ON mt.tag_id = t.id
+                    """
+
+                    # 1. 处理标题搜索
+                    if query:
+                        where_clauses.append("m.title LIKE ?")
+                        params.append(f"%{query}%")
+
+                    # 2. 处理标签过滤
+                    if tag_filters:
+                        placeholders = ','.join('?' for _ in tag_filters)
+                        sub_query = f"""
+                        m.file_path IN (
+                            SELECT manga_path FROM manga_tags
+                            JOIN tags ON manga_tags.tag_id = tags.id
+                            WHERE tags.name IN ({placeholders})
+                            GROUP BY manga_path
+                            HAVING COUNT(DISTINCT tags.name) = ?
+                        )
+                        """
+                        where_clauses.append(sub_query)
+                        params.extend(tag_filters)
+                        params.append(len(tag_filters))
+
+                    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+                    # --- 执行 COUNT 查询 ---
+                    count_sql = f"SELECT COUNT(DISTINCT m.file_path) {base_select_from} {where_sql}"
+                    cursor = conn.cursor()
+                    cursor.execute(count_sql, params)
+                    total_count = cursor.fetchone()[0]
+
+                    if total_count == 0:
+                        return {'items': [], 'total': 0}
+
+                    # --- 执行数据查询 ---
+                    data_sql = f"""
+                    SELECT
+                        m.file_path, m.title, m.last_modified, m.total_pages, m.file_size, m.file_type,
+                        GROUP_CONCAT(t.name) as tags
+                    {base_select_from}
+                    {where_sql}
+                    GROUP BY m.file_path
+                    """
+
+                    # 3. 处理排序
+                    allowed_orders = ["last_modified DESC", "last_modified ASC", "title ASC", "title DESC", "file_size DESC", "file_size ASC", "random"]
+                    if sort_by == "random":
+                        data_sql += " ORDER BY RANDOM()"
+                    elif sort_by in allowed_orders:
+                        data_sql += f" ORDER BY {sort_by}"
+                    else:
+                        data_sql += " ORDER BY last_modified DESC"  # 默认排序
+
+                    # 4. 处理分页
+                    offset = (page - 1) * page_size
+                    data_sql += " LIMIT ? OFFSET ?"
+                    params.extend([page_size, offset])
+
+                    cursor.execute(data_sql, params)
+                    rows = cursor.fetchall()
+
+                    result_items = []
+                    for row in rows:
+                        row_dict = dict(row)
+                        row_dict['tags'] = row_dict['tags'].split(',') if row_dict['tags'] else []
+                        result_items.append(row_dict)
+                    
+                    return {'items': result_items, 'total': total_count}
+
+            except sqlite3.Error as e:
+                logging.error(f"从数据库分页获取漫画列表时出错: {e}", exc_info=True)
+                return {'items': [], 'total': 0}
+        
+        return await asyncio.to_thread(_db_operation)
+
     async def get_manga_count(self) -> int:
         """获取数据库中漫画的总数"""
         def _db_operation():

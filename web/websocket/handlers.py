@@ -63,8 +63,17 @@ class ConnectionManager:
     
     async def broadcast(self, message: Dict[str, Any], subscription: str = None):
         """广播消息给所有客户端或订阅了特定主题的客户端"""
+        logging.info(f"[WebSocket] 开始广播消息. 订阅: '{subscription}', 客户端数: {len(self.active_connections)}.")
+        
+        message_json = json.dumps(message, ensure_ascii=False)
+        logging.debug(f"[WebSocket] 准备发送的消息体: {message_json}")
+
         disconnected_clients = []
         
+        if not self.active_connections:
+            logging.warning("[WebSocket] 想要广播，但没有活动的连接。")
+            return
+
         for websocket in self.active_connections:
             try:
                 # 如果指定了订阅主题，只发送给订阅了该主题的客户端
@@ -73,11 +82,13 @@ class ConnectionManager:
                     if subscription not in client_subscriptions:
                         continue
                 
-                await websocket.send_text(json.dumps(message, ensure_ascii=False))
+                await websocket.send_text(message_json)
             except Exception as e:
                 logging.error(f"广播WebSocket消息失败: {e}")
                 disconnected_clients.append(websocket)
         
+        logging.info(f"[WebSocket] 广播完成。")
+
         # 清理断开的连接
         for websocket in disconnected_clients:
             self.disconnect(websocket)

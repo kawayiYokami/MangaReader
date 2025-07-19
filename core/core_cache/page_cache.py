@@ -78,7 +78,7 @@ class PageCache:
         subdir = file_hash[:2]
         cache_dir = self.cache_dir / subdir
         cache_dir.mkdir(exist_ok=True)
-        return cache_dir / f"{file_hash}.jpg"
+        return cache_dir / f"{file_hash}.webp"
 
     def get_page(self, manga_path: str, page_index: int) -> Optional[bytes]:
         """
@@ -95,9 +95,7 @@ class PageCache:
         cache_file = self._get_cache_file_path(cache_key)
 
         if cache_file.exists() and cache_key in self.metadata:
-            self.metadata[cache_key]["last_accessed"] = time.time()
-            # 考虑不那么频繁地保存
-            # self._save_metadata()
+            # 不再更新 last_accessed
             return cache_file.read_bytes()
 
         logging.debug(f"页面缓存未命中: {manga_path} [Page {page_index}]")
@@ -122,7 +120,6 @@ class PageCache:
                 "source_path": manga_path,
                 "page_index": page_index,
                 "created": time.time(),
-                "last_accessed": time.time(),
                 "file_size": len(image_bytes),
             }
             self._save_metadata()
@@ -152,9 +149,9 @@ class PageCache:
                 logging.info("清理孤立文件后，页面缓存大小已达标。")
                 return
 
-            # 第二步：按LRU策略清理
+            # 第二步：按创建时间策略清理 (FIFO)
             sorted_metadata = sorted(
-                self.metadata.items(), key=lambda item: item[1].get("last_accessed", 0)
+                self.metadata.items(), key=lambda item: item[1].get("created", 0)
             )
 
             cleaned_count = 0

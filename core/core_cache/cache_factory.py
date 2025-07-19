@@ -7,10 +7,12 @@ from core.core_cache.ocr_cache_manager import OcrCacheManager
 from core.core_cache.translation_cache_manager import TranslationCacheManager
 from core.core_cache.persistent_translation_cache import get_persistent_translation_cache
 from core.core_cache.page_policy_cache import PagePolicyCacheManager
+from core.core_cache.thumbnail_cache import ThumbnailCache # Import ThumbnailCache
+from core.core_cache.page_cache import get_page_cache, PageCache # Import PageCache
 # DangerousWordCacheManager import removed
 
 # Define a type for cache types for better type hinting
-CacheType = Literal["manga_list", "ocr", "translation", "persistent_translation", "page_policy"] # "dangerous_word" removed
+CacheType = Literal["manga_list", "ocr", "translation", "persistent_translation", "page_policy", "thumbnail_cache", "page_cache"] # "dangerous_word" removed
 
 # 事件广播函数
 async def broadcast_cache_event(event_type: str, cache_type: str, data: Dict[str, Any] = None):
@@ -80,6 +82,10 @@ class CacheManagerFactory:
                 self._managers[cache_type] = get_persistent_translation_cache()
             elif cache_type == "page_policy":
                 self._managers[cache_type] = PagePolicyCacheManager()
+            elif cache_type == "thumbnail_cache":
+                self._managers[cache_type] = ThumbnailCache()
+            elif cache_type == "page_cache":
+                self._managers[cache_type] = get_page_cache()
             # "dangerous_word" case removed
             else:
                 # This case should ideally be caught by Literal type hinting

@@ -16,7 +16,7 @@ from pathlib import Path # 新增导入
 
 # 导入核心业务逻辑
 import logging
-from core.config import config, ReadingOrder, DisplayMode, Theme
+from core.config import config
 from core.translation.translator import OpenAITranslator, GeminiTranslator
 from utils.manga_logger import set_level
 
@@ -73,47 +73,6 @@ async def get_all_settings():
     try:
         settings = []
         
-        # 主题设置
-        settings.append(SettingItem(
-            key="ThemeMode",
-            name="主题模式",
-            description="应用程序的主题模式",
-            value=config.themeMode.value.value if hasattr(config.themeMode.value, 'value') else str(config.themeMode.value),
-            type="enum",
-            options=[
-                {"value": "Light", "label": "浅色主题"},
-                {"value": "Dark", "label": "深色主题"},
-                {"value": "Auto", "label": "跟随系统"}
-            ]
-        ))
-        
-        # 阅读方向
-        settings.append(SettingItem(
-            key="readingOrder",
-            name="阅读方向",
-            description="漫画的阅读方向",
-            value=config.reading_order.value.value if hasattr(config.reading_order.value, 'value') else str(config.reading_order.value),
-            type="enum",
-            options=[
-                {"value": "从右到左", "label": "从右到左（日式）"},
-                {"value": "从左到右", "label": "从左到右（西式）"}
-            ]
-        ))
-        
-        # 显示模式
-        settings.append(SettingItem(
-            key="displayMode",
-            name="显示模式",
-            description="漫画的显示模式",
-            value=config.display_mode.value.value if hasattr(config.display_mode.value, 'value') else str(config.display_mode.value),
-            type="enum",
-            options=[
-                {"value": "单页显示", "label": "单页显示"},
-                {"value": "双页显示", "label": "双页显示"},
-                {"value": "自适应", "label": "自适应"}
-            ]
-        ))
-        
         settings.append(SettingItem(
             key="mergeTags",
             name="合并标签",
@@ -147,6 +106,70 @@ async def get_all_settings():
             type="float",
             min_value=0.0,
             max_value=1.0
+        ))
+
+        # ==================== 页面缓存设置 ====================
+        settings.append(SettingItem(
+            key="pageCacheEnabled",
+            name="启用页面缓存",
+            description="是否启用页面缓存功能",
+            value=config.page_cache_enabled.value,
+            type="bool"
+        ))
+        settings.append(SettingItem(
+            key="pageCacheQuality",
+            name="页面缓存质量",
+            description="缓存页面的图像质量 (10-100)",
+            value=config.page_cache_quality.value,
+            type="int",
+            min_value=10,
+            max_value=100
+        ))
+        settings.append(SettingItem(
+            key="pageCacheMaxSizeMb",
+            name="页面缓存最大体积 (MB)",
+            description="页面缓存占用的最大磁盘空间 (100-20480 MB)",
+            value=config.page_cache_max_size_mb.value,
+            type="int",
+            min_value=100,
+            max_value=20480
+        ))
+        settings.append(SettingItem(
+            key="pageCacheStandardHeight",
+            name="页面缓存标准高度",
+            description="缓存时图像将被统一到的标准高度 (720-4000 px)",
+            value=config.page_cache_standard_height.value,
+            type="int",
+            min_value=720,
+            max_value=4000
+        ))
+        # --- 页面缓存决策阈值 ---
+        settings.append(SettingItem(
+            key="pageCacheDecisionRatio",
+            name="缓存决策：压缩率阈值",
+            description="当(原图/缓存)压缩比超过此值时，倾向于缓存 (0.05-1.0)",
+            value=config.page_cache_decision_ratio.value,
+            type="float",
+            min_value=0.05,
+            max_value=1.0
+        ))
+        settings.append(SettingItem(
+            key="pageCacheDecisionSizeMb",
+            name="缓存决策：文件大小阈值 (MB)",
+            description="当原图文件大小超过此值时，倾向于缓存 (0.5-10.0 MB)",
+            value=config.page_cache_decision_size_mb.value,
+            type="float",
+            min_value=0.5,
+            max_value=10.0
+        ))
+        settings.append(SettingItem(
+            key="pageCacheDecisionDimension",
+            name="缓存决策：尺寸阈值",
+            description="当原图最大边超过此值时，倾向于缓存 (1000-8000 px)",
+            value=config.page_cache_decision_dimension.value,
+            type="int",
+            min_value=1000,
+            max_value=8000
         ))
 
         # 翻译引擎类型
@@ -369,32 +392,39 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
         else:
             raise HTTPException(status_code=400, detail="无效的日志等级")
     else:
-        # 其他所有配置项
-        if not hasattr(config, setting_key):
-            logging.error(f"更新失败: 设置项 {setting_key} 不存在")
+        # -- 修复: 将前端的camelCase key转换为后端的snake_case key
+        key_map = {
+            "pageCacheEnabled": "page_cache_enabled",
+            "pageCacheQuality": "page_cache_quality",
+            "pageCacheMaxSizeMb": "page_cache_max_size_mb",
+            "pageCacheStandardHeight": "page_cache_standard_height",
+            "pageCacheDecisionRatio": "page_cache_decision_ratio",
+            "pageCacheDecisionSizeMb": "page_cache_decision_size_mb",
+            "pageCacheDecisionDimension": "page_cache_decision_dimension",
+            "ocrConfidenceThreshold": "ocr_confidence_threshold",
+            "mergeTags": "merge_tags",
+            "translator_type": "translator_type",
+            "zhipu_api_key": "zhipu_api_key",
+            "zhipu_model": "zhipu_model",
+            "openai_api_key": "openai_api_key",
+            "openai_model": "openai_model",
+            "openai_api_base_url": "openai_api_base_url",
+            "font_name": "font_name",
+        }
+        backend_key = key_map.get(setting_key, setting_key)
+
+        if not hasattr(config, backend_key):
+            logging.error(f"更新失败: 设置项 {backend_key} (from {setting_key}) 不存在")
             raise HTTPException(status_code=404, detail=f"设置项 {setting_key} 不存在")
-        
-        config_item = getattr(config, setting_key)
-        
-        # 对特定类型进行验证和转换
-        if setting_key == "ThemeMode":
-            if new_value == "Light": config_item.value = Theme.LIGHT
-            elif new_value == "Dark": config_item.value = Theme.DARK
-            elif new_value == "Auto": config_item.value = Theme.AUTO
-            else: raise HTTPException(status_code=400, detail="无效的主题模式")
-        elif setting_key == "readingOrder":
-            if new_value not in [e.value for e in ReadingOrder]: raise HTTPException(status_code=400, detail="无效的阅读方向")
+
+        config_item = getattr(config, backend_key)
+
+        # 对于其他配置项，直接赋值
+        # 类型验证由 ConfigItem 的 setter 自动处理
+        try:
             config_item.value = new_value
-        elif setting_key == "displayMode":
-            if new_value not in [e.value for e in DisplayMode]: raise HTTPException(status_code=400, detail="无效的显示模式")
-            config_item.value = new_value
-        else:
-            # 对于其他配置项，直接赋值
-            # 类型验证由 ConfigItem 的 setter 自动处理
-            try:
-                config_item.value = new_value
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=f"无效的值: {e}")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"无效的值: {e}")
 
     try:
         logging.info(f"准备保存配置, key={setting_key}, new_value_to_save={config_item.value}")
@@ -422,9 +452,6 @@ async def reset_settings():
     """重置所有设置为默认值"""
     try:
         # 重置配置为默认值
-        config.themeMode.value = Theme.AUTO
-        config.reading_order.value = ReadingOrder.LEFT_TO_RIGHT.value # 确保使用枚举的值
-        config.display_mode.value = DisplayMode.DOUBLE.value
         config.merge_tags.value = True
         config.log_level.value = "ERROR"
         config.translator_type.value = "智谱"
@@ -449,7 +476,6 @@ async def export_settings():
     try:
         settings_data = {}
         settings_keys = [
-            "themeMode", "reading_order", "display_mode",
             "merge_tags", "log_level",
             "translator_type", "zhipu_model", "font_name",
             "ocrConfidenceThreshold" # 添加遗漏的配置
@@ -494,20 +520,7 @@ async def import_settings(settings_data: Dict[str, Any]):
             try:
                 if hasattr(config, key):
                     config_item = getattr(config, key)
-                    # 特殊处理枚举类型，确保赋的是枚举成员或其 .value
-                    if key == "ThemeMode":
-                        config_item.value = Theme(value) if isinstance(value, str) else value
-                    elif key == "readingOrder":
-                         # 假设导入的是 "从右到左" 这样的字符串值
-                        enum_member = next((e for e in ReadingOrder if e.value == value), None)
-                        if enum_member: config_item.value = enum_member.value
-                        else: raise ValueError(f"无效的 readingOrder 值: {value}")
-                    elif key == "displayMode":
-                        enum_member = next((e for e in DisplayMode if e.value == value), None)
-                        if enum_member: config_item.value = enum_member.value
-                        else: raise ValueError(f"无效的 displayMode 值: {value}")
-                    else:
-                        config_item.value = value
+                    config_item.value = value
                     imported_count += 1
                 else:
                     failed_keys.append(key)
