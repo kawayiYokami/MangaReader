@@ -144,7 +144,7 @@ class Config:
         self.thumbnail_max_size_mb = RangeConfigItem("ThumbnailCache", "MaxSizeMB", 500, validator=RangeValidator(50, 10240))
 
         # ==================== 页面缓存设置 ====================
-        self.page_cache_enabled = BoolConfigItem("PageCache", "Enabled", True)
+        self.page_cache_enabled = BoolConfigItem("PageCache", "Enabled", False)
         self.page_cache_quality = RangeConfigItem("PageCache", "Quality", 85, validator=RangeValidator(10, 100))
         self.page_cache_max_size_mb = RangeConfigItem("PageCache", "MaxSizeMB", 2048, validator=RangeValidator(100, 20480))
         self.page_cache_standard_height = RangeConfigItem("PageCache", "StandardHeight", 1280, validator=RangeValidator(720, 4000))
@@ -179,6 +179,12 @@ class Config:
             "TranslatorType",
             "OpenAI",
             validator=OptionsValidator(["智谱", "OpenAI", "Gemini"])
+        )
+        self.target_language = OptionsConfigItem(
+            "Translation",
+            "TargetLanguage",
+            "zh",
+            validator=OptionsValidator(["zh", "en", "ja", "ko"])
         )
 
         # 文字替换设置

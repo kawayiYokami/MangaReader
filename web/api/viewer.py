@@ -8,12 +8,16 @@
 - 预载策略
 """
 
-from fastapi import APIRouter, HTTPException, Header, Request
+from fastapi import APIRouter, HTTPException, Header, Request, Response
+from fastapi.responses import StreamingResponse
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel
 import uuid
+import time
+import json
+import io
 
-from web.manga_viewer_manager import get_viewer_manager, cleanup_session, get_active_sessions
+from web.manga_viewer_manager import get_viewer_manager, cleanup_session, get_active_sessions, PageLoadStrategy, DisplayMode
 from core.translation.translation_factory import get_translation_factory
 from core.config import config
 import logging
@@ -134,31 +138,70 @@ async def set_current_manga(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/page/get")
-async def get_page_images(
-    request: GetPageRequest,
+async def get_page_metadata(
+    request_data: GetPageRequest,
     x_session_id: Optional[str] = Header(None)
 ):
-    """获取页面图像"""
+    """获取页面元数据，返回图片URL而不是数据"""
     try:
         session_id = get_session_id_from_header(x_session_id)
         manager = get_viewer_manager(session_id)
+
+        if not manager.current_manga_path:
+            return {"success": False, "message": "未设置当前漫画"}
+
+        # 更新状态
+        manager.current_page = max(0, min(request_data.page, manager.total_pages - 1))
+        display_mode_enum = DisplayMode.SINGLE if request_data.display_mode == "single" else DisplayMode.DOUBLE
         
-        result = await manager.get_page_images(
-            page=request.page,
-            display_mode=request.display_mode,
-            translation_enabled=request.translation_enabled
+        # 计算需要加载的页面
+        current_pages, _ = PageLoadStrategy.get_pages_to_load(
+            manager.current_page, display_mode_enum, manager.total_pages
         )
-        
-        if result["success"]:
-            result["session_id"] = session_id
-            logging.debug(f"会话 {session_id}: 获取页面图像成功 req_page={request.page}")
-        else:
-            logging.warning(f"会话 {session_id}: 获取页面图像失败 {result['message']}")
-        
-        return result
-        
+
+        # 构建图片 URL
+        image_urls = [
+            {
+                "pageIndex": page_idx,
+                # 在URL中包含 session_id 以便后续请求能找到正确的会话
+                "url": f"/api/viewer/image/{page_idx}?session_id={session_id}&translation_enabled={request_data.translation_enabled}"
+            }
+            for page_idx in current_pages
+        ]
+
+        return {
+            "success": True,
+            "images": image_urls,
+            "current_page": manager.current_page,
+        }
+
     except Exception as e:
-        logging.error(f"获取页面图像失败: {e}", exc_info=True)
+        logging.error(f"获取页面元数据失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/image/{page_index}")
+async def get_image_data(
+    page_index: int,
+    session_id: str,
+    translation_enabled: bool = False
+):
+    """获取单个页面的原始图像字节流"""
+    try:
+        manager = get_viewer_manager(session_id)
+        if not manager:
+            raise HTTPException(status_code=404, detail="会话不存在")
+
+        image_data = await manager.get_page_image_bytes(page_index, translation_enabled)
+        
+        if image_data is None:
+            raise HTTPException(status_code=404, detail=f"找不到页面 {page_index} 的图像")
+            
+        image_bytes, mime_type = image_data
+        
+        return Response(content=image_bytes, media_type=mime_type)
+
+    except Exception as e:
+        logging.error(f"获取图像数据失败 (页面 {page_index}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/session/info")

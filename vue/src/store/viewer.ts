@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { viewerApi } from '@/api/viewer';
 import { ElMessage } from 'element-plus';
+import { API_BASE_URL } from '@/api/base';
 
 // ==================== 类型定义 ====================
 
@@ -10,11 +11,10 @@ interface MangaInfo {
     filePath: string;
 }
 
-interface MangaImage {
-    src: string;
-    width: number;
-    height: number;
+export interface MangaImage {
+    src: string; // 现在是 URL
     pageIndex: number;
+    // width 和 height 不再由元数据提供，由浏览器自行决定
 }
 
 type DisplayMode = 'auto' | 'single' | 'double';
@@ -121,24 +121,22 @@ export const useViewerStore = defineStore('viewer', {
             this.$reset(); // 重置 store 状态，会自动清空 pageImageCache
         },
 
-        // ==================== 核心页面加载 ====================
-        async _fetchPageImagesFromServer(pageToFetch: number): Promise<MangaImage[]> {
+        // ==================== 核心页面加载（新架构） ====================
+        async _fetchPageMetadata(pageToFetch: number): Promise<MangaImage[]> {
             if (this.mangaInfo.totalPages === 0) return [];
             try {
                 const modeToSend = this.displayMode === 'auto' ? 'double' : this.displayMode;
-                const images = await viewerApi.getPageImages(pageToFetch, modeToSend, this.translationEnabled);
+                const metadata = await viewerApi.getPageMetadata(pageToFetch, modeToSend, this.translationEnabled);
 
-                if (images && Array.isArray(images)) {
-                    return images.map(img => ({
-                        src: img.image_data,
-                        width: img.width,
-                        height: img.height,
-                        pageIndex: img.page_index
+                if (metadata && metadata.images) {
+                    return metadata.images.map((img: { pageIndex: number, url: string }) => ({
+                        pageIndex: img.pageIndex,
+                        src: `${API_BASE_URL}${img.url}` // 构造成绝对 URL
                     }));
                 }
                 return [];
             } catch (err: any) {
-                this.error = `加载第 ${pageToFetch + 1} 页失败`;
+                this.error = `加载第 ${pageToFetch + 1} 页元数据失败`;
                 ElMessage.error(err.message || this.error);
                 console.error(err);
                 return [];
@@ -150,13 +148,11 @@ export const useViewerStore = defineStore('viewer', {
          */
         async loadPageImages(page: number, displayMode: 'single' | 'double'): Promise<MangaImage[] | null> {
             try {
-                const images = await viewerApi.getPageImages(page, displayMode, this.translationEnabled);
-                if (images && Array.isArray(images)) {
-                    return images.map(img => ({
-                        src: img.image_data,
-                        width: img.width,
-                        height: img.height,
-                        pageIndex: img.page_index
+                const metadata = await viewerApi.getPageMetadata(page, displayMode, this.translationEnabled);
+                if (metadata && metadata.images) {
+                    return metadata.images.map((img: { pageIndex: number, url: string }) => ({
+                        pageIndex: img.pageIndex,
+                        src: `${API_BASE_URL}${img.url}`
                     }));
                 }
                 return null;
@@ -166,27 +162,29 @@ export const useViewerStore = defineStore('viewer', {
             }
         },
 
-        // ==================== 页面导航 ====================
+        // ==================== 页面导航（新架构） ====================
         async goToPage(page: number) {
             const newPage = Math.max(0, Math.min(page, this.mangaInfo.totalPages - 1));
 
+            // 立即更新页面编号，让UI响应
+            this.currentPage = newPage;
+
             let newImages: MangaImage[] = [];
 
-            // 1. 检查缓存
+            // 检查缓存
             if (this.pageImageCache.has(newPage)) {
                 newImages = this.pageImageCache.get(newPage)!;
             } else {
-                // 2. 如果缓存未命中，则从服务器获取
-                newImages = await this._fetchPageImagesFromServer(newPage);
-                // 3. 将新获取的数据存入缓存
+                // 如果缓存未命中，则从服务器获取元数据
+                // 这个过程很快，所以我们不设置 isLoading
+                newImages = await this._fetchPageMetadata(newPage);
                 this.pageImageCache.set(newPage, newImages);
             }
 
-            // 4. 数据准备好后，再同时更新状态
+            // 更新图片URL列表，浏览器将开始在后台加载
             this.currentImages = newImages;
-            this.currentPage = newPage;
             
-            // 5. 如果在自动翻页，则重置计时器
+            // 如果在自动翻页，则重置计时器
             if (this.isAutoPaging) {
                 this.restartAutoPagingTimer();
             }
@@ -194,7 +192,7 @@ export const useViewerStore = defineStore('viewer', {
         
         async nextPage() {
             if (!this.canNext) return;
-            const step = this.actualDisplayMode === 'double' ? 2 : 1;
+            const step = this.actualDisplayMode === 'double' ? (this.currentImages.length > 1 ? 2 : 1) : 1;
             const newPage = Math.min(this.mangaInfo.totalPages - 1, this.currentPage + step);
             this.goToPage(newPage);
         },

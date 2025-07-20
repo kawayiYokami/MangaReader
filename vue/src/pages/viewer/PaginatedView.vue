@@ -86,21 +86,21 @@
 
     <!-- Main Content -->
     <div class="viewer-content" @click="onImageClick">
-      <div v-if="store.isLoading" class="loading-spinner">
+      <div v-if="store.isLoading && displayedImages.length === 0" class="loading-spinner">
         <el-icon class="is-loading" :size="50"><Loading /></el-icon>
       </div>
       <div v-else-if="store.error" class="error-message">
         {{ store.error }}
       </div>
-      <div v-else-if="store.currentImages.length > 0" class="image-container">
-        <img 
-            v-for="img in store.currentImages"
-            :key="img.pageIndex"
-            :src="img.src" 
-            class="manga-image"
-            :class="store.actualDisplayMode === 'single' ? 'single-page' : 'double-page'"
-            alt="Manga Page"
-        />
+      <div v-else-if="displayedImages.length > 0" class="image-container">
+        <img
+           v-for="img in displayedImages"
+           :key="img.pageIndex"
+           :src="img.src"
+           class="manga-image"
+           :class="store.actualDisplayMode === 'single' ? 'single-page' : 'double-page'"
+           alt="Manga Page"
+       />
       </div>
        <el-empty v-else description="没有图像" />
     </div>
@@ -108,9 +108,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick, onUpdated } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useViewerStore } from '@/store/viewer';
+import { useViewerStore, type MangaImage } from '@/store/viewer';
 import { useMangaStore } from '@/store/manga';
 import { useEnvironment } from '@/composables/useEnvironment';
 import { Loading } from '@element-plus/icons-vue';
@@ -129,18 +129,62 @@ const viewerContentRef = ref<HTMLElement | null>(null);
 const pageInputRef = ref<HTMLInputElement | null>(null);
 const autoplayPopoverRef = ref<any>(null);
 
+// Local State for Seamless Page Turn
+const displayedImages = ref<MangaImage[]>([]);
+const isLoadingNextPage = ref(false);
+
 // Local State
 const showPageInput = ref(false);
 const pageInputText = ref('1');
 const isDragging = ref(false);
 let popoverCloseTimer: number | null = null;
-let pageTurnStartTime = 0;
+
+// ==================== Seamless Page Turn Logic ====================
+
+watch(() => store.currentImages, (newImages) => {
+  if (newImages && newImages.length > 0) {
+    preloadAndSwitchImages(newImages);
+  } else {
+    displayedImages.value = [];
+  }
+}, { deep: true });
+
+function preloadAndSwitchImages(newImages: MangaImage[]) {
+  isLoadingNextPage.value = true;
+  const imageUrls = newImages.map(img => img.src);
+  
+  const promises = imageUrls.map(src => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = src;
+    });
+  });
+
+  Promise.all(promises)
+    .then(() => {
+      displayedImages.value = newImages;
+    })
+    .catch((error) => {
+      console.error("图片预加载失败:", error);
+      // 即使失败，也切换过去，避免卡住
+      displayedImages.value = newImages;
+    })
+    .finally(() => {
+      isLoadingNextPage.value = false;
+    });
+}
+
 
 // ==================== Lifecycle Hooks ====================
 
 onMounted(() => {
+  // Initialize displayed images
+  if (store.currentImages.length > 0) {
+    displayedImages.value = store.currentImages;
+  }
   document.addEventListener('keydown', handleKeydown);
-  // Add wheel event listener for page turning
   document.addEventListener('wheel', handleWheel, { passive: false });
 });
 
@@ -181,15 +225,10 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 function handleWheel(event: WheelEvent) {
-  // Prevent default scroll behavior
   event.preventDefault();
+  if (showPageInput.value) return;
 
-  // Do not turn page if an input or popover is active
-  if (showPageInput.value) {
-    return;
-  }
-
-  const threshold = 1; // Sensitivity threshold
+  const threshold = 1;
   if (event.deltaY > threshold) {
     store.nextPage();
   } else if (event.deltaY < -threshold) {
@@ -257,7 +296,6 @@ function onProgressMouseDown(event: MouseEvent) {
         isDragging.value = false;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
-        // 使用 goToPage 来加载拖动结束后的页面
         store.goToPage(store.currentPage);
     };
 
@@ -275,7 +313,6 @@ function updatePageFromProgress(event: MouseEvent, container: HTMLElement) {
     
     if (store.mangaInfo.totalPages > 0) {
         const targetPage = Math.floor(percentage * (store.mangaInfo.totalPages -1));
-        // 在拖动时只更新 currentPage，在 mouseUp 时才加载
         store.currentPage = targetPage;
     }
 }

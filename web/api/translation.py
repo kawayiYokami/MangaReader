@@ -55,9 +55,10 @@ def get_manga_translation_service() -> MangaTranslationService:
     global _manga_translation_service_instance # 声明使用全局变量
     if _manga_translation_service_instance is None:
         try:
-            logging.info("正在延迟创建 MangaTranslationService 单例实例...")
+            logging.info("DIAG_LOG: get_manga_translation_service - 开始延迟创建服务实例...")
             ocr_manager = OCRManager()
             ocr_manager.load_model() # 确保OCR模型也在需要时加载
+            logging.info("DIAG_LOG: get_manga_translation_service - OCR 模型加载完毕。")
 
             text_replacer = MangaTextReplacer()
             harmonization_manager = get_harmonization_map_manager_instance()
@@ -65,6 +66,7 @@ def get_manga_translation_service() -> MangaTranslationService:
             # Translator factory is already a singleton
             # Translator is now fetched here, inside the lazy init
             translator = translator_factory.get_translator(config.translator_type.value)
+            logging.info(f"DIAG_LOG: get_manga_translation_service - 翻译器实例 ({config.translator_type.value}) 获取成功。")
 
             page_processor = MangaPageProcessor(
                 ocr_manager=ocr_manager,
@@ -79,7 +81,7 @@ def get_manga_translation_service() -> MangaTranslationService:
                 page_processor=page_processor,
                 image_cache=image_cache
             )
-            logging.info("MangaTranslationService 单例延迟创建成功。")
+            logging.info("DIAG_LOG: get_manga_translation_service - MangaTranslationService 单例创建成功。")
         except Exception as e:
             logging.critical(f"致命错误：延迟创建 MangaTranslationService 单例失败: {e}", exc_info=True)
             raise # 仍然抛出异常，因为服务无法创建
@@ -107,6 +109,8 @@ async def translate_file_and_download_api(
     result as a file stream for direct download. This is a blocking operation.
     It mirrors the architecture of the /compress-file-and-download endpoint for simplicity and robustness.
     """
+    logging.info(f"DIAG_LOG: API - /translate-file-and-download - 收到请求: {file.filename}")
+    logging.info(f"DIAG_LOG: API - 服务实例已成功注入: {service is not None}")
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename cannot be empty.")
     if not file.filename.lower().endswith(('.zip', '.cbz')):
@@ -119,14 +123,16 @@ async def translate_file_and_download_api(
         with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}") as temp_upload_file:
             shutil.copyfileobj(file.file, temp_upload_file)
             temp_upload_path = temp_upload_file.name
+        logging.info(f"DIAG_LOG: API - 文件已保存到临时路径: {temp_upload_path}")
 
         # 调用同步翻译服务
-        logging.info(f"正在为 {temp_upload_path} 调用同步翻译服务")
+        logging.info(f"DIAG_LOG: API - 即将调用 asyncio.to_thread 执行 service.translate_manga_file")
         translated_temp_path = await asyncio.to_thread(
             service.translate_manga_file,
             manga_path=temp_upload_path,
             target_language=target_lang
         )
+        logging.info(f"DIAG_LOG: API - service.translate_manga_file 执行完毕，返回路径: {translated_temp_path}")
 
         if not translated_temp_path or not os.path.exists(translated_temp_path):
             logging.error(f"文件 {file.filename} 翻译失败，服务未返回有效的文件路径。")
