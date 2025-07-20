@@ -53,7 +53,8 @@ class MangaPageLoader:
             return None
         
         # DataSource 直接返回 bytes
-        return data_source.get_page_image_data(page_index)
+        image_bytes = data_source.get_page_image_data(page_index)
+        return image_bytes
 
 
     async def _manga_requires_caching(self, manga_path: str) -> bool:
@@ -126,9 +127,11 @@ class MangaPageLoader:
         """
         根据缓存策略获取页面。如果需要缓存但缓存不存在，则同步生成缓存，并从缓存中返回数据。
         """
+        
         # 1. 判定此漫画是否需要走缓存流程
         if not await self._manga_requires_caching(manga_path):
-            return await self.get_original_page(manga_path, page_index)
+            result = await self.get_original_page(manga_path, page_index)
+            return result
 
         # 2. 漫画需要缓存，直接检查此页面的缓存文件
         cached_data = self.page_cache.get_page(manga_path, page_index)
@@ -140,17 +143,19 @@ class MangaPageLoader:
 
         # 4. 根据生成结果，自行获取
         if cache_generated:
-            return self.page_cache.get_page(manga_path, page_index)
+            result = self.page_cache.get_page(manga_path, page_index)
+            return result
         else:
             self.logger.error(f"缓存生成失败，降级为获取原图: {manga_path} [Page {page_index}]")
-            return await self.get_original_page(manga_path, page_index)
+            result = await self.get_original_page(manga_path, page_index)
+            return result
 
     async def _generate_cache(self, manga_path: str, page_index: int) -> bool:
         """
         生成缓存并返回是否成功。
         """
         self.logger.info(f"开始为页面生成缓存: {manga_path} [Page {page_index}]")
-        original_bytes = await self.get_original_page(manga_path, page_index)
+        original_bytes = await self.get_original_page(manga_path, page_index) # 传递timer
         if not original_bytes:
             self.logger.error("无法获取原图，生成缓存失败。")
             return False

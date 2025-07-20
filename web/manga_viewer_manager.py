@@ -149,167 +149,74 @@ class MangaViewerManager:
             logging.error(f"设置当前漫画失败: {e}")
             return {"success": False, "message": str(e)}
     
-    async def get_page_images(self, page: int, display_mode: str = "single",
-                           translation_enabled: bool = False) -> Dict[str, Any]:
-        """
-        获取页面图像（主要接口）
-        
-        Args:
-            page: 页面索引
-            display_mode: 显示模式
-            translation_enabled: 是否启用翻译
-            
-        Returns:
-            页面图像数据和状态信息
-        """
-        try:
-            if not self.current_manga_path:
-                return {"success": False, "message": "未设置当前漫画"}
-            
-            # 更新状态
-            self.current_page = max(0, min(page, self.total_pages - 1))
-            self.display_mode = DisplayMode.SINGLE if display_mode == "single" else DisplayMode.DOUBLE
-            self.translation_enabled = translation_enabled
-            
-            # 计算需要加载的页面
-            current_pages, preload_pages = PageLoadStrategy.get_pages_to_load(
-                self.current_page, self.display_mode, self.total_pages
-            )
-            
-            # 加载当前页面
-            current_images = []
-            for page_idx in current_pages:
-                image_info = await self._get_page_image(page_idx, translation_enabled)
-                if image_info:
-                    image_data, width, height = image_info
-                    current_images.append({
-                        "page_index": page_idx,
-                        "image_data": image_data,
-                        "width": width,
-                        "height": height,
-                        "is_translated": translation_enabled and self._is_page_translated(page_idx)
-                    })
-            
-            # 异步预载页面
-            self._preload_pages_async(preload_pages, translation_enabled)
-            
-            return {
-                "success": True,
-                "images": current_images,
-                "current_page": self.current_page,
-                "total_pages": self.total_pages,
-                "display_mode": display_mode,
-                "translation_enabled": translation_enabled
-            }
-            
-        except Exception as e:
-            logging.error(f"获取页面图像失败: {e}")
-            return {"success": False, "message": str(e)}
-    
-    async def _get_page_image(self, page_index: int, use_translation: bool) -> Optional[Tuple[str, int, int]]:
-        """获取单个页面图像及其尺寸"""
-        try:
-            if use_translation:
-                return await self._get_translated_page(page_index)
-            else:
-                return await self._get_original_page(page_index)
-        except Exception as e:
-            logging.error(f"获取页面图像失败 (页面 {page_index}): {e}")
-            return None
 
-    async def _get_original_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
+    async def get_page_image_bytes(self, page_index: int, use_translation: bool) -> Optional[Tuple[bytes, str]]:
         """
-        获取原图页面及其尺寸。
-        所有复杂的缓存逻辑都已委托给 MangaPageLoader。
+        获取单个页面的原始图像字节和 MIME 类型。
+        这是新的核心方法，不进行 Base64 编码，并集成了翻译逻辑。
         """
         if not self.current_manga_path:
             return None
 
-        # 1. 从 PageLoader 获取最终的图像 bytes
-        image_bytes = await self.page_loader.get_page(self.current_manga_path, page_index)
+        image_bytes = None
+        
+        if use_translation:
+            try:
+                # 尝试获取翻译页面 (现在是同步方法)
+                translated_bytes = self.translation_factory.get_translated_page(
+                    self.current_manga_path, page_index
+                )
+                if translated_bytes:
+                    # 注意：旧逻辑将翻译图编码为 WebP。我们假设 factory 返回的也是 WebP 或其他格式。
+                    # 这里我们直接使用返回的字节，并动态检测 MIME 类型。
+                    image_bytes = translated_bytes
+                    logging.debug(f"成功获取翻译页面字节: {self.current_manga_path} [Page {page_index}]")
+                else:
+                    logging.info(f"翻译页面不可用（可能正在处理中），降级为原图: {self.current_manga_path} [Page {page_index}]")
+            except Exception as e:
+                logging.error(f"获取翻译页面时发生错误，降级为原图: {e}", exc_info=True)
+
+        # 如果不使用翻译，或者翻译失败/不可用，则获取原图
+        if image_bytes is None:
+            image_bytes = await self.page_loader.get_page(self.current_manga_path, page_index)
+
         if not image_bytes:
-            logging.error(f"MangaPageLoader 未能为页面 {page_index} 返回任何图像数据。")
+            logging.error(f"无法为页面 {page_index} 获取任何图像数据。")
             return None
-
-        # 2. 获取图像尺寸
-        dims = _get_image_dimensions_fast(image_bytes)
-        if not dims:
-            logging.error(f"无法获取页面 {page_index} 的尺寸。")
-            return None
-        width, height = dims
-
-        # 3. 编码为 base64 data URL
-        # 注意：PageLoader 返回的可能是 webp 或原始格式，前端需要能处理
+        
+        # 统一获取 MIME 类型
         try:
-            # 尝试通过Pillow获取格式，以生成正确的MIME类型
             from PIL import Image
             import io
+            # 使用 Pillow 从字节流中动态识别图像格式
             image_format = Image.open(io.BytesIO(image_bytes)).format.lower()
-            mime_type = f"image/{image_format}"
+            # 常见的格式映射
+            if image_format == 'jpeg':
+                mime_type = 'image/jpeg'
+            elif image_format == 'png':
+                mime_type = 'image/png'
+            elif image_format == 'webp':
+                mime_type = 'image/webp'
+            elif image_format == 'gif':
+                mime_type = 'image/gif'
+            else:
+                mime_type = f"image/{image_format}"
         except Exception:
-            # 如果失败，回退到通用格式
-            mime_type = "image/jpeg"
-
-        encoded_str = base64.b64encode(image_bytes).decode('utf-8')
-        data_url = f"data:{mime_type};base64,{encoded_str}"
-        
-        return data_url, width, height
-
-    async def _get_translated_page(self, page_index: int) -> Optional[Tuple[str, int, int]]:
-        """获取翻译页面及其尺寸"""
-        translator_id = config.translator_type.value
-        cache_key = self.key_generator.generate_translation_key(
-            self.current_manga_path, page_index, translator_id
-        )
-
-        with self.cache_lock:
-            if cache_key in self.translated_cache:
-                logging.debug(f"会话翻译缓存命中: {cache_key}")
-                return self.translated_cache[cache_key]
-
-        try:
-            # 获取原始翻译图像
-            translated_data_bytes = self.translation_factory.get_translated_page(
-                self.current_manga_path, page_index, translator_id
-            )
-
-            if not translated_data_bytes:
-                logging.info(f"翻译失败或超时，返回原图: {page_index}")
-                return await self._get_original_page(page_index)
-
-            img = processor.read_image(translated_data_bytes)
-            if img is None:
-                raise ValueError("解码翻译图像失败")
-
-            # 直接编码为WebP，不再进行缩放
-            final_image_bytes = processor.write_image(img, ext=".webp", quality=85)
-            if not final_image_bytes:
-                raise ValueError("编码翻译图像为WEBP失败")
-
-            # 生成base64 data URL
-            encoded_data = base64.b64encode(final_image_bytes).decode('utf-8')
-            image_data_url = f"data:image/webp;base64,{encoded_data}"
+            # 如果 Pillow 失败，回退到通用 MIME 类型
+            mime_type = "application/octet-stream"
+            logging.warning(f"无法确定页面 {page_index} 的MIME类型，回退到 application/octet-stream")
             
-            final_image_info = (image_data_url, img.shape[1], img.shape[0])
+        return image_bytes, mime_type
 
-            with self.cache_lock:
-                self.translated_cache[cache_key] = final_image_info
-                self.loaded_pages.add(page_index)
-            
-            logging.debug(f"会话 {self.session_id}: 加载翻译页面 {page_index}")
-            return final_image_info
 
-        except Exception as e:
-            logging.error(f"获取翻译页面失败: {e}")
-            return await self._get_original_page(page_index)
-    
     def _preload_pages_async(self, page_indices: List[int], use_translation: bool):
         """异步预载页面"""
         async def preload_worker():
             for page_idx in page_indices:
                 if page_idx not in self.preloaded_pages:
                     try:
-                        await self._get_page_image(page_idx, use_translation)
+                        # 直接调用核心方法来触发缓存（如果有），忽略返回值
+                        await self.get_page_image_bytes(page_idx, use_translation)
                         self.preloaded_pages.add(page_idx)
                         logging.debug(f"预载页面完成: {page_idx}")
                     except Exception as e:

@@ -66,9 +66,10 @@ async function fetchWithSession(url: string, options: RequestInit = {}): Promise
     }
     
     const responseData = await response.json();
-    if (!responseData.success) {
+    if (responseData.success === false) { // 检查明确的 false
         throw new Error(responseData.message || 'API 请求未成功');
     }
+    // 新架构下，我们只关心返回的数据本身
     return responseData;
 }
 
@@ -85,13 +86,13 @@ export const viewerApi = {
         });
     },
 
-    // 页面获取
-    getPageImages: async (page: number, displayMode: 'single' | 'double', translationEnabled: boolean) => {
+    // 页面元数据获取
+    getPageMetadata: async (page: number, displayMode: 'single' | 'double', translationEnabled: boolean) => {
         const data = await fetchWithSession('/api/viewer/page/get', {
             method: 'POST',
             body: JSON.stringify({ page, display_mode: displayMode, translation_enabled: translationEnabled }),
         });
-        return data.images; // 后端返回的数据在 images 字段中
+        return data; // 后端直接返回 { success: true, images: [...] }
     },
 
     // 翻译控制

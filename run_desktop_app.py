@@ -45,18 +45,37 @@ PORT = 8100
 
 
 # ----- 后端服务 -----
+from web.api_server import app as fastapi_app
+from fastapi.staticfiles import StaticFiles
+
 def run_server():
-    """在后台线程中运行 uvicorn 服务器。"""
-    # 在这里直接导入app，确保PyInstaller打包后也能找到
-    from web.api_server import app
-    logging.info(f"正在启动内部API服务器，地址 http://{HOST}:{PORT}")
-    uvicorn.run(
-        app, # 直接传递app实例
-        host=HOST,
-        port=PORT,
-        reload=False,
-        log_level="info",
-    )
+    """在后台线程中运行 uvicorn 服务器，并预先挂载静态文件。"""
+    logging.info(f"准备在后台线程启动API服务器，地址 http://{HOST}:{PORT}")
+    
+    # 与 run_web_server.py 相同的逻辑: 挂载静态文件目录
+    project_root = Path(__file__).parent
+    static_files_path = project_root / "vue" / "dist"
+    
+    if not static_files_path.exists() or not (static_files_path / "index.html").exists():
+        logging.error(f"前端静态文件目录不存在或不完整: {static_files_path}")
+        logging.error("请先在 'vue' 目录下运行 'npm run build' 来生成前端文件。")
+        # 在桌面应用中，我们不能直接退出，但至少要记录错误
+        return
+
+    fastapi_app.mount("/", StaticFiles(directory=static_files_path, html=True), name="static")
+    logging.info(f"已将静态文件目录 '{static_files_path}' 挂载到 FastAPI 应用。")
+
+    try:
+        uvicorn.run(
+            fastapi_app, # 直接传递修改后的 app 对象
+            host=HOST,
+            port=PORT,
+            log_level="info",
+            reload=False
+        )
+        logging.info("Uvicorn 服务器已正常关闭。")
+    except Exception as e:
+        logging.error(f"Uvicorn 服务器启动或运行时发生严重错误: {e}", exc_info=True)
 
 # ----- 辅助函数 (与 dev 启动器相同) -----
 def _dispatch_feedback_event(window, success, message, **kwargs):
@@ -222,16 +241,16 @@ def main():
     time.sleep(3) # 等待3秒，确保服务器完全启动
 
     # PyWebView 窗口相关设置
-    frontend_path = Path(__file__).parent / "vue" / "dist" / "index.html"
     window_title = "Manga Manager"
     api = DesktopApi()
 
-    logging.info(f"即将创建PyWebView窗口，加载前端文件: {frontend_path}")
+    logging.info(f"即将创建PyWebView窗口，加载后端URL: {API_SERVER_URL}")
 
-    # 创建窗口
+    # 创建窗口，直接加载 FastAPI 服务器的 URL
+    # 这是解决 405 Method Not Allowed 问题的关键
     window = webview.create_window(
         window_title,
-        url=str(frontend_path),
+        url=API_SERVER_URL,
         js_api=api,
         width=1280,
         height=800,
@@ -240,8 +259,9 @@ def main():
     )
 
     # 启动 PyWebView，并传入事件绑定函数
+    webview.settings['ALLOW_DOWNLOADS'] = True
     logging.info("正在启动 PyWebView (生产模式)...")
-    webview.start(bind_drag_drop_events, window, debug=False, private_mode=False)
+    webview.start(bind_drag_drop_events, window, debug=True, private_mode=False)
     logging.info("PyWebView 已关闭。应用程序退出。")
 
 if __name__ == "__main__":
