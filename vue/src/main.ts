@@ -1,7 +1,6 @@
 import './assets/main.css'
 import './assets/styles/layout.css'
 import './assets/styles/manga-browser.css'
-import './assets/styles/page-layouts.css'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'

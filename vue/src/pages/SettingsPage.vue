@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useSettingsStore, type SettingsState } from '@/store/settings'
 import { storeToRefs } from 'pinia'
 import { useTheme } from '@/composables/useTheme'
+import { getTranslatorConfigs, getTranslatorAgents, updateTranslatorConfigs } from '@/api/translator'
+import type { APIConfig } from '@/types/translator'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 // 主题管理
 const { theme } = useTheme()
@@ -10,23 +13,7 @@ const { theme } = useTheme()
 // 设置状态管理
 const settingsStore = useSettingsStore()
 const {
-  availableTranslators,
-  isLoadingTranslators,
-  openaiModels,
-  isLoadingOpenAIModels,
-  geminiModels,
-  isLoadingGeminiModels,
-  translator_type,
-  openai_api_key,
-  openai_api_base_url,
-  openai_model,
-  gemini_api_key,
-  gemini_model,
-  zhipu_api_key,
-  zhipu_model,
-  font_name,
   logLevel,
-  availableFonts,
   isLoading,
   // 页面缓存
   pageCacheEnabled,
@@ -38,27 +25,107 @@ const {
   pageCacheDecisionDimension
 } = storeToRefs(settingsStore)
 
-// 组件挂载时获取初始数据
-onMounted(() => {
-  settingsStore.initializeSettings()
-})
+// AI 翻译器设置
+const translatorConfigs = ref<APIConfig[]>([])
+const translatorAgents = ref<any[]>([])
 
-// 当API Key或Base URL变化时，触发模型列表获取
-const handleApiKeyChange = (provider: 'openai' | 'gemini') => {
-  // 保存新值到后端
-  if (provider === 'openai') {
-    settingsStore.updateSetting('openai_api_key', openai_api_key.value);
-    settingsStore.updateSetting('openai_api_base_url', openai_api_base_url.value);
-  } else {
-    settingsStore.updateSetting('gemini_api_key', gemini_api_key.value);
+// 组件挂载时获取初始数据
+onMounted(async () => {
+  settingsStore.initializeSettings()
+  // 获取 AI 翻译器数据
+  try {
+    const [configs, agents] = await Promise.all([
+      getTranslatorConfigs(),
+      getTranslatorAgents()
+    ]);
+    translatorConfigs.value = configs;
+    translatorAgents.value = agents;
+  } catch (error) {
+    ElMessage.error('获取 AI 翻译器设置失败')
   }
-  // 触发模型列表刷新
-  settingsStore.fetchModelsForProvider(provider)
-}
+})
 
 // 统一的设置更新处理
 const onSettingChange = (key: keyof SettingsState, value: any) => {
   settingsStore.updateSetting(key, value);
+}
+
+// --- AI 翻译器配置 CRUD ---
+const isDialogVisible = ref(false)
+const editingConfig = ref<APIConfig | null>(null)
+const isNewConfig = ref(false)
+
+const emptyConfig = (): APIConfig => ({
+  name: '',
+  api_type: 'openai',
+  api_key: '',
+  model: '',
+  temperature: 0.2,
+  max_tokens: 4096,
+  api_base_url: '',
+  request_interval_ms: 1000,
+})
+
+const openEditDialog = (config: APIConfig) => {
+  editingConfig.value = { ...config }
+  isNewConfig.value = false
+  isDialogVisible.value = true
+}
+
+const openNewDialog = () => {
+  editingConfig.value = emptyConfig()
+  isNewConfig.value = true
+  isDialogVisible.value = true
+}
+
+const handleDelete = async (configNameToDelete: string) => {
+  await ElMessageBox.confirm(
+    `确定要删除配置 "${configNameToDelete}" 吗？此操作不可撤销。`,
+    '警告',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  )
+  
+  const newConfigs = translatorConfigs.value.filter(c => c.name !== configNameToDelete)
+  try {
+    await updateTranslatorConfigs(newConfigs)
+    translatorConfigs.value = newConfigs
+    ElMessage.success('配置已删除')
+  } catch (error) {
+    ElMessage.error('删除配置失败')
+  }
+}
+
+const handleSave = async () => {
+  if (!editingConfig.value) return
+
+  const newConfigs = [...translatorConfigs.value]
+  
+  if (isNewConfig.value) {
+    // 检查名称是否重复
+    if (newConfigs.some(c => c.name === editingConfig.value!.name)) {
+      ElMessage.error('配置名称已存在')
+      return
+    }
+    newConfigs.push(editingConfig.value)
+  } else {
+    const index = newConfigs.findIndex(c => c.name === editingConfig.value!.name)
+    if (index !== -1) {
+      newConfigs[index] = editingConfig.value
+    }
+  }
+
+  try {
+    await updateTranslatorConfigs(newConfigs)
+    translatorConfigs.value = newConfigs
+    isDialogVisible.value = false
+    ElMessage.success('配置已保存')
+  } catch (error) {
+    ElMessage.error('保存配置失败')
+  }
 }
 
 </script>
@@ -88,81 +155,6 @@ const onSettingChange = (key: keyof SettingsState, value: any) => {
               <el-radio value="light">浅色</el-radio>
               <el-radio value="dark">深色</el-radio>
             </el-radio-group>
-          </el-form-item>
-        </el-form>
-      </el-card>
-
-      <!-- 翻译与文本设置 -->
-      <el-card class="mt-lg">
-        <template #header>
-          <div class="card-header">
-            <span><span class="material-symbols-rounded">language</span> 翻译与文本设置</span>
-          </div>
-        </template>
-        <el-form label-position="top">
-          <el-form-item label="翻译接口">
-            <el-select v-model="translator_type" placeholder="选择翻译引擎" :loading="isLoadingTranslators" @change="onSettingChange('translator_type', $event)">
-              <el-option
-                v-for="translator in availableTranslators"
-                :key="translator.value"
-                :label="translator.label"
-                :value="translator.value"
-              />
-            </el-select>
-          </el-form-item>
-          
-          <!-- 智谱AI -->
-          <div v-if="translator_type === '智谱'">
-            <el-form-item label="智谱AI API密钥">
-              <el-input v-model="zhipu_api_key" @change="onSettingChange('zhipu_api_key', $event)"/>
-            </el-form-item>
-            <el-form-item label="智谱AI模型">
-               <el-select v-model="zhipu_model" @change="onSettingChange('zhipu_model', $event)">
-                  <el-option label="glm-4-flash" value="glm-4-flash"></el-option>
-                  <el-option label="glm-4" value="glm-4"></el-option>
-                  <el-option label="glm-3-turbo" value="glm-3-turbo"></el-option>
-                  <el-option label="glm-4-flash-250414" value="glm-4-flash-250414"></el-option>
-               </el-select>
-            </el-form-item>
-          </div>
-
-          <!-- OpenAI -->
-          <div v-if="translator_type === 'OpenAI'">
-            <el-form-item label="OpenAI API密钥">
-              <el-input v-model="openai_api_key" @change="handleApiKeyChange('openai')" />
-            </el-form-item>
-            <el-form-item label="API Base URL (可选)">
-              <el-input v-model="openai_api_base_url" placeholder="例如: https://api.openai.com/v1" @change="handleApiKeyChange('openai')" />
-            </el-form-item>
-            <el-form-item label="OpenAI 模型">
-              <el-select v-model="openai_model" placeholder="输入API Key后自动加载" :loading="isLoadingOpenAIModels" filterable allow-create default-first-option @change="onSettingChange('openai_model', $event)">
-                <el-option v-for="model in openaiModels" :key="model" :label="model" :value="model" />
-              </el-select>
-            </el-form-item>
-          </div>
-
-          <!-- Gemini -->
-          <div v-if="translator_type === 'Gemini'">
-            <el-form-item label="Gemini API密钥">
-              <el-input v-model="gemini_api_key" @change="handleApiKeyChange('gemini')" />
-            </el-form-item>
-            <el-form-item label="Gemini 模型">
-              <el-select v-model="gemini_model" placeholder="输入API Key后自动加载" :loading="isLoadingGeminiModels" filterable allow-create default-first-option @change="onSettingChange('gemini_model', $event)">
-                <el-option v-for="model in geminiModels" :key="model" :label="model" :value="model" />
-              </el-select>
-            </el-form-item>
-          </div>
-
-          <!-- 文本替换字体 -->
-          <el-form-item label="文本替换字体">
-            <el-select v-model="font_name" placeholder="选择字体" @change="onSettingChange('font_name', $event)">
-              <el-option
-                v-for="font in availableFonts"
-                :key="font.file_name"
-                :label="font.display_name"
-                :value="font.file_name"
-              />
-            </el-select>
           </el-form-item>
         </el-form>
       </el-card>
@@ -249,6 +241,32 @@ const onSettingChange = (key: keyof SettingsState, value: any) => {
         </el-form>
       </el-card>
 
+      <!-- AI 翻译器设置 -->
+      <el-card class="mt-lg">
+        <template #header>
+          <div class="card-header">
+            <span><span class="material-symbols-rounded">translate</span> AI 翻译器设置</span>
+          </div>
+        </template>
+        <el-form label-position="top">
+          <div class="toolbar">
+            <p class="setting-description">管理所有可用的 AI 服务配置 (API Key, 模型等)。</p>
+            <el-button type="primary" @click="openNewDialog">新增配置</el-button>
+          </div>
+          <el-table :data="translatorConfigs" stripe class="mt-md">
+            <el-table-column prop="name" label="名称" />
+            <el-table-column prop="api_type" label="类型" />
+            <el-table-column prop="model" label="模型" />
+            <el-table-column label="操作" width="120">
+              <template #default="scope">
+                <el-button link type="primary" size="small" @click="openEditDialog(scope.row)">编辑</el-button>
+                <el-button link type="danger" size="small" @click="handleDelete(scope.row.name)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-form>
+      </el-card>
+
       <!-- 系统设置 -->
       <el-card class="mt-lg">
           <template #header>
@@ -269,6 +287,45 @@ const onSettingChange = (key: keyof SettingsState, value: any) => {
           </el-form>
       </el-card>
     </template>
+
+    <!-- 新增/编辑配置对话框 -->
+    <el-dialog v-model="isDialogVisible" :title="isNewConfig ? '新增配置' : '编辑配置'" width="500px">
+      <el-form v-if="editingConfig" :model="editingConfig" label-position="top">
+        <el-form-item label="配置名称">
+          <el-input v-model="editingConfig.name" :disabled="!isNewConfig" />
+        </el-form-item>
+        <el-form-item label="API 类型">
+          <el-select v-model="editingConfig.api_type" placeholder="选择 API 类型">
+            <el-option label="OpenAI" value="openai"></el-option>
+            <el-option label="Gemini" value="gemini"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="API Key">
+          <el-input v-model="editingConfig.api_key" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="模型名称">
+          <el-input v-model="editingConfig.model" />
+        </el-form-item>
+        <el-form-item label="API Base URL (可选)">
+          <el-input v-model="editingConfig.api_base_url" placeholder="例如 https://api.openai.com/v1" />
+        </el-form-item>
+        <el-form-item label="温度">
+          <el-slider v-model="editingConfig.temperature" :min="0" :max="2" :step="0.1" show-input />
+        </el-form-item>
+        <el-form-item label="最大 Token 数">
+          <el-slider v-model="editingConfig.max_tokens" :min="512" :max="16384" :step="512" show-input />
+        </el-form-item>
+        <el-form-item label="请求间隔 (ms)">
+          <el-slider v-model="editingConfig.request_interval_ms" :min="0" :max="5000" :step="100" show-input />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="isDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleSave">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -286,8 +343,16 @@ const onSettingChange = (key: keyof SettingsState, value: any) => {
 .mt-lg {
   margin-top: var(--spacing-lg);
 }
+.mt-md {
+  margin-top: var(--spacing-md);
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .material-symbols-rounded {
-  vertical-align: middle; 
+  vertical-align: middle;
   margin-right: 4px;
 }
 </style>

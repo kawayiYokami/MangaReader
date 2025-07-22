@@ -1,20 +1,9 @@
 <script setup lang="ts">
-import type { TranslationTask } from '@/store/translation';
-
-defineProps({
-  tasks: {
-    type: Array as () => TranslationTask[],
-    required: true
-  },
-  isProcessing: {
-    type: Boolean,
-    required: true
-  }
-})
+import type { ProcessingTask } from '@/types/tasks.d';
 
 const emit = defineEmits(['remove-task', 'download-task'])
 
-const getTaskStatusText = (status: TranslationTask['status']) => {
+const getTaskStatusText = (status: ProcessingTask['status']) => {
   switch (status) {
     case 'pending': return '等待中';
     case 'processing': return '处理中';
@@ -23,23 +12,38 @@ const getTaskStatusText = (status: TranslationTask['status']) => {
   }
 }
 
-const downloadTask = (task: TranslationTask) => {
+const downloadTask = (task: ProcessingTask) => {
   if (task.result) {
     const url = URL.createObjectURL(task.result);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${task.fileName.replace(/\.[^/.]+$/, "")}_translated.zip`;
+    a.download = `${task.fileName.replace(/\.[^/.]+$/, "")}_${props.taskType}.zip`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 }
+
+const props = defineProps({
+  tasks: {
+    type: Array as () => ProcessingTask[],
+    required: true
+  },
+  isProcessing: {
+    type: Boolean,
+    required: true
+  },
+  taskType: {
+    type: String,
+    default: 'processed'
+  }
+})
 </script>
 
 <template>
   <div>
-    <el-empty v-if="tasks.length === 0" description="暂无翻译任务" />
+    <el-empty v-if="tasks.length === 0" description="暂无任务" />
     <div v-else class="task-list">
       <div
         v-for="task in tasks"

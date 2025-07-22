@@ -21,7 +21,7 @@ sys.path.insert(0, str(project_root))
 try:
     # 从新的依赖模块导入
     from web.dependencies import core_interface, get_interface
-    from web.api import manga, translation, cache, settings, viewer
+    from web.api import manga, cache, settings, viewer, translator
     # 显式导入广播函数
     from web.websocket.handlers import websocket_endpoint, broadcast_manga_list_update
 except ImportError as e:
@@ -31,8 +31,8 @@ except ImportError as e:
 
 # 创建FastAPI应用
 app = FastAPI(
-    title="Manga Translator API Server",
-    description="为漫画翻译工具提供后端API服务",
+    title="Manga API Server",
+    description="为漫画管理工具提供后端API服务",
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -93,10 +93,11 @@ async def health_check():
 
 # 注册所有API路由
 app.include_router(manga.router, prefix="/api/manga", tags=["漫画管理"])
-app.include_router(translation.router, prefix="/api/translation", tags=["翻译功能"])
+
 app.include_router(cache.router, prefix="/api/cache", tags=["缓存管理"])
 app.include_router(settings.router, prefix="/api/settings", tags=["设置管理"])
 app.include_router(viewer.router, prefix="/api/viewer", tags=["漫画查看器"])
+app.include_router(translator.router, tags=["AI翻译器"]) # AI翻译器API没有统一前缀
 
 # 注册WebSocket
 app.add_websocket_route("/ws", websocket_endpoint)

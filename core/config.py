@@ -134,7 +134,6 @@ class Config:
             80,  # 默认 WebP 质量为 80
             validator=RangeValidator(0, 100)  # WebP 质量范围 0-100
         )
-        self.manga_dir = ConfigItem("Manga", "MangaDirectory", "")
 
         # ==================== 缩略图缓存设置 ====================
         self.thumbnail_cache_dir = ConfigItem("ThumbnailCache", "CacheDirectory", "cache/thumbnails")
@@ -213,6 +212,17 @@ class Config:
         # Gemini翻译设置
         self.gemini_api_key = ConfigItem("Translation", "GeminiApiKey", "")
         self.gemini_model = ConfigItem("Translation", "GeminiModel", "gemini-1.5-flash")
+
+        # 新增：用于选择当前激活的 AI 翻译器配置
+        self.active_ai_translator_config = ConfigItem(
+            "Translation",
+            "ActiveAITranslatorConfig",
+            "my_openai_service", # 默认使用第一个
+        )
+
+        # ==================== AI Translator 模块独立配置 ====================
+        # Key 和 Group 相同，这样 value 就会是整个 "api_translator_configs" 对象
+        self.api_translator_configs = ConfigItem("api_translator_configs", "api_translator_configs", [])
         
     def _collect_config_items(self):
         """收集所有配置项"""
@@ -231,12 +241,21 @@ class Config:
 
                 # 按分类加载配置
                 for key, item in self._config_items.items():
-                    group_data = data.get(item.group, {})
-                    if item.key in group_data:
-                        try:
-                            item.value = group_data[item.key]
-                        except ValueError as e:
-                            print(f"配置项 {key} 值无效，使用默认值: {e}")
+                    # 如果 group 和 key 相同, 则将其视为根级配置项
+                    if item.group == item.key:
+                        if item.key in data:
+                            try:
+                                item.value = data[item.key]
+                            except ValueError as e:
+                                print(f"配置项 {key} 值无效，使用默认值: {e}")
+                    else:
+                        # 标准的嵌套配置项
+                        group_data = data.get(item.group, {})
+                        if item.key in group_data:
+                            try:
+                                item.value = group_data[item.key]
+                            except ValueError as e:
+                                print(f"配置项 {key} 值无效，使用默认值: {e}")
 
         except Exception as e:
             print(f"加载配置文件失败: {e}")
@@ -247,14 +266,19 @@ class Config:
             # 按分类组织数据
             data = {}
             for key, item in self._config_items.items():
-                if item.group not in data:
-                    data[item.group] = {}
-
                 value = item.value
                 # 处理枚举类型
                 if hasattr(value, 'value'):
                     value = value.value
-                data[item.group][item.key] = value
+                
+                # 如果 group 和 key 相同, 则将其视为根级配置项
+                if item.group == item.key:
+                    data[item.key] = value
+                else:
+                    # 标准的嵌套配置项
+                    if item.group not in data:
+                        data[item.group] = {}
+                    data[item.group][item.key] = value
 
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)

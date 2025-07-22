@@ -2,8 +2,7 @@
 漫画查看管理器 - 会话级别的查看器控制器
 
 负责管理用户单次阅读会话的生命周期，包括：
-- 会话内存缓存管理（原图和翻译图）
-- 请求路由（原图 vs 翻译图）
+- 会话内存缓存管理（原图）
 - 智能预载策略实现
 """
 
@@ -17,7 +16,6 @@ from enum import Enum
 from pathlib import Path
 import base64
 
-from core.translation.translation_factory import get_translation_factory, PageStatus
 from core.core_cache.cache_key_generator import get_cache_key_generator
 from core.manga.page_loader import get_page_loader
 from core.manga.data_source import _get_image_dimensions_fast
@@ -77,19 +75,16 @@ class MangaViewerManager:
     def __init__(self, session_id: Optional[str] = None):
         self.session_id = session_id or str(uuid.uuid4())
         self.key_generator = get_cache_key_generator()
-        self.translation_factory = get_translation_factory()
         self.core_interface = core_interface
         self.page_loader = get_page_loader() # 使用新的PageLoader
 
         # 会话内存缓存 (缓存元组: (image_data, width, height))
         self.original_cache: Dict[str, Tuple[str, int, int]] = {}  # 原图缓存
-        self.translated_cache: Dict[str, Tuple[bytes, int, int]] = {}  # 翻译图缓存
         
         # 当前状态
         self.current_manga_path: Optional[str] = None
         self.current_page: int = 0
         self.display_mode: DisplayMode = DisplayMode.SINGLE
-        self.translation_enabled: bool = False
         self.total_pages: int = 0
         
         # 页面加载状态跟踪
@@ -150,35 +145,14 @@ class MangaViewerManager:
             return {"success": False, "message": str(e)}
     
 
-    async def get_page_image_bytes(self, page_index: int, use_translation: bool) -> Optional[Tuple[bytes, str]]:
+    async def get_page_image_bytes(self, page_index: int) -> Optional[Tuple[bytes, str]]:
         """
         获取单个页面的原始图像字节和 MIME 类型。
-        这是新的核心方法，不进行 Base64 编码，并集成了翻译逻辑。
         """
         if not self.current_manga_path:
             return None
 
-        image_bytes = None
-        
-        if use_translation:
-            try:
-                # 尝试获取翻译页面 (现在是同步方法)
-                translated_bytes = self.translation_factory.get_translated_page(
-                    self.current_manga_path, page_index
-                )
-                if translated_bytes:
-                    # 注意：旧逻辑将翻译图编码为 WebP。我们假设 factory 返回的也是 WebP 或其他格式。
-                    # 这里我们直接使用返回的字节，并动态检测 MIME 类型。
-                    image_bytes = translated_bytes
-                    logging.debug(f"成功获取翻译页面字节: {self.current_manga_path} [Page {page_index}]")
-                else:
-                    logging.info(f"翻译页面不可用（可能正在处理中），降级为原图: {self.current_manga_path} [Page {page_index}]")
-            except Exception as e:
-                logging.error(f"获取翻译页面时发生错误，降级为原图: {e}", exc_info=True)
-
-        # 如果不使用翻译，或者翻译失败/不可用，则获取原图
-        if image_bytes is None:
-            image_bytes = await self.page_loader.get_page(self.current_manga_path, page_index)
+        image_bytes = await self.page_loader.get_page(self.current_manga_path, page_index)
 
         if not image_bytes:
             logging.error(f"无法为页面 {page_index} 获取任何图像数据。")
@@ -209,14 +183,14 @@ class MangaViewerManager:
         return image_bytes, mime_type
 
 
-    def _preload_pages_async(self, page_indices: List[int], use_translation: bool):
+    def _preload_pages_async(self, page_indices: List[int]):
         """异步预载页面"""
         async def preload_worker():
             for page_idx in page_indices:
                 if page_idx not in self.preloaded_pages:
                     try:
                         # 直接调用核心方法来触发缓存（如果有），忽略返回值
-                        await self.get_page_image_bytes(page_idx, use_translation)
+                        await self.get_page_image_bytes(page_idx)
                         self.preloaded_pages.add(page_idx)
                         logging.debug(f"预载页面完成: {page_idx}")
                     except Exception as e:
@@ -243,25 +217,12 @@ class MangaViewerManager:
             logging.error(f"获取漫画信息失败: {e}")
         return None
     
-    def _is_page_translated(self, page_index: int) -> bool:
-        """检查页面是否已翻译"""
-        try:
-            translator_id = config.translator_type.value
-            status = self.translation_factory.get_page_status(
-                self.current_manga_path, page_index, translator_id
-            )
-            return status == PageStatus.TRANSLATED
-        except Exception as e:
-            logging.warning(f"检查翻译状态失败: {e}")
-            return False
-    
 
 
     def _clear_caches(self):
         """清空会话缓存"""
         with self.cache_lock:
             self.original_cache.clear()
-            self.translated_cache.clear()
             self.loaded_pages.clear()
             self.preloaded_pages.clear()
         logging.debug(f"会话 {self.session_id}: 缓存已清空")
@@ -275,10 +236,8 @@ class MangaViewerManager:
                 "current_page": self.current_page,
                 "total_pages": self.total_pages,
                 "display_mode": self.display_mode.value,
-                "translation_enabled": self.translation_enabled,
                 "cache_stats": {
                     "original_cache_size": len(self.original_cache),
-                    "translated_cache_size": len(self.translated_cache),
                     "loaded_pages": len(self.loaded_pages),
                     "preloaded_pages": len(self.preloaded_pages)
                 }
@@ -317,5 +276,4 @@ def get_active_sessions() -> List[str]:
     """获取活跃会话列表"""
     with _session_lock:
         return list(_session_managers.keys())
-
 

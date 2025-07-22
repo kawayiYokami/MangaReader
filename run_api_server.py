@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 def main():
-    parser = argparse.ArgumentParser(description="Manga Translator API Server Launcher")
+    parser = argparse.ArgumentParser(description="Manga API Server Launcher")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8100, help="Port to bind (default: 8100)")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")

@@ -29,13 +29,14 @@ interface ViewerState {
 
     displayMode: DisplayMode;
     actualDisplayMode: 'single' | 'double';
-    translationEnabled: boolean;
     
     isLoading: boolean;
     isSettingsPanelVisible: boolean; // 控制整体设置面板
     isAutoplaySettingsVisible: boolean; // 控制自动播放的悬浮设置
     isAutoPaging: boolean;
     autoPagingInterval: number; // in seconds
+
+    isTranslationMode: boolean; // 新增：翻译模式标志
 
     error: string | null;
     
@@ -57,13 +58,14 @@ export const useViewerStore = defineStore('viewer', {
         pageImageCache: new Map(), // 初始化缓存
         displayMode: 'auto',
         actualDisplayMode: 'single',
-        translationEnabled: false,
         
         isLoading: false,
         isSettingsPanelVisible: false,
         isAutoplaySettingsVisible: false,
         isAutoPaging: false,
         autoPagingInterval: 10,
+
+        isTranslationMode: false,
 
         error: null,
 
@@ -88,6 +90,7 @@ export const useViewerStore = defineStore('viewer', {
         async initializeViewer(mangaPath: string, initialPage: number = 0) {
             this.isLoading = true;
             this.error = null;
+            this.isTranslationMode = false; // 重置翻译模式
             
             // 如果是新的漫画，清空缓存
             if (this.mangaInfo.filePath !== mangaPath) {
@@ -125,8 +128,12 @@ export const useViewerStore = defineStore('viewer', {
         async _fetchPageMetadata(pageToFetch: number): Promise<MangaImage[]> {
             if (this.mangaInfo.totalPages === 0) return [];
             try {
-                const modeToSend = this.displayMode === 'auto' ? 'double' : this.displayMode;
-                const metadata = await viewerApi.getPageMetadata(pageToFetch, modeToSend, this.translationEnabled);
+                let modeToSend = this.displayMode === 'auto' ? 'double' : this.displayMode;
+                // 如果处于翻译模式，则强制使用单页
+                if (this.isTranslationMode) {
+                    modeToSend = 'single';
+                }
+                const metadata = await viewerApi.getPageMetadata(pageToFetch, modeToSend);
 
                 if (metadata && metadata.images) {
                     return metadata.images.map((img: { pageIndex: number, url: string }) => ({
@@ -148,7 +155,7 @@ export const useViewerStore = defineStore('viewer', {
          */
         async loadPageImages(page: number, displayMode: 'single' | 'double'): Promise<MangaImage[] | null> {
             try {
-                const metadata = await viewerApi.getPageMetadata(page, displayMode, this.translationEnabled);
+                const metadata = await viewerApi.getPageMetadata(page, displayMode);
                 if (metadata && metadata.images) {
                     return metadata.images.map((img: { pageIndex: number, url: string }) => ({
                         pageIndex: img.pageIndex,
@@ -212,18 +219,11 @@ export const useViewerStore = defineStore('viewer', {
             await this.goToPage(this.currentPage);
         },
 
-        async toggleTranslation() {
-            try {
-                const newState = !this.translationEnabled;
-                await viewerApi.toggleTranslation(newState);
-                this.translationEnabled = newState;
-                // 切换翻译状态后，所有缓存都失效了，需要清空
-                this.pageImageCache.clear();
-                await this.goToPage(this.currentPage);
-            } catch (err: any) {
-                ElMessage.error(err.message || '切换翻译状态失败');
-                console.error(err);
-            }
+        async toggleTranslationMode() {
+            this.isTranslationMode = !this.isTranslationMode;
+            // 切换翻译模式需要重新获取页面元数据以应用正确的显示模式
+            this.pageImageCache.clear();
+            await this.goToPage(this.currentPage);
         },
 
         // ==================== 自动翻页 ====================

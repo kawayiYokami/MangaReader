@@ -20,7 +20,6 @@ export const useCacheStore = defineStore('cache', () => {
     entries: false,
   })
   const searchQuery = ref('');
-  const showOnlySensitive = ref(false);
 
   // Actions
   async function fetchInitialData() {
@@ -59,8 +58,7 @@ export const useCacheStore = defineStore('cache', () => {
         selectedCacheType.value,
         pagination.currentPage,
         pagination.pageSize,
-        searchQuery.value,
-        showOnlySensitive.value
+        searchQuery.value
       );
       entries.value = response.entries;
       pagination.totalEntries = response.total;
@@ -88,30 +86,6 @@ export const useCacheStore = defineStore('cache', () => {
     fetchEntries();
   }
 
-  async function addOrUpdateHarmonization(key: string, value: string) {
-    await cacheApi.addOrUpdateEntry('harmonization_map', key, value);
-    // Refresh entries for the current view
-    await fetchEntries();
-    // Separately refresh stats without resetting the view
-    try {
-      cacheStats.value = await cacheApi.getCacheStats();
-    } catch (error) {
-      console.error("Failed to refresh cache stats after harmonization update:", error);
-    }
-  }
-
-  async function deleteHarmonization(key: string) {
-    await cacheApi.deleteCacheEntry('harmonization_map', key);
-    // Refresh entries for the current view
-    await fetchEntries();
-    // Separately refresh stats without resetting the view
-    try {
-      cacheStats.value = await cacheApi.getCacheStats();
-    } catch (error) {
-      console.error("Failed to refresh cache stats after harmonization delete:", error);
-    }
-  }
-
   return {
     cacheTypes,
     cacheStats,
@@ -120,14 +94,11 @@ export const useCacheStore = defineStore('cache', () => {
     pagination,
     isLoading,
     searchQuery,
-    showOnlySensitive,
     fetchInitialData,
     selectCacheType,
     fetchEntries,
     clearCache,
     deleteEntry,
     changePage,
-    addOrUpdateHarmonization,
-    deleteHarmonization,
   }
 })
