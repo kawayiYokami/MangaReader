@@ -193,14 +193,6 @@ async def handle_message(websocket: WebSocket, message: Dict[str, Any]):
         }, websocket)
 
 # 用于其他模块调用的广播函数
-async def broadcast_translation_progress(progress: Dict[str, Any]):
-    """广播翻译进度"""
-    await manager.broadcast({
-        "type": "translation_progress",
-        "data": progress,
-        "timestamp": datetime.now().isoformat()
-    }, subscription="translation")
-
 async def broadcast_scan_progress(progress: Dict[str, Any]):
     """广播扫描进度"""
     await manager.broadcast({
@@ -239,7 +231,6 @@ async def broadcast_manga_list_update(update_info: Dict[str, Any]):
 # 导出给其他模块使用
 __all__ = [
     "websocket_endpoint",
-    "broadcast_translation_progress",
     "broadcast_scan_progress",
     "broadcast_system_notification",
     "broadcast_log_message",

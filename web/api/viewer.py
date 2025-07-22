@@ -4,7 +4,6 @@
 基于翻译工厂架构的新查看器API，提供：
 - 会话管理
 - 页面获取
-- 翻译状态管理
 - 预载策略
 """
 
@@ -18,7 +17,6 @@ import json
 import io
 
 from web.manga_viewer_manager import get_viewer_manager, cleanup_session, get_active_sessions, PageLoadStrategy, DisplayMode
-from core.translation.translation_factory import get_translation_factory
 from core.config import config
 import logging
 
@@ -35,7 +33,6 @@ class GetPageRequest(BaseModel):
     """获取页面请求模型"""
     page: int
     display_mode: str = "single"  # single, double
-    translation_enabled: bool = False
 
 class SessionInfoResponse(BaseModel):
     """会话信息响应模型"""
@@ -44,7 +41,6 @@ class SessionInfoResponse(BaseModel):
     current_page: int
     total_pages: int
     display_mode: str
-    translation_enabled: bool
     cache_stats: Dict[str, Any]
 
 # ==================== 辅助函数 ====================
@@ -60,11 +56,9 @@ def get_session_id_from_header(x_session_id: Optional[str] = Header(None)) -> st
 @router.get("/health")
 async def viewer_health():
     """查看器模块健康检查"""
-    translation_factory = get_translation_factory()
     return {
         "status": "healthy",
         "module": "viewer",
-        "translation_service_running": translation_factory.is_service_running(),
         "active_sessions": len(get_active_sessions())
     }
 
@@ -164,7 +158,7 @@ async def get_page_metadata(
             {
                 "pageIndex": page_idx,
                 # 在URL中包含 session_id 以便后续请求能找到正确的会话
-                "url": f"/api/viewer/image/{page_idx}?session_id={session_id}&translation_enabled={request_data.translation_enabled}"
+                "url": f"/api/viewer/image/{page_idx}?session_id={session_id}"
             }
             for page_idx in current_pages
         ]
@@ -182,8 +176,7 @@ async def get_page_metadata(
 @router.get("/image/{page_index}")
 async def get_image_data(
     page_index: int,
-    session_id: str,
-    translation_enabled: bool = False
+    session_id: str
 ):
     """获取单个页面的原始图像字节流"""
     try:
@@ -191,7 +184,7 @@ async def get_image_data(
         if not manager:
             raise HTTPException(status_code=404, detail="会话不存在")
 
-        image_data = await manager.get_page_image_bytes(page_index, translation_enabled)
+        image_data = await manager.get_page_image_bytes(page_index)
         
         if image_data is None:
             raise HTTPException(status_code=404, detail=f"找不到页面 {page_index} 的图像")
@@ -222,57 +215,6 @@ async def get_session_info(x_session_id: Optional[str] = Header(None)):
         logging.error(f"获取会话信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/translation/toggle")
-async def toggle_translation(
-    request: Dict[str, Any],
-    x_session_id: Optional[str] = Header(None)
-):
-    """切换翻译状态"""
-    try:
-        session_id = get_session_id_from_header(x_session_id)
-        manager = get_viewer_manager(session_id)
-        
-        enabled = request.get("enabled", False)
-        
-        # 更新翻译状态
-        manager.translation_enabled = enabled
-        
-        # 如果禁用翻译，清空翻译缓存
-        if not enabled:
-            with manager.cache_lock:
-                manager.translated_cache.clear()
-            logging.info(f"会话 {session_id}: 翻译已禁用，清空翻译缓存")
-        
-        return {
-            "success": True,
-            "translation_enabled": enabled,
-            "message": f"翻译状态已{'启用' if enabled else '禁用'}"
-        }
-        
-    except Exception as e:
-        logging.error(f"切换翻译状态失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/translation/status")
-async def get_translation_status(x_session_id: Optional[str] = Header(None)):
-    """获取翻译服务状态"""
-    try:
-        session_id = get_session_id_from_header(x_session_id)
-        manager = get_viewer_manager(session_id)
-        translation_factory = get_translation_factory()
-        
-        return {
-            "success": True,
-            "service_running": translation_factory.is_service_running(),
-            "session_translation_enabled": manager.translation_enabled,
-            "current_translator": config.translator_type.value,
-            "session_id": session_id
-        }
-        
-    except Exception as e:
-        logging.error(f"获取翻译状态失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/preload")
 async def preload_pages(
     request: Dict[str, Any],
@@ -284,13 +226,12 @@ async def preload_pages(
         manager = get_viewer_manager(session_id)
         
         page_indices = request.get("page_indices", [])
-        use_translation = request.get("translation_enabled", False)
         
         if not page_indices:
             return {"success": False, "message": "未指定要预载的页面"}
         
         # 异步预载
-        manager._preload_pages_async(page_indices, use_translation)
+        manager._preload_pages_async(page_indices)
         
         return {
             "success": True,
@@ -313,7 +254,6 @@ async def get_cache_stats(x_session_id: Optional[str] = Header(None)):
             stats = {
                 "session_id": session_id,
                 "original_cache_size": len(manager.original_cache),
-                "translated_cache_size": len(manager.translated_cache),
                 "loaded_pages": list(manager.loaded_pages),
                 "preloaded_pages": list(manager.preloaded_pages),
                 "current_manga": manager.current_manga_path,

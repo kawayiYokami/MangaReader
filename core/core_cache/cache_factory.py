@@ -4,15 +4,13 @@ import asyncio
 from core.core_cache.cache_interface import CacheInterface
 from core.core_cache.manga_cache import MangaListCacheManager
 from core.core_cache.ocr_cache_manager import OcrCacheManager
-from core.core_cache.translation_cache_manager import TranslationCacheManager
-from core.core_cache.persistent_translation_cache import get_persistent_translation_cache
 from core.core_cache.page_policy_cache import PagePolicyCacheManager
-from core.core_cache.thumbnail_cache import ThumbnailCache # Import ThumbnailCache
-from core.core_cache.page_cache import get_page_cache, PageCache # Import PageCache
-# DangerousWordCacheManager import removed
+from core.core_cache.thumbnail_cache import ThumbnailCache
+from core.core_cache.page_cache import get_page_cache, PageCache
+from core.core_cache.translation_cache import TranslationCacheManager
 
 # Define a type for cache types for better type hinting
-CacheType = Literal["manga_list", "ocr", "translation", "persistent_translation", "page_policy", "thumbnail_cache", "page_cache"] # "dangerous_word" removed
+CacheType = Literal["manga_list", "ocr", "page_policy", "thumbnail_cache", "page_cache", "translation"]
 
 # 事件广播函数
 async def broadcast_cache_event(event_type: str, cache_type: str, data: Dict[str, Any] = None):
@@ -76,17 +74,14 @@ class CacheManagerFactory:
                 self._managers[cache_type] = MangaListCacheManager()
             elif cache_type == "ocr":
                 self._managers[cache_type] = OcrCacheManager()
-            elif cache_type == "translation":
-                self._managers[cache_type] = TranslationCacheManager()
-            elif cache_type == "persistent_translation":
-                self._managers[cache_type] = get_persistent_translation_cache()
             elif cache_type == "page_policy":
                 self._managers[cache_type] = PagePolicyCacheManager()
             elif cache_type == "thumbnail_cache":
                 self._managers[cache_type] = ThumbnailCache()
             elif cache_type == "page_cache":
                 self._managers[cache_type] = get_page_cache()
-            # "dangerous_word" case removed
+            elif cache_type == "translation":
+                self._managers[cache_type] = TranslationCacheManager()
             else:
                 # This case should ideally be caught by Literal type hinting
                 # but good to have a runtime check as well.

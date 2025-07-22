@@ -35,8 +35,6 @@ export async function getCacheTypes(): Promise<CacheType[]> {
     ...type,
     icon: {
       'manga_list': 'menu_book',
-      'ocr': 'document_scanner',
-      'translation': 'translate',
       'harmonization_map': 'rule',
       'persistent_translation': 'save'
     }[type.key] || 'database'
@@ -54,8 +52,7 @@ export async function getCacheEntries(
   type: string,
   page: number,
   pageSize: number,
-  search?: string,
-  showOnlySensitive?: boolean
+  search?: string
 ): Promise<CacheEntriesResponse> {
   const params = new URLSearchParams({
     page: String(page),
@@ -63,9 +60,6 @@ export async function getCacheEntries(
   });
   if (search) {
     params.append('search', search);
-  }
-  if (showOnlySensitive) {
-    params.append('show_only_sensitive', 'true');
   }
   const response = await fetch(`${API_BASE_URL}/api/cache/${type}/entries?${params.toString()}`);
   if (!response.ok) throw new Error(`Failed to fetch entries for ${type}`);

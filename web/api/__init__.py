@@ -6,7 +6,6 @@ Web API 模块
 
 模块说明:
 - manga.py: 漫画浏览和管理相关API
-- translation.py: 翻译功能相关API  
 - cache.py: 缓存管理相关API
 - settings.py: 设置管理相关API
 """

@@ -42,7 +42,7 @@
       <div class="bottom-toolbar">
           <div class="viewer-btn" @click="goBack" title="返回浏览器">arrow_back</div>
           <div class="viewer-btn" @click="switchToStripView" title="切换到条漫模式">view_day</div>
-          <div class="viewer-btn" :class="{ 'is-active': store.translationEnabled }" @click="store.toggleTranslation()" title="切换翻译">translate</div>
+          <div class="viewer-btn" @click="toggleTranslation" :class="{ 'is-active': store.isTranslationMode }" title="AI翻译">translate</div>
           
           <!-- Correct Autoplay Control with Popover -->
           <el-popover
@@ -84,6 +84,34 @@
       </div>
     </div>
 
+    <!-- Translation Sidebar -->
+    <div class="translation-sidebar" :class="{ 'is-visible': store.isTranslationMode }">
+      <div class="translation-header">
+        <h3>AI 翻译</h3>
+      </div>
+      <div class="translation-content">
+        <div v-if="isTranslating" class="loading-spinner">
+          <el-icon class="is-loading" :size="30"><Loading /></el-icon>
+          <span>翻译中...</span>
+        </div>
+        <div v-else-if="translationError" class="error-message">
+          {{ translationError }}
+        </div>
+        <div v-else-if="translationScript && translationScript.script.length > 0">
+          <div
+            v-for="(line, index) in translationScript.script"
+            :key="index"
+            class="dialogue-line"
+            :data-speaker-id="line.speaker_id"
+          >
+            <p class="translated-text">{{ line.translated_text }}</p>
+            <p class="original-text">{{ line.original_text }}</p>
+          </div>
+        </div>
+        <el-empty v-else description="无翻译内容" />
+      </div>
+    </div>
+
     <!-- Main Content -->
     <div class="viewer-content" @click="onImageClick">
       <div v-if="store.isLoading && displayedImages.length === 0" class="loading-spinner">
@@ -112,8 +140,12 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useViewerStore, type MangaImage } from '@/store/viewer';
 import { useMangaStore } from '@/store/manga';
+import { useSettingsStore } from '@/store/settings';
 import { useEnvironment } from '@/composables/useEnvironment';
 import { Loading } from '@element-plus/icons-vue';
+import { translateMangaPage, getTranslatorConfigs } from '@/api/translator';
+import type { TranslationScript, APIConfig } from '@/types/translator';
+import { ElMessage } from 'element-plus';
 
 // Environment
 const { isPyWebView } = useEnvironment();
@@ -121,6 +153,7 @@ const { isPyWebView } = useEnvironment();
 // Store and Router
 const store = useViewerStore();
 const mangaStore = useMangaStore();
+const settingsStore = useSettingsStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -139,6 +172,12 @@ const pageInputText = ref('1');
 const isDragging = ref(false);
 let popoverCloseTimer: number | null = null;
 
+// Translation State
+const isTranslating = ref(false);
+const translationScript = ref<TranslationScript | null>(null);
+const translationError = ref<string | null>(null);
+const translatorConfigs = ref<APIConfig[]>([]);
+
 // ==================== Seamless Page Turn Logic ====================
 
 watch(() => store.currentImages, (newImages) => {
@@ -146,6 +185,11 @@ watch(() => store.currentImages, (newImages) => {
     preloadAndSwitchImages(newImages);
   } else {
     displayedImages.value = [];
+  }
+
+  // 如果在翻译模式下，图片更新时自动重新翻译
+  if (store.isTranslationMode && newImages && newImages.length > 0) {
+    runTranslation();
   }
 }, { deep: true });
 
@@ -179,13 +223,21 @@ function preloadAndSwitchImages(newImages: MangaImage[]) {
 
 // ==================== Lifecycle Hooks ====================
 
-onMounted(() => {
+onMounted(async () => {
   // Initialize displayed images
   if (store.currentImages.length > 0) {
     displayedImages.value = store.currentImages;
   }
   document.addEventListener('keydown', handleKeydown);
   document.addEventListener('wheel', handleWheel, { passive: false });
+
+  // Fetch translator configs for later use
+  try {
+    translatorConfigs.value = await getTranslatorConfigs();
+  } catch (error) {
+    console.error("Failed to fetch translator configs:", error);
+    // Don't block the page, but translation might fail
+  }
 });
 
 onUnmounted(() => {
@@ -197,6 +249,7 @@ onUnmounted(() => {
 
 watch(() => store.currentPage, (newPage) => {
     pageInputText.value = (newPage + 1).toString();
+    // 翻译逻辑已移至对 currentImages 的 watch 中，以确保数据同步
 });
 
 watch(showPageInput, (isShown) => {
@@ -332,6 +385,77 @@ function clearPopoverCloseTimer() {
     clearTimeout(popoverCloseTimer);
     popoverCloseTimer = null;
   }
+}
+
+// ==================== Translation Logic ====================
+
+const toggleTranslation = () => {
+  store.toggleTranslationMode();
+};
+
+// 监听翻译模式的开启，首次开启时运行翻译
+watch(() => store.isTranslationMode, (isModeOn) => {
+  if (isModeOn && !translationScript.value) {
+    runTranslation();
+  }
+});
+
+async function runTranslation() {
+  if (store.currentImages.length === 0) return;
+
+  isTranslating.value = true;
+  translationError.value = null;
+  translationScript.value = null;
+
+  try {
+    // 假设我们总是翻译当前页的第一张图片
+    const imageToTranslate = store.currentImages[0];
+    const imageData = await imageToBlob(imageToTranslate.src);
+
+    // 确定要使用的配置名称
+    if (translatorConfigs.value.length === 0) {
+      throw new Error("未找到任何 AI 翻译器配置。请先在设置页面添加一个。");
+    }
+    const configName = translatorConfigs.value[0].name;
+
+    // 从图片对象本身获取页码，确保数据绝对同步
+    const pageIndexToTranslate = imageToTranslate.pageIndex;
+
+    const results = await translateMangaPage({
+      manga_path: store.mangaInfo.filePath,
+      page_index: pageIndexToTranslate + 1, // 前端页码从0开始，后端从1开始
+      image_data: await blobToBase64(imageData),
+      config_name: configName,
+      // agent_name 已在后端固定，此处不再需要传递
+    });
+
+    if (results && results[0] && results[0].status === 'success') {
+      translationScript.value = results[0].translation_script || { script: [] };
+    } else {
+      throw new Error(results[0]?.error_message || '翻译失败');
+    }
+  } catch (error: any) {
+    const errorMessage = error.message || '翻译时发生未知错误';
+    translationError.value = errorMessage;
+    ElMessage.error(errorMessage);
+  } finally {
+    isTranslating.value = false;
+  }
+}
+
+// --- Helper functions for image data ---
+async function imageToBlob(src: string): Promise<Blob> {
+  const response = await fetch(src);
+  return response.blob();
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 </script>
 
@@ -515,5 +639,73 @@ function clearPopoverCloseTimer() {
   border-radius: 50%;
   border: 2px solid #fff;
   z-index: 10;
+}
+
+/* =================================
+   Translation Sidebar
+   ================================= */
+.translation-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  background: #242424;
+  border-left: 1px solid #424242;
+  display: flex;
+  flex-direction: column;
+  transition: margin-right 0.3s ease;
+  margin-right: -320px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  height: 100%;
+  z-index: 1001;
+}
+.translation-sidebar.is-visible {
+  margin-right: 0;
+}
+.translation-header {
+  padding: 16px;
+  border-bottom: 1px solid #424242;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.translation-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.translation-content {
+  padding: 16px;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+.dialogue-line {
+  margin-bottom: 12px;
+  padding-left: 12px;
+  border-left: 3px solid #4a4a4a; /* 默认边框颜色 */
+  background: transparent; /* 移除背景色 */
+}
+
+/* 为不同发言人设置不同颜色 */
+.dialogue-line[data-speaker-id="1"] { border-left-color: #42a5f5; } /* 浅蓝 */
+.dialogue-line[data-speaker-id="2"] { border-left-color: #66bb6a; } /* 浅绿 */
+.dialogue-line[data-speaker-id="3"] { border-left-color: #ffee58; } /* 黄色 */
+.dialogue-line[data-speaker-id="4"] { border-left-color: #ef5350; } /* 红色 */
+.dialogue-line[data-speaker-id="5"] { border-left-color: #ab47bc; } /* 紫色 */
+/* 可以根据需要添加更多颜色 */
+
+.translated-text {
+  font-size: 15px; /* 稍微减小字体 */
+  color: #e0e0e0;
+  line-height: 1.5;
+  margin: 0;
+}
+.original-text {
+  font-size: 11px; /* 显著减小字体 */
+  color: #757575; /* 颜色更暗 */
+  line-height: 1.4;
+  margin: 2px 0 0 0; /* 减小与译文的间距 */
+  padding: 0;
+  border: none; /* 移除分隔线 */
 }
 </style>

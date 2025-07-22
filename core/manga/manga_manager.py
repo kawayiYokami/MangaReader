@@ -10,7 +10,6 @@ from core.config import config
 if TYPE_CHECKING:
     from core.core_cache.manga_cache import MangaListCacheManager
 import logging
-from core.translation.translator import TranslatorFactory
 from core.core_cache.cache_factory import get_cache_factory_instance
 from core.core_cache.cache_interface import CacheInterface
 from core.manga.data_source import DataSourceFactory
@@ -23,7 +22,6 @@ class MangaManager:
         self.update_queue = asyncio.Queue()
 
         self.manga_repo: 'MangaListCacheManager' = get_cache_factory_instance().get_manager("manga_list")
-        self.translation_cache_manager: CacheInterface = get_cache_factory_instance().get_manager("translation")
         self.update_queue = asyncio.Queue()
         self.current_manga: MangaInfo | None = None
         logging.info("MangaManager (v2) 初始化完成。")
@@ -35,14 +33,6 @@ class MangaManager:
             logging.info("配置已保存")
         except Exception as e:
             logging.error(f"保存配置时发生错误: {str(e)}")
-            
-    def clear_translation_cache(self):
-        """清空翻译缓存"""
-        try:
-            self.translation_cache_manager.clear()
-            logging.info("翻译缓存已通过 TranslationCacheManager 清空")
-        except Exception as e:
-            logging.error(f"通过 TranslationCacheManager 清空翻译缓存时发生错误: {str(e)}")
             
     async def clear_manga_cache(self):
         """清空漫画扫描缓存"""
@@ -61,11 +51,6 @@ class MangaManager:
         config.current_manga_path.value = ""
         config.current_page.value = 0
         self.save_config()
-
-        # 假设 translation_cache_manager.clear() 也是异步的，如果不是，需要进一步修改
-        # 在这个重构阶段，我们先保持调用接口不变，但假设其行为是异步的
-        # 如果 translation_cache_manager 不是异步的，正确的做法是 await asyncio.to_thread(self.translation_cache_manager.clear)
-        self.clear_translation_cache()
 
         self._emit_event('data_loaded', {'manga_count': 0, 'tags_count': 0})
         logging.info("所有漫画数据已清空。")

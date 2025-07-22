@@ -116,7 +116,7 @@ storage/
 .debug/
 .kilocode/
 .roo/
-app/
+app/config
 docs/
 tests/
 

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 import { compressFile } from '@/api/compression'
-import type { TranslationTask as CompressionTask } from './translation' // Reuse the same task structure
+import type { ProcessingTask as CompressionTask } from '@/types/tasks.d'
 
 export const useCompressionStore = defineStore('compression', () => {
   // State
@@ -23,7 +23,7 @@ export const useCompressionStore = defineStore('compression', () => {
     tasks.value.push(newTask);
   }
 
-  function removeTask(taskId: string) {
+  function removeTask(taskId: string | number) {
     tasks.value = tasks.value.filter(task => task.id !== taskId);
   }
 

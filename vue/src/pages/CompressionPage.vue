@@ -15,9 +15,9 @@ const handleFilesSelected = (files: File[]) => {
 
 <template>
   <div class="compression-interface">
-    <div class="translation-layout"> <!-- Reusing layout class -->
+    <div class="processing-layout">
       <!-- Left Panel -->
-      <div class="translation-control">
+      <div class="processing-controls">
         <el-card>
           <template #header><span>文件选择</span></template>
           <FileUpload @files-selected="handleFilesSelected" />
@@ -43,7 +43,7 @@ const handleFilesSelected = (files: File[]) => {
       </div>
 
       <!-- Right Panel -->
-      <div class="translation-tasks">
+      <div class="processing-tasks">
         <el-card>
           <template #header>
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -51,9 +51,27 @@ const handleFilesSelected = (files: File[]) => {
               <span>{{ tasks.length }} 个任务</span>
             </div>
           </template>
-          <TaskList :tasks="tasks" :is-processing="isProcessing" @remove-task="compressionStore.removeTask" />
+          <TaskList :tasks="tasks" :is-processing="isProcessing" @remove-task="compressionStore.removeTask" task-type="compressed" />
         </el-card>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.processing-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 16px;
+  padding: 16px;
+}
+
+.processing-controls {
+  display: flex;
+  flex-direction: column;
+}
+
+.processing-tasks {
+  min-width: 0;
+}
+</style>

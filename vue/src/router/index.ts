@@ -8,7 +8,7 @@ import ViewerLayout from '@/components/layout/ViewerLayout.vue'
 import HomeView from '../pages/HomeView.vue'
 import MangaBrowserPage from '../pages/MangaBrowserPage.vue'
 import SettingsPage from '../pages/SettingsPage.vue'
-import TranslationPage from '../pages/TranslationPage.vue'
+
 import CompressionPage from '../pages/CompressionPage.vue'
 import CacheManagementPage from '../pages/CacheManagementPage.vue'
 import MangaViewerPage from '../pages/MangaViewerPage.vue'
@@ -31,11 +31,6 @@ const router = createRouter({
           path: 'settings',
           name: 'settings',
           component: SettingsPage
-        },
-        {
-          path: 'translation',
-          name: 'translation',
-          component: TranslationPage
         },
         {
           path: 'compression',

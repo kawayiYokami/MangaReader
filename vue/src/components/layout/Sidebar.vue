@@ -14,7 +14,6 @@ const activeMenu = computed(() => route.name)
 // Map menu keys to route names
 const menuRoutes: { [key: string]: string } = {
   'manga-browser': 'browser',
-  'translation': 'translation',
   'compression': 'compression',
   'cache': 'cache',
   'settings': 'settings', // Placeholder for future route
@@ -39,11 +38,6 @@ const handleMenuSelect = (menuKey: string) => {
       <div class="nav-item" :class="{ active: activeMenu === 'browser' }" @click="handleMenuSelect('manga-browser')">
         <div class="nav-icon"><span class="material-symbols-rounded">menu_book</span></div>
         <span class="nav-text">漫画浏览</span>
-      </div>
-
-      <div class="nav-item" :class="{ active: activeMenu === 'translation' }" @click="handleMenuSelect('translation')">
-        <div class="nav-icon"><span class="material-symbols-rounded">translate</span></div>
-        <span class="nav-text">漫画翻译</span>
       </div>
 
       <div class="nav-item" :class="{ active: activeMenu === 'compression' }" @click="handleMenuSelect('compression')">

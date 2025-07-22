@@ -261,7 +261,7 @@ def main():
     # 启动 PyWebView，并传入事件绑定函数
     webview.settings['ALLOW_DOWNLOADS'] = True
     logging.info("正在启动 PyWebView (生产模式)...")
-    webview.start(bind_drag_drop_events, window, debug=True, private_mode=False)
+    webview.start(bind_drag_drop_events, window, debug=False, private_mode=False)
     logging.info("PyWebView 已关闭。应用程序退出。")
 
 if __name__ == "__main__":

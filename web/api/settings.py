@@ -17,7 +17,6 @@ from pathlib import Path # 新增导入
 # 导入核心业务逻辑
 import logging
 from core.config import config
-from core.translation.translator import OpenAITranslator, GeminiTranslator
 from utils.manga_logger import set_level
 
 router = APIRouter()
@@ -172,72 +171,6 @@ async def get_all_settings():
             max_value=8000
         ))
 
-        # 翻译引擎类型
-        settings.append(SettingItem(
-            key="translator_type",
-            name="翻译引擎",
-            description="选择使用的翻译引擎",
-            value=config.translator_type.value,
-            type="enum",
-            # options 将由新的 /translator-options 接口动态提供
-            options=[]
-        ))
-
-        # 智谱AI翻译设置
-        settings.append(SettingItem(
-            key="zhipu_api_key",
-            name="智谱AI API Key",
-            description="智谱AI翻译服务的API Key",
-            value="***" if config.zhipu_api_key.value else "",  # 隐藏API密钥
-            type="string"
-        ))
-        settings.append(SettingItem(
-            key="zhipu_model",
-            name="智谱AI模型",
-            description="智谱AI翻译使用的模型",
-            value=config.zhipu_model.value,
-            type="enum",
-            options=[
-                {"value": "glm-4-flash", "label": "glm-4-flash"},
-                {"value": "glm-4", "label": "glm-4"},
-                {"value": "glm-3-turbo", "label": "glm-3-turbo"},
-                {"value": "glm-4-flash-250414", "label": "glm-4-flash-250414"}
-            ]
-        ))
-
-
-        # OpenAI 额外设置
-        settings.append(SettingItem(
-            key="openai_api_key",
-            name="OpenAI API Key",
-            description="OpenAI 翻译服务的API Key",
-            value="***" if config.openai_api_key.value else "",
-            type="string"
-        ))
-        settings.append(SettingItem(
-            key="openai_model",
-            name="OpenAI 模型",
-            description="OpenAI 翻译使用的模型",
-            value=config.openai_model.value,
-            type="string" # 允许用户输入自定义模型
-        ))
-        settings.append(SettingItem(
-            key="openai_api_base_url",
-            name="OpenAI API Base URL",
-            description="用于兼容第三方服务或代理的OpenAI API地址",
-            value=config.openai_api_base_url.value,
-            type="string"
-        ))
-        
-        # 字体设置
-        settings.append(SettingItem(
-            key="font_name",
-            name="字体名称",
-            description="翻译文本使用的字体名称",
-            value=config.font_name.value,
-            type="string" # 这个值是从 available-fonts 的 file_name 中选取的
-        ))
-
         return {"settings": settings}
         
     except Exception as e:
@@ -327,30 +260,6 @@ async def get_available_fonts():
     logging.debug(f"最终返回的字体列表: {fonts}")
     return {"success": True, "fonts": fonts}
 
-@router.get("/translator-options")
-async def get_translator_options():
-    """获取可用的翻译器选项列表"""
-    try:
-        # 从config对象中获取OptionsConfigItem
-        translator_config_item = config.translator_type
-        # 获取验证器中的选项列表
-        options = translator_config_item.validator.options
-        
-        # 将选项格式化为前端需要的格式
-        formatted_options = []
-        for option_value in options:
-            # 这里可以根据需要添加更友好的显示名称
-            label = option_value
-            if option_value == "智谱":
-                label = "智谱AI"
-            
-            formatted_options.append({"value": option_value, "label": label})
-            
-        return {"success": True, "translators": formatted_options}
-    except Exception as e:
-        logging.error(f"获取翻译器选项失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="无法获取翻译器选项")
-
 @router.get("/{setting_key}")
 async def get_setting(setting_key: str):
     """获取单个设置项"""
@@ -403,13 +312,6 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
             "pageCacheDecisionDimension": "page_cache_decision_dimension",
             "ocrConfidenceThreshold": "ocr_confidence_threshold",
             "mergeTags": "merge_tags",
-            "translator_type": "translator_type",
-            "zhipu_api_key": "zhipu_api_key",
-            "zhipu_model": "zhipu_model",
-            "openai_api_key": "openai_api_key",
-            "openai_model": "openai_model",
-            "openai_api_base_url": "openai_api_base_url",
-            "font_name": "font_name",
         }
         backend_key = key_map.get(setting_key, setting_key)
 
@@ -454,10 +356,6 @@ async def reset_settings():
         # 重置配置为默认值
         config.merge_tags.value = True
         config.log_level.value = "ERROR"
-        config.translator_type.value = "智谱"
-        config.zhipu_api_key.value = ""
-        config.zhipu_model.value = "glm-4-flash"
-        config.font_name.value = "SourceHanSerifCN-Heavy.ttf" # 恢复默认字体或空字符串
         
         config.save()
         
@@ -477,7 +375,6 @@ async def export_settings():
         settings_data = {}
         settings_keys = [
             "merge_tags", "log_level",
-            "translator_type", "zhipu_model", "font_name",
             "ocrConfidenceThreshold" # 添加遗漏的配置
         ]
 
@@ -487,8 +384,6 @@ async def export_settings():
                 if hasattr(value, 'value'): # 处理枚举
                     value = value.value
                 settings_data[key] = value
-
-        settings_data["zhipu_api_key_set"] = bool(config.zhipu_api_key.value)
         
         # 实际应该使用当前时间
         from datetime import datetime
@@ -542,29 +437,3 @@ async def import_settings(settings_data: Dict[str, Any]):
     except Exception as e:
         logging.error(f"导入设置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/openai/models")
-async def get_openai_models(request: ModelListRequest):
-    """获取OpenAI模型列表"""
-    try:
-        models = OpenAITranslator.list_models(api_key=request.apiKey, api_base_url=request.baseUrl)
-        return {"success": True, "models": models}
-    except ValueError as e:
-        logging.error(f"获取 OpenAI 模型失败 (值错误): {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logging.error(f"获取 OpenAI 模型时发生未知错误: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="获取模型列表时发生内部错误")
-
-@router.post("/gemini/models")
-async def get_gemini_models(request: ModelListRequest):
-    """获取Gemini模型列表"""
-    try:
-        models = GeminiTranslator.list_models(api_key=request.apiKey)
-        return {"success": True, "models": models}
-    except ValueError as e:
-        logging.error(f"获取 Gemini 模型失败 (值错误): {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logging.error(f"获取 Gemini 模型时发生未知错误: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="获取模型列表时发生内部错误")

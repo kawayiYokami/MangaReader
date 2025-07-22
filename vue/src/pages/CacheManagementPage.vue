@@ -3,7 +3,6 @@ import { onMounted, ref, reactive } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { useCacheStore } from '@/store/cache'
 import { storeToRefs } from 'pinia'
-import HarmonizationDialog from '@/components/dialogs/HarmonizationDialog.vue'
 import BatchCompressionDialog from '@/components/dialogs/BatchCompressionDialog.vue'
 
 const cacheStore = useCacheStore()
@@ -14,19 +13,8 @@ const {
   entries,
   pagination,
   isLoading,
-  searchQuery,
-  showOnlySensitive
+  searchQuery
 } = storeToRefs(cacheStore)
-
-const harmonizationDialogState = reactive({
-  visible: false,
-  title: '',
-  isEditing: false,
-  originalText: '',
-  harmonizedText: '',
-  currentKey: '',
-});
-
 
 const batchCompressionDialogState = reactive({
   visible: false,
@@ -41,29 +29,6 @@ onMounted(() => {
 const getSelectedCacheName = () => {
   return cacheTypes.value.find(t => t.key === selectedCacheType.value)?.name || ''
 }
-
-const showAddHarmonizationDialog = () => {
-  harmonizationDialogState.isEditing = false;
-  harmonizationDialogState.title = '添加和谐映射';
-  harmonizationDialogState.originalText = '';
-  harmonizationDialogState.harmonizedText = '';
-  harmonizationDialogState.visible = true;
-}
-
-const showEditHarmonizationDialog = (entry: any) => {
-  harmonizationDialogState.isEditing = true;
-  harmonizationDialogState.title = '编辑和谐映射';
-  harmonizationDialogState.originalText = entry.key;
-  harmonizationDialogState.harmonizedText = entry.value;
-  harmonizationDialogState.currentKey = entry.key;
-  harmonizationDialogState.visible = true;
-}
-
-const handleHarmonizationConfirm = async (data: { originalText: string, harmonizedText: string }) => {
-  await cacheStore.addOrUpdateHarmonization(data.originalText, data.harmonizedText);
-  harmonizationDialogState.visible = false;
-}
-
 
 const showBatchCompressionDialog = () => {
   batchCompressionDialogState.visible = true;
@@ -80,23 +45,6 @@ const getTableColspan = () => {
   return 3; // key, value, actions
 }
 
-const handleDeleteHarmonization = async (key: string) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除键为 "${key}" 的和谐映射吗？`,
-      '确认删除',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
-    await cacheStore.deleteHarmonization(key);
-  } catch (error) {
-    // User cancelled the action
-    console.log('Delete action cancelled');
-  }
-}
 </script>
 
 <template>
@@ -135,28 +83,12 @@ const handleDeleteHarmonization = async (key: string) => {
         <div class="spacer"></div>
 
         <!-- Action Buttons and Switches -->
-        <!-- 和谐映射特有按钮 -->
-        <template v-if="selectedCacheType === 'harmonization_map'">
-          <el-button size="small" type="primary" class="action-button" @click="showAddHarmonizationDialog">
-            <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">add</span>
-            添加映射
-          </el-button>
-        </template>
         <!-- 漫画列表特有按钮 -->
         <template v-if="selectedCacheType === 'manga_list'">
           <el-button size="small" type="success" class="action-button" @click="showBatchCompressionDialog">
             <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 1.1em; margin-right: 4px;">compress</span>
             批量压缩
           </el-button>
-        </template>
-        <!-- 翻译缓存敏感内容筛选开关 -->
-        <template v-if="selectedCacheType === 'translation'">
-            <el-switch
-              v-model="showOnlySensitive"
-              active-text="仅显示敏感内容"
-              style="margin-left: 1rem;"
-              @change="cacheStore.fetchEntries"
-            />
         </template>
       </div>
 
@@ -208,13 +140,7 @@ const handleDeleteHarmonization = async (key: string) => {
               <td :title="entry.key">{{ entry.key.slice(0, 50) }}...</td>
               <td>{{ entry.value_preview }}</td>
               <td>
-                <template v-if="selectedCacheType === 'harmonization_map'">
-                  <el-button size="small" text @click="showEditHarmonizationDialog(entry)">编辑</el-button>
-                  <el-button size="small" type="danger" text @click="handleDeleteHarmonization(entry.key)">删除</el-button>
-                </template>
-                <template v-else>
-                  <el-button size="small" type="danger" text @click="cacheStore.deleteEntry(selectedCacheType!, entry.key)">删除</el-button>
-                </template>
+                <el-button size="small" type="danger" text @click="cacheStore.deleteEntry(selectedCacheType!, entry.key)">删除</el-button>
               </td>
             </tr>
           </tbody>
@@ -228,16 +154,6 @@ const handleDeleteHarmonization = async (key: string) => {
         />
       </div>
     </el-card>
-
-    <HarmonizationDialog
-      v-model:visible="harmonizationDialogState.visible"
-      :title="harmonizationDialogState.title"
-      :is-editing="harmonizationDialogState.isEditing"
-      :original-text="harmonizationDialogState.originalText"
-      :harmonized-text="harmonizationDialogState.harmonizedText"
-      @confirm="handleHarmonizationConfirm"
-    />
-
 
     <BatchCompressionDialog
       v-model:visible="batchCompressionDialogState.visible"

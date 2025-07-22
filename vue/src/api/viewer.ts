@@ -87,19 +87,11 @@ export const viewerApi = {
     },
 
     // 页面元数据获取
-    getPageMetadata: async (page: number, displayMode: 'single' | 'double', translationEnabled: boolean) => {
+    getPageMetadata: async (page: number, displayMode: 'single' | 'double') => {
         const data = await fetchWithSession('/api/viewer/page/get', {
             method: 'POST',
-            body: JSON.stringify({ page, display_mode: displayMode, translation_enabled: translationEnabled }),
+            body: JSON.stringify({ page, display_mode: displayMode }),
         });
         return data; // 后端直接返回 { success: true, images: [...] }
-    },
-
-    // 翻译控制
-    toggleTranslation: async (enabled: boolean) => {
-        return fetchWithSession('/api/viewer/translation/toggle', {
-            method: 'POST',
-            body: JSON.stringify({ enabled }),
-        });
     },
 };
