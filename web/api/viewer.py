@@ -15,6 +15,7 @@ import uuid
 import time
 import json
 import io
+import asyncio
 
 from web.manga_viewer_manager import get_viewer_manager, cleanup_session, get_active_sessions, PageLoadStrategy, DisplayMode
 from core.config import config
@@ -136,36 +137,33 @@ async def get_page_metadata(
     request_data: GetPageRequest,
     x_session_id: Optional[str] = Header(None)
 ):
-    """获取页面元数据，返回图片URL而不是数据"""
+    """获取页面元数据，返回图片URL和尺寸"""
     try:
         session_id = get_session_id_from_header(x_session_id)
         manager = get_viewer_manager(session_id)
 
         if not manager.current_manga_path:
-            return {"success": False, "message": "未设置当前漫画"}
+            raise HTTPException(status_code=400, detail="未设置当前漫画")
 
         # 更新状态
         manager.current_page = max(0, min(request_data.page, manager.total_pages - 1))
         display_mode_enum = DisplayMode.SINGLE if request_data.display_mode == "single" else DisplayMode.DOUBLE
         
         # 计算需要加载的页面
-        current_pages, _ = PageLoadStrategy.get_pages_to_load(
+        current_pages_indices, _ = PageLoadStrategy.get_pages_to_load(
             manager.current_page, display_mode_enum, manager.total_pages
         )
 
-        # 构建图片 URL
-        image_urls = [
-            {
-                "pageIndex": page_idx,
-                # 在URL中包含 session_id 以便后续请求能找到正确的会话
-                "url": f"/api/viewer/image/{page_idx}?session_id={session_id}"
-            }
-            for page_idx in current_pages
-        ]
+        # 并行获取所有需要页面的元数据
+        tasks = [manager.get_page_metadata(p_idx) for p_idx in current_pages_indices]
+        results = await asyncio.gather(*tasks)
+
+        # 过滤掉可能出现的None结果
+        images_metadata = [res for res in results if res]
 
         return {
             "success": True,
-            "images": image_urls,
+            "images": images_metadata,
             "current_page": manager.current_page,
         }
 

@@ -12,9 +12,10 @@ interface MangaInfo {
 }
 
 export interface MangaImage {
-    src: string; // 现在是 URL
+    src: string;
     pageIndex: number;
-    // width 和 height 不再由元数据提供，由浏览器自行决定
+    width: number;
+    height: number;
 }
 
 type DisplayMode = 'auto' | 'single' | 'double';
@@ -136,9 +137,15 @@ export const useViewerStore = defineStore('viewer', {
                 const metadata = await viewerApi.getPageMetadata(pageToFetch, modeToSend);
 
                 if (metadata && metadata.images) {
-                    return metadata.images.map((img: { pageIndex: number, url: string }) => ({
+                    // ================= 验证点 =================
+                    console.log("从后端接收到的页面元数据:", metadata.images);
+                    // ===========================================
+
+                    return metadata.images.map((img: { pageIndex: number, url: string, width: number, height: number }) => ({
                         pageIndex: img.pageIndex,
-                        src: `${API_BASE_URL}${img.url}` // 构造成绝对 URL
+                        src: `${API_BASE_URL}${img.url}`, // 构造成绝对 URL
+                        width: img.width,
+                        height: img.height
                     }));
                 }
                 return [];
@@ -157,9 +164,11 @@ export const useViewerStore = defineStore('viewer', {
             try {
                 const metadata = await viewerApi.getPageMetadata(page, displayMode);
                 if (metadata && metadata.images) {
-                    return metadata.images.map((img: { pageIndex: number, url: string }) => ({
+                    return metadata.images.map((img: { pageIndex: number, url: string, width: number, height: number }) => ({
                         pageIndex: img.pageIndex,
-                        src: `${API_BASE_URL}${img.url}`
+                        src: `${API_BASE_URL}${img.url}`,
+                        width: img.width,
+                        height: img.height
                     }));
                 }
                 return null;

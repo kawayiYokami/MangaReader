@@ -22,6 +22,7 @@ from core.manga.data_source import _get_image_dimensions_fast
 from core.config import config
 from web.dependencies import core_interface
 import logging
+from PIL import Image
 
 
 class DisplayMode(Enum):
@@ -195,10 +196,43 @@ class MangaViewerManager:
                         logging.debug(f"预载页面完成: {page_idx}")
                     except Exception as e:
                         logging.warning(f"预载页面失败 {page_idx}: {e}")
-        
         # 在事件循环中创建后台任务
         asyncio.create_task(preload_worker())
-    
+
+    @staticmethod
+    def _get_dimensions_from_bytes(image_bytes: bytes) -> Tuple[int, int]:
+        """从图像字节流中获取尺寸"""
+        if not image_bytes:
+            return 0, 0
+        try:
+            with Image.open(io.BytesIO(image_bytes)) as img:
+                return img.width, img.height
+        except Exception as e:
+            logging.warning(f"无法从字节流中解析图像尺寸: {e}")
+            return 0, 0
+
+    async def get_page_metadata(self, page_index: int) -> Optional[Dict[str, Any]]:
+        """获取单个页面的元数据，包括尺寸。"""
+        if not self.current_manga_path:
+            return None
+
+        # 获取图像字节流
+        image_data = await self.get_page_image_bytes(page_index)
+        if not image_data:
+            return None
+        
+        image_bytes, _ = image_data
+
+        # 从字节流中分析尺寸
+        width, height = self._get_dimensions_from_bytes(image_bytes)
+
+        return {
+            "pageIndex": page_index,
+            "width": width,
+            "height": height,
+            "url": f"/api/viewer/image/{page_index}?session_id={self.session_id}"
+        }
+
     async def _get_manga_info(self, manga_path: str, force_rescan: bool = False) -> Optional[Dict[str, Any]]:
         """获取漫画信息"""
         try:
