@@ -12,7 +12,7 @@
       </div>
 
       <div class="page-navigation">
-        <div class="viewer-btn" @click="store.previousPage()" :class="{ 'is-disabled': !store.canPrevious }">arrow_upward</div>
+        <div class="viewer-btn" @click="goToPreviousPage" :class="{ 'is-disabled': !store.canPrevious }">arrow_upward</div>
 
         <div class="page-info" @click="showPageInput = true">
           <div v-if="!showPageInput" class="page-display">
@@ -36,7 +36,7 @@
           </div>
         </div>
 
-        <div class="viewer-btn" @click="store.nextPage()" :class="{ 'is-disabled': !store.canNext }">arrow_downward</div>
+        <div class="viewer-btn" @click="goToNextPage" :class="{ 'is-disabled': !store.canNext }">arrow_downward</div>
       </div>
 
       <div class="bottom-toolbar">
@@ -120,9 +120,9 @@
       <div v-else-if="store.error" class="error-message">
         {{ store.error }}
       </div>
-      <div v-else-if="displayedImages.length > 0" class="image-container">
+      <div v-else-if="imagesToActuallyRender.length > 0" class="image-container">
         <img
-           v-for="img in displayedImages"
+           v-for="img in imagesToActuallyRender"
            :key="img.pageIndex"
            :src="img.src"
            class="manga-image"
@@ -136,8 +136,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useElementSize } from '@vueuse/core';
 import { useViewerStore, type MangaImage } from '@/store/viewer';
 import { useMangaStore } from '@/store/manga';
 import { useSettingsStore } from '@/store/settings';
@@ -177,6 +178,78 @@ const isTranslating = ref(false);
 const translationScript = ref<TranslationScript | null>(null);
 const translationError = ref<string | null>(null);
 const translatorConfigs = ref<APIConfig[]>([]);
+
+
+// ==================== 智能布局引擎 (单向数据流) ====================
+
+const isCorrectingBackwardsPage = ref(false);
+
+// 1. 决策结果状态
+const finalDisplayMode = ref<'single' | 'double'>('single');
+
+// 2. 渲染层 (聪明厨师)
+const imagesToActuallyRender = computed(() => {
+  if (!displayedImages.value || displayedImages.value.length === 0) {
+    return [];
+  }
+  // 根据决策，从“食材库”拿出正确的份量
+  if (finalDisplayMode.value === 'single') {
+    return displayedImages.value.slice(0, 1);
+  }
+  return displayedImages.value;
+});
+
+// 3. 计算层
+const { width: containerWidth, height: containerHeight } = useElementSize(viewerContentRef);
+
+watch(
+  [() => store.currentImages, containerWidth, containerHeight, () => store.isTranslationMode],
+  ([images, width, height, isTranslation]) => {
+    if (isCorrectingBackwardsPage.value) return;
+
+    if (!images || images.length === 0 || width === 0 || height === 0) {
+      finalDisplayMode.value = 'single';
+      return;
+    }
+
+    let decision: 'single' | 'double' = 'single';
+    let reason = "默认或特殊情况";
+
+    // 规则1：翻译模式强制单页
+    if (isTranslation) {
+      reason = "翻译模式";
+      decision = 'single';
+    }
+    // 规则2：只有一张图，强制单页
+    else if (images.length === 1) {
+      reason = "只有一张图片";
+      decision = 'single';
+    }
+    // 规则3：核心计算逻辑
+    else {
+        const image1 = images[0];
+        const image2 = images[1];
+        const doublePageScaledWidth1 = (image1.width / image1.height) * height;
+        const doublePageScaledWidth2 = (image2.width / image2.height) * height;
+        const totalDoublePageScaledWidth = doublePageScaledWidth1 + doublePageScaledWidth2;
+
+        if (totalDoublePageScaledWidth > width) {
+            decision = 'single';
+            reason = `双页总宽(${totalDoublePageScaledWidth.toFixed(0)}) > 容器宽度(${width.toFixed(0)})`;
+        } else {
+            decision = 'double';
+            reason = `双页总宽(${totalDoublePageScaledWidth.toFixed(0)}) <= 容器宽度(${width.toFixed(0)})`;
+        }
+    }
+    
+    // 唯一的副作用：更新决策状态
+    finalDisplayMode.value = decision;
+
+    console.log(`智能布局决策: '${decision}' (原因: ${reason})`);
+  },
+  { deep: true }
+);
+
 
 // ==================== Seamless Page Turn Logic ====================
 
@@ -268,11 +341,11 @@ function handleKeydown(event: KeyboardEvent) {
   switch (event.key) {
     case 'ArrowLeft':
     case 'a':
-      store.previousPage();
+      goToPreviousPage();
       break;
     case 'ArrowRight':
     case 'd':
-      store.nextPage();
+      goToNextPage();
       break;
   }
 }
@@ -283,9 +356,9 @@ function handleWheel(event: WheelEvent) {
 
   const threshold = 1;
   if (event.deltaY > threshold) {
-    store.nextPage();
+    goToNextPage();
   } else if (event.deltaY < -threshold) {
-    store.previousPage();
+    goToPreviousPage();
   }
 }
 
@@ -307,23 +380,61 @@ function switchToStripView() {
 }
 
 function onImageClick(event: MouseEvent) {
-    const container = event.currentTarget as HTMLElement | null;
-    if (container && event.target instanceof HTMLImageElement) {
-        const rect = container.getBoundingClientRect();
-        const clickX = event.clientX - rect.left;
-        const centerX = rect.width / 2;
-        if (clickX < centerX) {
-            store.previousPage();
-        } else {
-            store.nextPage();
-        }
-    }
+  if (store.isTranslationMode) return; // 翻译模式下禁用点击翻页
+
+  const target = event.target as HTMLElement;
+  // 如果点击的是容器而不是图片，则使用容器的尺寸
+  const rect = target.classList.contains('manga-image')
+    ? target.getBoundingClientRect()
+    : (event.currentTarget as HTMLElement).getBoundingClientRect();
+  
+  const clickX = event.clientX - rect.left;
+
+  if (clickX < rect.width / 3) {
+    goToPreviousPage();
+  } else if (clickX > rect.width * 2 / 3) {
+    goToNextPage();
+  }
 }
 
 function onTitleClick() {
   if (isPyWebView.value && window.pywebview?.api.open_in_explorer && store.mangaInfo.filePath) {
     window.pywebview.api.open_in_explorer(store.mangaInfo.filePath);
   }
+}
+
+async function goToPreviousPage() {
+  if (!store.canPrevious) return;
+
+  isCorrectingBackwardsPage.value = true;
+  
+  const targetPage = Math.max(0, store.currentPage - 2);
+  
+  // 必须用 watchOnce 确保修正逻辑只在下一次 goToPage 引起的 image 变化后执行一次
+  const unwatch = watch(() => store.currentImages, async () => {
+    // 确保解绑
+    unwatch();
+    
+    // 如果智能布局决定显示单页，说明我们多退了一步
+    if (finalDisplayMode.value === 'single' && store.currentPage > 0) {
+        await store.goToPage(store.currentPage + 1);
+    }
+    
+    // 清除标记
+    isCorrectingBackwardsPage.value = false;
+  }, { once: true });
+
+  await store.goToPage(targetPage);
+}
+
+
+function goToNextPage() {
+  if (!store.canNext) return;
+
+  const step = finalDisplayMode.value === 'double' && imagesToActuallyRender.value.length > 1 ? 2 : 1;
+  const newPage = store.currentPage + step;
+
+  store.goToPage(newPage);
 }
 
 function onPageInputEnter() {
