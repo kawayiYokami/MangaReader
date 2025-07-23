@@ -120,7 +120,7 @@ export const useViewerStore = defineStore('viewer', {
         },
 
         async destroyViewerSession() {
-            this.stopAutoPaging();
+            this.stopAutoPagingOnDestroy();
             await viewerApi.destroySession();
             this.$reset(); // 重置 store 状态，会自动清空 pageImageCache
         },
@@ -137,10 +137,6 @@ export const useViewerStore = defineStore('viewer', {
                 const metadata = await viewerApi.getPageMetadata(pageToFetch, modeToSend);
 
                 if (metadata && metadata.images) {
-                    // ================= 验证点 =================
-                    console.log("从后端接收到的页面元数据:", metadata.images);
-                    // ===========================================
-
                     return metadata.images.map((img: { pageIndex: number, url: string, width: number, height: number }) => ({
                         pageIndex: img.pageIndex,
                         src: `${API_BASE_URL}${img.url}`, // 构造成绝对 URL
@@ -200,25 +196,10 @@ export const useViewerStore = defineStore('viewer', {
             // 更新图片URL列表，浏览器将开始在后台加载
             this.currentImages = newImages;
             
-            // 如果在自动翻页，则重置计时器
-            if (this.isAutoPaging) {
-                this.restartAutoPagingTimer();
-            }
+            // 计时器重置的逻辑已完全移交 PaginatedView.vue 组件处理
         },
         
-        async nextPage() {
-            if (!this.canNext) return;
-            const step = this.actualDisplayMode === 'double' ? (this.currentImages.length > 1 ? 2 : 1) : 1;
-            const newPage = Math.min(this.mangaInfo.totalPages - 1, this.currentPage + step);
-            this.goToPage(newPage);
-        },
-
-        async previousPage() {
-            if (!this.canPrevious) return;
-            const step = this.actualDisplayMode === 'double' ? 2 : 1;
-            const newPage = Math.max(0, this.currentPage - step);
-            this.goToPage(newPage);
-        },
+        // nextPage 和 previousPage 的逻辑已完全移至 PaginatedView.vue 组件层
 
         // ==================== 功能切换 ====================
         async setDisplayMode(mode: DisplayMode) {
@@ -235,51 +216,22 @@ export const useViewerStore = defineStore('viewer', {
             await this.goToPage(this.currentPage);
         },
 
-        // ==================== 自动翻页 ====================
-        startAutoPaging() {
-            this.isAutoPaging = true;
-            this.restartAutoPagingTimer();
-        },
-
-        stopAutoPaging() {
-            this.isAutoPaging = false;
-            if (this._autoPagingTimerId) {
-                clearInterval(this._autoPagingTimerId);
-                this._autoPagingTimerId = null;
-            }
-        },
+        // ==================== 自动翻页 (仅管理状态) ====================
+        
+        // 自动翻页的计时器和执行逻辑已移至 PaginatedView.vue 组件层
+        // Store 只负责维护 isAutoPaging 和 autoPagingInterval 这两个全局状态
 
         toggleAutoPaging() {
-            if (this.isAutoPaging) {
-                this.stopAutoPaging();
-            } else {
-                this.startAutoPaging();
-            }
-        },
-
-        restartAutoPagingTimer() {
-            // **THE FIX IS HERE**: Only clear the timer, do not call stopAutoPaging() which changes the state.
-            if (this._autoPagingTimerId) {
-                clearInterval(this._autoPagingTimerId);
-                this._autoPagingTimerId = null;
-            }
-
-            if (this.isAutoPaging) { // Now this check will be correctly true
-                this._autoPagingTimerId = setInterval(() => {
-                    if (this.canNext) {
-                        this.nextPage();
-                    } else {
-                        this.stopAutoPaging(); // Reached the end, stop.
-                    }
-                }, this.autoPagingInterval * 1000);
-            }
+            this.isAutoPaging = !this.isAutoPaging;
         },
         
         setAutoPagingInterval(interval: number) {
             this.autoPagingInterval = interval;
-            if (this.isAutoPaging) {
-                this.restartAutoPagingTimer();
-            }
+        },
+
+        // 供组件在销毁时调用，确保状态正确
+        stopAutoPagingOnDestroy() {
+            this.isAutoPaging = false;
         }
     },
 });

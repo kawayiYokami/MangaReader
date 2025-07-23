@@ -66,17 +66,17 @@
               <div
                 class="viewer-btn popover-play-btn"
                 :class="{ 'is-active': store.isAutoPaging }"
-                @click.stop="store.toggleAutoPaging()"
+                @click.stop="toggleAutoPaging"
               >
                 {{ store.isAutoPaging ? 'pause' : 'play_arrow' }}
               </div>
               <el-slider
-                v-model="store.autoPagingInterval"
+                v-model="autoPagingIntervalForSlider"
                 :min="1"
                 :max="30"
                 :step="1"
                 class="popover-slider"
-                @input="store.setAutoPagingInterval($event)"
+                @input="setAutoPagingInterval"
               />
               <div class="autoplay-popover-value">{{ Math.round(store.autoPagingInterval) }}s</div>
             </div>
@@ -182,7 +182,8 @@ const translatorConfigs = ref<APIConfig[]>([]);
 
 // ==================== 智能布局引擎 (单向数据流) ====================
 
-const isCorrectingBackwardsPage = ref(false);
+const pageTurnDirection = ref<'forward' | 'backward' | null>(null);
+const isInitialBackwardTurn = ref(false); // 一次性令牌，用于防止修正逻辑无限循环
 
 // 1. 决策结果状态
 const finalDisplayMode = ref<'single' | 'double'>('single');
@@ -205,8 +206,6 @@ const { width: containerWidth, height: containerHeight } = useElementSize(viewer
 watch(
   [() => store.currentImages, containerWidth, containerHeight, () => store.isTranslationMode],
   ([images, width, height, isTranslation]) => {
-    if (isCorrectingBackwardsPage.value) return;
-
     if (!images || images.length === 0 || width === 0 || height === 0) {
       finalDisplayMode.value = 'single';
       return;
@@ -244,8 +243,6 @@ watch(
     
     // 唯一的副作用：更新决策状态
     finalDisplayMode.value = decision;
-
-    console.log(`智能布局决策: '${decision}' (原因: ${reason})`);
   },
   { deep: true }
 );
@@ -316,14 +313,37 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown);
   document.removeEventListener('wheel', handleWheel);
+  stopAutoPaging(); // 确保组件销毁时停止计时器
 });
 
 // ==================== Watchers ====================
 
 watch(() => store.currentPage, (newPage) => {
     pageInputText.value = (newPage + 1).toString();
-    // 翻译逻辑已移至对 currentImages 的 watch 中，以确保数据同步
 });
+
+// 核心翻页状态机：监听图片数据的变化，以驱动翻页的完成和修正
+watch(() => store.currentImages, () => {
+    // 检查是否是“首次向后翻页”这个特殊情况，并且令牌存在
+    if (pageTurnDirection.value === 'backward' && isInitialBackwardTurn.value) {
+        // 消耗令牌，确保此修正逻辑在单次“上一页”操作中只执行一次
+        isInitialBackwardTurn.value = false;
+
+        if (finalDisplayMode.value === 'single' && store.currentPage > 0) {
+            // 需要修正，我们发起二次跳转。
+            // 因为令牌已被消耗，这次跳转触发的 watch 将不会再次进入此逻辑。
+            store.goToPage(store.currentPage + 1);
+            return; // 中断当前流程，等待修正跳转完成
+        }
+    }
+
+    // 在以下情况下，一次完整的翻页动作结束，可以安全地重置主标志位：
+    // 1. 向前翻页。
+    // 2. 首次向后翻页但无需修正。
+    // 3. 修正跳转完成后的那一次。
+    pageTurnDirection.value = null;
+}, { deep: true });
+
 
 watch(showPageInput, (isShown) => {
     if (isShown) {
@@ -405,35 +425,23 @@ function onTitleClick() {
 
 async function goToPreviousPage() {
   if (!store.canPrevious) return;
+  if (pageTurnDirection.value) return;
 
-  isCorrectingBackwardsPage.value = true;
-  
+  pageTurnDirection.value = 'backward';
+  isInitialBackwardTurn.value = true; // 举起一次性令牌
   const targetPage = Math.max(0, store.currentPage - 2);
-  
-  // 必须用 watchOnce 确保修正逻辑只在下一次 goToPage 引起的 image 变化后执行一次
-  const unwatch = watch(() => store.currentImages, async () => {
-    // 确保解绑
-    unwatch();
-    
-    // 如果智能布局决定显示单页，说明我们多退了一步
-    if (finalDisplayMode.value === 'single' && store.currentPage > 0) {
-        await store.goToPage(store.currentPage + 1);
-    }
-    
-    // 清除标记
-    isCorrectingBackwardsPage.value = false;
-  }, { once: true });
-
-  await store.goToPage(targetPage);
+  store.goToPage(targetPage);
 }
 
 
 function goToNextPage() {
   if (!store.canNext) return;
+  if (pageTurnDirection.value) return;
 
+  pageTurnDirection.value = 'forward';
+  isInitialBackwardTurn.value = false; // 确保向前翻页时，令牌是放下的
   const step = finalDisplayMode.value === 'double' && imagesToActuallyRender.value.length > 1 ? 2 : 1;
   const newPage = store.currentPage + step;
-
   store.goToPage(newPage);
 }
 
@@ -480,6 +488,64 @@ function updatePageFromProgress(event: MouseEvent, container: HTMLElement) {
         store.currentPage = targetPage;
     }
 }
+
+// ==================== Autoplay Logic (Component-Managed) ====================
+
+const autoPagingTimerId = ref<number | null>(null);
+// 创建一个本地的 ref 来同步 slider，避免直接修改 store state 导致问题
+const autoPagingIntervalForSlider = ref(store.autoPagingInterval);
+
+function startAutoPaging() {
+  if (autoPagingTimerId.value) return;
+  autoPagingTimerId.value = window.setInterval(() => {
+    if (store.canNext) {
+      goToNextPage();
+    } else {
+      stopAutoPaging();
+    }
+  }, store.autoPagingInterval * 1000);
+}
+
+function stopAutoPaging() {
+  if (autoPagingTimerId.value) {
+    clearInterval(autoPagingTimerId.value);
+    autoPagingTimerId.value = null;
+  }
+}
+
+function restartAutoPagingTimer() {
+  stopAutoPaging();
+  if (store.isAutoPaging) {
+    startAutoPaging();
+  }
+}
+
+function toggleAutoPaging() {
+  // 调用 store action 来改变全局状态
+  store.toggleAutoPaging();
+}
+
+function setAutoPagingInterval(value: number | number[]) {
+    const interval = Array.isArray(value) ? value[0] : value;
+    autoPagingIntervalForSlider.value = interval;
+    store.setAutoPagingInterval(interval);
+}
+
+// 监听来自 store 的状态变化，以驱动组件内的行为
+watch(() => store.isAutoPaging, (isPaging) => {
+  if (isPaging) {
+    restartAutoPagingTimer();
+  } else {
+    stopAutoPaging();
+  }
+});
+
+// 监听来自 store 的间隔变化
+watch(() => store.autoPagingInterval, (newInterval) => {
+    autoPagingIntervalForSlider.value = newInterval;
+    restartAutoPagingTimer();
+});
+
 
 // --- Autoplay Popover Timer Logic ---
 function startPopoverCloseTimer() {
