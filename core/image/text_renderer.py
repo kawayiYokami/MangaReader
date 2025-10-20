@@ -11,14 +11,14 @@
 - 文本在框内的居中对齐
 """
 import logging
-from PIL import Image, ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont
 from math import floor, ceil
 
 def draw_text_intelligently(
-    draw: ImageDraw.ImageDraw, 
-    text: str, 
-    box: tuple, 
-    direction: str, 
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    box: tuple,
+    direction: str,
     font_path: str,
     padding: int = 5
 ):
@@ -40,7 +40,7 @@ def draw_text_intelligently(
     box_x_min, box_y_min, box_x_max, box_y_max = box
     box_width = box_x_max - box_x_min - padding * 2
     box_height = box_y_max - box_y_min - padding * 2
-    
+
     if box_width <= 0 or box_height <= 0:
         return
 
@@ -64,7 +64,7 @@ def draw_text_intelligently(
 
 def _find_best_font_size(text, box_width, box_height, direction, font_path):
     """使用迭代法寻找最佳字体大小。"""
-    
+
     # 理论上的最大可能字号
     try:
         initial_font_size = int((box_width * box_height / len(text))**0.5)
@@ -75,30 +75,32 @@ def _find_best_font_size(text, box_width, box_height, direction, font_path):
 
     for size in range(initial_font_size, min_font_size - 1, -1):
         try:
-            font = ImageFont.truetype(font_path, size=size)
+            ImageFont.truetype(font_path, size=size)
         except IOError:
             logging.error(f"无法加载字体: {font_path}。将使用默认字体。")
-            font = ImageFont.load_default()
+            ImageFont.load_default()
 
         line_spacing = size * 0.3 # 估算行间距
 
         if direction == 'horizontal':
             chars_per_line = floor(box_width / size) if size > 0 else 0
-            if chars_per_line == 0: continue
-            
+            if chars_per_line == 0:
+                continue
+
             num_lines = ceil(len(text) / chars_per_line)
             total_text_height = num_lines * size + (num_lines - 1) * line_spacing
-            
+
             if total_text_height <= box_height:
                 return size, {'lines': num_lines, 'chars_per_line': chars_per_line}
-        
+
         elif direction == 'vertical':
             chars_per_col = floor(box_height / size) if size > 0 else 0
-            if chars_per_col == 0: continue
+            if chars_per_col == 0:
+                continue
 
             num_cols = ceil(len(text) / chars_per_col)
             total_text_width = num_cols * size + (num_cols - 1) * line_spacing # 这里用 line_spacing 代表列间距
-            
+
             if total_text_width <= box_width:
                 return size, {'cols': num_cols, 'chars_per_col': chars_per_col}
 
@@ -115,7 +117,7 @@ def _layout_and_draw(draw, text, box, direction, font_path, font_size, params):
     box_x_min, box_y_min, box_x_max, box_y_max = box
     box_width = box_x_max - box_x_min
     box_height = box_y_max - box_y_min
-    
+
     line_spacing_ratio = 0.3 # 行/列间距是字号的30%
 
     if direction == 'horizontal':
@@ -123,11 +125,11 @@ def _layout_and_draw(draw, text, box, direction, font_path, font_size, params):
         chars_per_line = params['chars_per_line']
         for i in range(0, len(text), chars_per_line):
             lines.append(text[i:i+chars_per_line])
-        
+
         num_lines = len(lines)
         line_height = font_size * (1 + line_spacing_ratio)
         total_text_height = (num_lines - 1) * line_height + font_size
-        
+
         start_y = box_y_min + (box_height - total_text_height) / 2
 
         for i, line in enumerate(lines):
@@ -151,14 +153,14 @@ def _layout_and_draw(draw, text, box, direction, font_path, font_size, params):
         num_cols = len(cols)
         col_width = font_size * (1 + line_spacing_ratio)
         total_text_width = (num_cols - 1) * col_width + font_size
-        
+
         start_x = box_x_max - (box_width - total_text_width) / 2 - font_size # 从右侧开始
 
         for i, col in enumerate(cols):
             col_height = len(col) * font_size
             start_y = box_y_min + (box_height - col_height) / 2
             current_x = start_x - i * col_width
-            
+
             for j, char in enumerate(col):
                 current_y = start_y + j * font_size
                 draw.text((current_x, current_y), char, font=font, fill='black')

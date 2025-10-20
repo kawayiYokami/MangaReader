@@ -33,6 +33,7 @@ class APIExecutor:
         *,
         agent: BaseAgent,
         config: APIConfig,
+        agent_name: str, # 新增
         **kwargs: Any
     ) -> Union[List[TranslationResult], List[ImageTranslationResult]]:
         """
@@ -45,13 +46,22 @@ class APIExecutor:
             if error:
                 return agent.parse_response({"error": {"message": error}}, **kwargs)
 
-            # 将 openai 的响应对象转换为字典以便 agent 解析
             response_dict = response_data.model_dump()
-            return agent.parse_response(response_dict, **kwargs)
+            try:
+                # 尝试正常解析
+                return agent.parse_response(response_dict, agent_name=agent_name, **kwargs)
+            except Exception as parse_error:
+                # 如果解析失败，记录错误，但将原始响应附加到错误结果中
+                logging.error(f"解析 AI 响应时出错: {parse_error}", exc_info=False)
+                error_payload = {
+                    "error": {"message": f"Failed to parse AI response: {parse_error}"},
+                    "raw_response": response_dict  # 附加原始响应
+                }
+                return agent.parse_response(error_payload, agent_name=agent_name, **kwargs)
 
         except Exception as e:
             logging.error(f"在 APIExecutor.execute 中发生意外错误: {e}", exc_info=True)
-            return agent.parse_response({"error": {"message": str(e)}}, **kwargs)
+            return agent.parse_response({"error": {"message": str(e)}}, agent_name=agent_name, **kwargs)
 
     async def _call_api_with_error_handling(
         self, payload: Dict[str, Any], config: APIConfig

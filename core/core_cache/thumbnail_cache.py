@@ -7,7 +7,6 @@ import os
 import hashlib
 import time
 import json
-import traceback  # 导入traceback用于打印堆栈
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 from PIL import Image, ImageOps

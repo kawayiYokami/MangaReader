@@ -8,7 +8,6 @@
 - 基于容量和LRU策略的智能清理
 """
 
-import os
 import time
 import json
 import hashlib

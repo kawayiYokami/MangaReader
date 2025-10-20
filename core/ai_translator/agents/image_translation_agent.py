@@ -6,11 +6,8 @@
 负责处理图片翻译任务，包括构建多模态请求和解析响应。
 """
 import logging
-import time
 import yaml
-import json
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .base_agent import BaseAgent
 from ..data_models import (
@@ -124,24 +121,44 @@ class ImageTranslationAgent(BaseAgent):
         )]
 
     def parse_response(
-        self, response_data: Dict[str, Any], **kwargs: Any
+        self, response_data: Dict[str, Any], agent_name: str, **kwargs: Any
     ) -> List[ImageTranslationResult]:
         """
         解析来自 AI API 的响应。
         """
         if "error" in response_data:
             error_msg = response_data["error"].get("message", "Unknown API error")
+            raw_response = response_data.get("raw_response") # 尝试获取原始响应
             logging.error(f"图片翻译任务失败: {error_msg}")
-            return [ImageTranslationResult(status=TranslationStatus.FAILURE, error_message=error_msg)]
+            return [ImageTranslationResult(
+                status=TranslationStatus.FAILURE,
+                error_message=error_msg,
+                raw_response=raw_response
+            )]
 
         content_str = response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
         if not content_str:
             logging.warning("AI 返回的 content 字段为空。")
             return [ImageTranslationResult(status=TranslationStatus.FAILURE, error_message="AI response content is empty.")]
 
+        # 对于 `manga_ocr_and_translation` 智能体，我们不在这里解析，而是直接返回原始响应
+        # 让调用方（测试脚本）自己处理
+        if agent_name == "manga_ocr_and_translation":
+            logging.info("检测到 manga_ocr_and_translation 智能体，直接返回原始响应。")
+            return [ImageTranslationResult(
+                status=TranslationStatus.SUCCESS,
+                raw_response=content_str,
+                translation_script=None # 表示未按标准格式解析
+            )]
+
         try:
+            # 仅对旧的 `manga_script_generation` 智能体执行 YAML 解析
             return self._parse_script_yaml(content_str)
         except (yaml.YAMLError, ValueError, TypeError, KeyError) as e:
-            logging.error(f"解析剧本 YAML 失败: {e}", exc_info=True)
+            logging.error(f"解析剧本 YAML 失败: {e}", exc_info=False)
             logging.debug(f"无法解析的原始响应内容:\n---\n{content_str}\n---")
-            return [ImageTranslationResult(status=TranslationStatus.FAILURE, error_message=f"Failed to parse AI response: {e}")]
+            return [ImageTranslationResult(
+                status=TranslationStatus.FAILURE,
+                error_message=f"Failed to parse AI response: {e}",
+                raw_response=content_str # 在解析失败时也返回原始响应
+            )]

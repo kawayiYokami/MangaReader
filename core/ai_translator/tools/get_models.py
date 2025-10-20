@@ -49,7 +49,7 @@ async def fetch_models():
                         print(model_id)
                 
         except aiohttp.ClientResponseError as e:
-            print(f"\n错误：无法连接到 API 或 API 返回错误。")
+            print("\n错误：无法连接到 API 或 API 返回错误。")
             print(f"状态码: {e.status}")
             print(f"信息: {e.message}")
         except Exception as e:

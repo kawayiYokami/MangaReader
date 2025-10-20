@@ -158,7 +158,7 @@ class ZipDataSource(DataSource):
     def get_properties(self) -> Dict[str, Any]:
         logging.debug(f"正在从ZIP文件处理属性: {self.path}")
         try:
-            with ZipFile(self.path, "r") as zip_file:
+            with ZipFile(self.path, "r"):
                 image_files = self._get_image_files()
                 if not image_files:
                     logging.warning(f"ZIP文件中未找到图片: {self.path}")

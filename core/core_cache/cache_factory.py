@@ -6,7 +6,7 @@ from core.core_cache.manga_cache import MangaListCacheManager
 from core.core_cache.ocr_cache_manager import OcrCacheManager
 from core.core_cache.page_policy_cache import PagePolicyCacheManager
 from core.core_cache.thumbnail_cache import ThumbnailCache
-from core.core_cache.page_cache import get_page_cache, PageCache
+from core.core_cache.page_cache import get_page_cache
 from core.core_cache.translation_cache import TranslationCacheManager
 
 # Define a type for cache types for better type hinting

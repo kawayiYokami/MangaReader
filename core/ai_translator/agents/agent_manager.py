@@ -8,7 +8,6 @@
 """
 import json
 import os
-import logging
 from typing import Dict, Optional, List
 
 from utils.manga_logger import logging
@@ -19,7 +18,7 @@ class AgentDefinition:
         self.name: str = data.get("name", "")
         self.description: str = data.get("description", "")
         self.agent_type: str = data.get("agent_type", "") # 可选的元数据字段
-        
+
         prompt_template = data.get("system_prompt_template", "")
         # 如果模板是列表，则合并为单个字符串
         if isinstance(prompt_template, list):

@@ -7,18 +7,13 @@
 - 预载策略
 """
 
-from fastapi import APIRouter, HTTPException, Header, Request, Response
-from fastapi.responses import StreamingResponse
-from typing import Optional, Dict, Any, List
+from fastapi import APIRouter, HTTPException, Header, Response
+from typing import Optional, Dict, Any
 from pydantic import BaseModel
 import uuid
-import time
-import json
-import io
 import asyncio
 
 from web.manga_viewer_manager import get_viewer_manager, cleanup_session, get_active_sessions, PageLoadStrategy, DisplayMode
-from core.config import config
 import logging
 
 router = APIRouter()
@@ -68,7 +63,7 @@ async def create_session():
     """创建新的查看器会话"""
     try:
         session_id = str(uuid.uuid4())
-        manager = get_viewer_manager(session_id)
+        get_viewer_manager(session_id)
         
         logging.info(f"创建新查看器会话: {session_id}")
         

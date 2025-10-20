@@ -6,17 +6,15 @@
 本模块负责接收 AI 任务请求，并将其智能地分发给底层的 API 执行器。
 它通过 AgentDefinitionManager 加载和实例化由 JSON 定义的智能体。
 """
-import logging
-from typing import List, Optional, Union, Dict, Type
+from typing import List, Union
 
 from .data_models import (
-    TranslationResult, ImageTranslationResult, APIConfig, TaskType
+    TranslationResult, ImageTranslationResult, TaskType
 )
 from .config_manager import api_config_manager
 from .api_executor import APIExecutor
 from .rate_limiter import rate_limiter
 from .agents.agent_manager import agent_definition_manager
-from .agents.base_agent import BaseAgent
 from .agents.text_translation_agent import TextTranslationAgent
 from .agents.image_translation_agent import ImageTranslationAgent
 from utils.manga_logger import logging
@@ -71,7 +69,7 @@ class RequestDispatcher:
         else:
             logging.error(f"不支持的任务类型: {task_type}")
             return []
-        
+
         try:
             agent_instance = agent_class(definition.system_prompt_template)
         except Exception as e:
@@ -81,9 +79,10 @@ class RequestDispatcher:
         # 4. 使用速率限制器执行 API 调用
         logging.info(f"正在使用智能体 '{agent_name}' (类型: {task_type.value}) 和配置 '{config_name}' 分发任务...")
         await rate_limiter.wait_for_token(config.name, config.request_interval_ms)
-        
+
         return await self._executor.execute(
             agent=agent_instance,
             config=config,
+            agent_name=agent_name, # 传递 agent_name
             **kwargs
         )

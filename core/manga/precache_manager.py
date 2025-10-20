@@ -11,7 +11,6 @@ from typing import Optional
 import logging
 
 from core.core_cache.cache_factory import get_cache_factory_instance
-from core.manga.policy_constants import POLICY_CACHED, POLICY_PENDING, POLICY_NOT_REQUIRED
 
 class PrecacheManager:
     _instance = None

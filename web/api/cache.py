@@ -9,16 +9,12 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from abc import ABC, abstractmethod
 import asyncio
-import json
 from datetime import datetime
 import logging
-import os
 import math
 
 # 导入核心业务逻辑
 from core.core_cache.cache_factory import get_cache_factory_instance
-from core.harmonization_map_manager import get_harmonization_map_manager_instance
-from core.core_cache.manga_cache import LIBRARY_KEY
 
 log = logging.getLogger(__name__)
 
@@ -233,7 +229,7 @@ class MangaListCacheHandler(CacheHandler):
         """删除漫画列表缓存条目"""
         try:
             if hasattr(self.manager, 'delete_entry'):
-                result = await self.manager.delete_entry(key) if asyncio.iscoroutinefunction(self.manager.delete_entry) else self.manager.delete_entry(key)
+                await self.manager.delete_entry(key) if asyncio.iscoroutinefunction(self.manager.delete_entry) else self.manager.delete_entry(key)
                 return {"success": True, "message": f"漫画条目已删除: {key[:50]}..."}
             else:
                 return {"success": False, "message": "漫画列表缓存不支持删除单个条目"}

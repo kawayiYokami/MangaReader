@@ -2,7 +2,7 @@
 
 import os
 import asyncio
-from typing import List, Set, Dict, Optional, TYPE_CHECKING, Any
+from typing import List, Dict, Optional, TYPE_CHECKING, Any
 
 from core.manga.manga_model import MangaInfo
 from core.config import config
@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from core.core_cache.manga_cache import MangaListCacheManager
 import logging
 from core.core_cache.cache_factory import get_cache_factory_instance
-from core.core_cache.cache_interface import CacheInterface
 from core.manga.data_source import DataSourceFactory
 from core.manga.metadata_parser import MetadataParser
 

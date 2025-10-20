@@ -5,6 +5,7 @@
 """
 import cv2
 import numpy as np
+import logging
 from typing import Union, Tuple, Optional, List
 from PIL import Image, ImageDraw, ImageFont
 
@@ -33,12 +34,12 @@ def read_image(source: Union[str, bytes]) -> Optional[ImageType]:
             img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         else:
             return None
-        
+
         # Pillow作为备用解码器
         if img is None:
             from io import BytesIO
             from PIL import Image
-            logging.warning(f"OpenCV could not decode image, trying with Pillow...")
+            logging.warning("OpenCV could not decode image, trying with Pillow...")
             try:
                 if isinstance(source, str):
                      # 如果是从路径来的，我们已经读取了字节
@@ -58,7 +59,6 @@ def read_image(source: Union[str, bytes]) -> Optional[ImageType]:
         logging.error(f"读取图像时发生未知错误: {e}")
         return None
 
-import logging
 
 def write_image(image: ImageType, ext: str = '.jpg', quality: int = 85) -> Optional[bytes]:
     """
@@ -72,7 +72,7 @@ def write_image(image: ImageType, ext: str = '.jpg', quality: int = 85) -> Optio
     if image is None or image.size == 0:
         logging.error(f"严重错误: processor.write_image 接收到无效图像。Image is None: {image is None}, Size: {getattr(image, 'size', 'N/A')}")
         return None
-        
+
     try:
         # 确保扩展名以点开头，并转为小写，以进行可靠的判断
         clean_ext = (ext if ext.startswith('.') else f".{ext}").lower()
@@ -82,7 +82,7 @@ def write_image(image: ImageType, ext: str = '.jpg', quality: int = 85) -> Optio
             params = [cv2.IMWRITE_WEBP_QUALITY, quality]
         elif clean_ext in ['.jpg', '.jpeg']:
             params = [cv2.IMWRITE_JPEG_QUALITY, quality]
-        
+
         # 如果 params 为空，说明是不支持的格式
         if not params:
             logging.error(f"不支持的编码格式: {ext} (cleaned: {clean_ext})")
@@ -145,14 +145,14 @@ def fit(image: ImageType, size: Tuple[int, int]) -> ImageType:
     # 1. 计算缩放比例，使其能覆盖目标尺寸
     scale = max(target_w / w, target_h / h)
     inter_w, inter_h = int(w * scale), int(h * scale)
-    
+
     # 2. 缩放到中间尺寸
     intermediate_img = resize(image, (inter_w, inter_h))
-    
+
     # 3. 计算居中裁剪的起始点
     y = (inter_h - target_h) // 2
     x = (inter_w - target_w) // 2
-    
+
     # 4. 裁剪并返回
     return intermediate_img[y:y+target_h, x:x+target_w]
 
@@ -180,19 +180,19 @@ def draw_text(
     # 1. 将OpenCV图像 (BGR) 转换为Pillow图像 (RGB)
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     pil_img = Image.fromarray(rgb_image)
-    
+
     # 2. 使用Pillow绘制文本
     draw = ImageDraw.Draw(pil_img)
     font = ImageFont.truetype(font_path, font_size)
-    
+
     # 用白色矩形覆盖原区域
     draw.rectangle(box, fill=(255, 255, 255))
-    
+
     # 绘制文本
     # 注意: Pillow的draw.text位置是左上角，这里我们简化为使用box的左上角
     draw.text((box[0], box[1]), text, font=font, fill=fill)
-    
+
     # 3. 将Pillow图像 (RGB) 转换回OpenCV图像 (BGR)
     bgr_result = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-    
+
     return bgr_result

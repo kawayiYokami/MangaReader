@@ -10,16 +10,12 @@ import threading
 import asyncio
 import uuid
 from typing import Dict, List, Optional, Tuple, Any
-from core.image import processor
 import io
 from enum import Enum
 from pathlib import Path
-import base64
 
 from core.core_cache.cache_key_generator import get_cache_key_generator
 from core.manga.page_loader import get_page_loader
-from core.manga.data_source import _get_image_dimensions_fast
-from core.config import config
 from web.dependencies import core_interface
 import logging
 from PIL import Image
