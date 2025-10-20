@@ -43,19 +43,21 @@ API_SERVER_URL = "http://localhost:8100"
 HOST = "127.0.0.1"
 PORT = 8100
 
+# 将项目根目录添加到Python路径
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
 
-# ----- 后端服务 -----
 from web.api_server import app as fastapi_app
 from fastapi.staticfiles import StaticFiles
 
 def run_server():
     """在后台线程中运行 uvicorn 服务器，并预先挂载静态文件。"""
     logging.info(f"准备在后台线程启动API服务器，地址 http://{HOST}:{PORT}")
-    
+
     # 与 run_web_server.py 相同的逻辑: 挂载静态文件目录
     project_root = Path(__file__).parent
     static_files_path = project_root / "vue" / "dist"
-    
+
     if not static_files_path.exists() or not (static_files_path / "index.html").exists():
         logging.error(f"前端静态文件目录不存在或不完整: {static_files_path}")
         logging.error("请先在 'vue' 目录下运行 'npm run build' 来生成前端文件。")

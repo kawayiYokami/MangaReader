@@ -6,12 +6,11 @@
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File, Form, Query
-from fastapi.responses import Response, FileResponse
-from typing import List, Optional, Dict, Any
+from fastapi.responses import FileResponse
+from typing import List, Optional
 from pydantic import BaseModel
 from math import ceil
 import os
-import base64
 from pathlib import Path
 from functools import wraps
 import shutil
@@ -26,9 +25,6 @@ from core.image.image_compressor import get_image_compressor
 from web.dependencies import get_interface
 from web.core_interface import (
     CoreInterface,
-    WebMangaInfo,
-    WebDirectoryInfo,
-    WebScanResult,
     CoreInterfaceError
 )
 import logging

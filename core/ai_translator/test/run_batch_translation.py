@@ -23,7 +23,6 @@ python -m core.ai_translator.test.run_batch_translation "storage/manga/test.zip"
 """
 import asyncio
 import logging
-import os
 import sys
 import zipfile
 from pathlib import Path

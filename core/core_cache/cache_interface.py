@@ -1,6 +1,6 @@
 # core/cache_interface.py
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 class CacheInterface(ABC):
     """

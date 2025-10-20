@@ -3,7 +3,7 @@ import json
 import sqlite3
 import asyncio
 import logging
-from typing import Any, List, Optional, Dict, Tuple, TYPE_CHECKING # Added Dict, Tuple, sqlite3
+from typing import Any, List, Optional, Dict, TYPE_CHECKING # Added Dict, Tuple, sqlite3
 from core.core_cache.cache_interface import CacheInterface
 
 if TYPE_CHECKING:
@@ -98,7 +98,6 @@ class MangaListCacheManager(CacheInterface):
         使用事务以确保操作的原子性和性能。
         在独立的线程中运行以避免阻塞事件循环。
         """
-        from core.manga.manga_model import MangaInfo # 避免循环导入
 
         def _db_operation():
             try:

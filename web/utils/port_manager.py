@@ -7,7 +7,7 @@ import socket
 import subprocess
 import sys
 import logging
-from typing import Optional, List
+from typing import Optional
 
 log = logging.getLogger(__name__)
 

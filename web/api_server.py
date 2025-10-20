@@ -20,7 +20,7 @@ sys.path.insert(0, str(project_root))
 
 try:
     # 从新的依赖模块导入
-    from web.dependencies import core_interface, get_interface
+    from web.dependencies import core_interface
     from web.api import manga, cache, settings, viewer, translator
     # 显式导入广播函数
     from web.websocket.handlers import websocket_endpoint, broadcast_manga_list_update
@@ -64,9 +64,9 @@ async def startup_event():
                 logging.info(f"[WebSocket] 从队列中收到 MangaManager 事件: {event}")
 
                 if event['type'] == 'data_loaded':
-                    logging.info(f"[WebSocket] 检测到 'data_loaded' 事件, 准备广播...")
+                    logging.info("[WebSocket] 检测到 'data_loaded' 事件, 准备广播...")
                     await broadcast_manga_list_update(event.get('data', {}))
-                
+
                 manga_manager.update_queue.task_done()
             except asyncio.CancelledError:
                 logging.info("MangaManager 事件监听器被取消。")

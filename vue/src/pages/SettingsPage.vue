@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useSettingsStore, type SettingsState } from '@/store/settings'
 import { storeToRefs } from 'pinia'
 import { useTheme } from '@/composables/useTheme'
-import { getTranslatorConfigs, getTranslatorAgents, updateTranslatorConfigs } from '@/api/translator'
+import { getTranslatorConfigs, getTranslatorAgents, updateTranslatorConfigs, fetchModelsFromProvider } from '@/api/translator'
 import type { APIConfig } from '@/types/translator'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -54,6 +54,8 @@ const onSettingChange = (key: keyof SettingsState, value: any) => {
 const isDialogVisible = ref(false)
 const editingConfig = ref<APIConfig | null>(null)
 const isNewConfig = ref(false)
+const availableModels = ref<string[]>([])
+const isLoadingModels = ref(false)
 
 const emptyConfig = (): APIConfig => ({
   name: '',
@@ -69,12 +71,14 @@ const emptyConfig = (): APIConfig => ({
 const openEditDialog = (config: APIConfig) => {
   editingConfig.value = { ...config }
   isNewConfig.value = false
+  availableModels.value = [] // 清空旧的模型列表
   isDialogVisible.value = true
 }
 
 const openNewDialog = () => {
   editingConfig.value = emptyConfig()
   isNewConfig.value = true
+  availableModels.value = [] // 清空旧的模型列表
   isDialogVisible.value = true
 }
 
@@ -98,6 +102,51 @@ const handleDelete = async (configNameToDelete: string) => {
     ElMessage.error('删除配置失败')
   }
 }
+
+const handleFetchModels = async () => {
+  if (!editingConfig.value?.api_base_url) {
+    ElMessage.warning('请先填写 API Base URL');
+    return;
+  }
+  if (!editingConfig.value?.api_key) {
+    ElMessage.warning('请先填写 API Key');
+    return;
+  }
+
+  isLoadingModels.value = true;
+  availableModels.value = [];
+
+  try {
+    const models = await fetchModelsFromProvider(
+      editingConfig.value.api_base_url,
+      editingConfig.value.api_key
+    );
+    availableModels.value = models;
+    ElMessage.success(`成功获取到 ${models.length} 个模型`);
+
+    // 如果当前模型不在新列表中，则清空
+    if (editingConfig.value.model && !models.includes(editingConfig.value.model)) {
+      editingConfig.value.model = '';
+    }
+    // 如果模型为空且列表不为空，则默认选中第一个
+    if (!editingConfig.value.model && models.length > 0) {
+      editingConfig.value.model = models[0];
+    }
+
+  } catch (error: any) {
+    ElMessage.error(`获取模型失败: ${error.message}`);
+  } finally {
+    isLoadingModels.value = false;
+  }
+};
+
+// 当对话框关闭时，重置模型列表状态
+watch(isDialogVisible, (newValue) => {
+  if (!newValue) {
+    availableModels.value = [];
+    isLoadingModels.value = false;
+  }
+});
 
 const handleSave = async () => {
   if (!editingConfig.value) return
@@ -304,10 +353,34 @@ const handleSave = async () => {
           <el-input v-model="editingConfig.api_key" type="password" show-password />
         </el-form-item>
         <el-form-item label="模型名称">
-          <el-input v-model="editingConfig.model" />
+          <el-select 
+            v-model="editingConfig.model" 
+            placeholder="请选择或输入模型名称"
+            filterable
+            allow-create
+            default-first-option
+            class="w-full"
+          >
+            <el-option
+              v-for="item in availableModels"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="API Base URL (可选)">
-          <el-input v-model="editingConfig.api_base_url" placeholder="例如 https://api.openai.com/v1" />
+            <div class="flex w-full">
+              <el-input v-model="editingConfig.api_base_url" placeholder="例如 https://api.openai.com/v1" class="flex-grow" />
+              <el-button 
+                @click="handleFetchModels" 
+                :loading="isLoadingModels" 
+                :disabled="!editingConfig.api_base_url || !editingConfig.api_key"
+                class="ml-sm"
+              >
+                获取模型
+              </el-button>
+            </div>
         </el-form-item>
         <el-form-item label="温度">
           <el-slider v-model="editingConfig.temperature" :min="0" :max="2" :step="0.1" show-input />
@@ -354,5 +427,17 @@ const handleSave = async () => {
 .material-symbols-rounded {
   vertical-align: middle;
   margin-right: 4px;
+}
+.w-full {
+  width: 100%;
+}
+.flex {
+  display: flex;
+}
+.flex-grow {
+  flex-grow: 1;
+}
+.ml-sm {
+  margin-left: var(--spacing-sm);
 }
 </style>

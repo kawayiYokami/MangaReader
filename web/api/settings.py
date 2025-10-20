@@ -71,7 +71,7 @@ async def get_all_settings():
     """获取所有设置项"""
     try:
         settings = []
-        
+
         settings.append(SettingItem(
             key="mergeTags",
             name="合并标签",
@@ -79,7 +79,7 @@ async def get_all_settings():
             value=config.merge_tags.value,
             type="bool"
         ))
-        
+
         # 日志级别
         settings.append(SettingItem(
             key="logLevel",
@@ -95,7 +95,7 @@ async def get_all_settings():
                 {"value": "CRITICAL", "label": "严重错误"}
             ]
         ))
-        
+
         # OCR 设置
         settings.append(SettingItem(
             key="ocrConfidenceThreshold",
@@ -172,7 +172,7 @@ async def get_all_settings():
         ))
 
         return {"settings": settings}
-        
+
     except Exception as e:
         logging.error(f"获取设置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -210,13 +210,19 @@ def _get_preferred_font_name(font: TTFont) -> str:
     if not best_name:
         for record in names:
             if record.nameID == 4:
-                try: best_name = record.toUnicode(); break
-                except UnicodeDecodeError: pass
+                try:
+                    best_name = record.toUnicode()
+                    break
+                except UnicodeDecodeError:
+                    pass
         if not best_name:
              for record in names:
                  if record.nameID == 1:
-                     try: best_name = record.toUnicode(); break
-                     except UnicodeDecodeError: pass
+                     try:
+                         best_name = record.toUnicode()
+                         break
+                     except UnicodeDecodeError:
+                         pass
     return best_name
 
 @router.get("/available-fonts")
@@ -245,7 +251,7 @@ async def get_available_fonts():
                     if not display_name:
                         display_name = os.path.splitext(filename)[0] # filename 是字符串
                         logging.warning(f"  > 无法从元数据提取字体名称，回退到文件名: '{display_name}' for file '{filename}'")
-                    
+
                     fonts.append({
                         "file_name": filename, # 返回文件名字符串
                         "display_name": display_name
@@ -266,17 +272,17 @@ async def get_setting(setting_key: str):
     try:
         if not hasattr(config, setting_key):
             raise HTTPException(status_code=404, detail=f"设置项 {setting_key} 不存在")
-        
+
         setting_value = getattr(config, setting_key).value
-        
+
         if hasattr(setting_value, 'value'): # 处理枚举
             setting_value = setting_value.value
-        
+
         return {
             "key": setting_key,
             "value": setting_value
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -287,10 +293,10 @@ async def get_setting(setting_key: str):
 async def update_setting(setting_key: str, request: SettingUpdateRequest):
     """更新单个设置项"""
     logging.info(f"收到更新设置请求: key={setting_key}, value={request.value}")
-    
+
     new_value = request.value
     config_item = None
-    
+
     # 修复: 特殊处理 logLevel，因为它在 config 中的 key 是 log_level
     if setting_key == "logLevel":
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -332,7 +338,7 @@ async def update_setting(setting_key: str, request: SettingUpdateRequest):
         logging.info(f"准备保存配置, key={setting_key}, new_value_to_save={config_item.value}")
         config.save()
         logging.info("配置已保存。")
-        
+
         final_value = config_item.value
         if hasattr(final_value, 'value'): # 处理枚举回显
             final_value = final_value.value
@@ -356,14 +362,14 @@ async def reset_settings():
         # 重置配置为默认值
         config.merge_tags.value = True
         config.log_level.value = "ERROR"
-        
+
         config.save()
-        
+
         return {
             "success": True,
             "message": "所有设置已重置为默认值"
         }
-        
+
     except Exception as e:
         logging.error(f"重置设置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -384,7 +390,7 @@ async def export_settings():
                 if hasattr(value, 'value'): # 处理枚举
                     value = value.value
                 settings_data[key] = value
-        
+
         # 实际应该使用当前时间
         from datetime import datetime
         settings_data["export_time"] = datetime.utcnow().isoformat() + "Z"
@@ -395,7 +401,7 @@ async def export_settings():
             "export_time": settings_data["export_time"],
             "version": settings_data["version"]
         }
-        
+
     except Exception as e:
         logging.error(f"导出设置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -410,7 +416,7 @@ async def import_settings(settings_data: Dict[str, Any]):
 
         imported_count = 0
         failed_keys = []
-        
+
         for key, value in imported_settings.items():
             try:
                 if hasattr(config, key):
@@ -422,16 +428,16 @@ async def import_settings(settings_data: Dict[str, Any]):
             except Exception as e:
                 logging.warning(f"导入设置 {key} 失败: {e}")
                 failed_keys.append(key)
-        
+
         config.save()
-        
+
         return {
             "success": len(failed_keys) == 0,
             "message": f"成功导入 {imported_count} 个设置",
             "imported_count": imported_count,
             "failed_keys": failed_keys
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:

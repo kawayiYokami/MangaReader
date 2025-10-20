@@ -46,3 +46,8 @@ packages = [
     "web.utils",
     "utils"
 ]
+
+[tool.uv.workspace]
+members = [
+    "Image_Translator_LMM_GUI",
+]

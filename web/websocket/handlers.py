@@ -7,7 +7,6 @@ WebSocket 处理器
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import List, Dict, Any
 import json
-import asyncio
 from datetime import datetime
 
 import logging
@@ -87,7 +86,7 @@ class ConnectionManager:
                 logging.error(f"广播WebSocket消息失败: {e}")
                 disconnected_clients.append(websocket)
         
-        logging.info(f"[WebSocket] 广播完成。")
+        logging.info("[WebSocket] 广播完成。")
 
         # 清理断开的连接
         for websocket in disconnected_clients:
@@ -110,7 +109,6 @@ manager = ConnectionManager()
 
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket端点处理函数"""
-    client_id = None
     
     try:
         # 接受连接
