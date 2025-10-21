@@ -108,12 +108,12 @@
     ```bash
     # 安装 uv (如果尚未安装)
     pip install uv
-    
+
     # 创建并激活虚拟环境
     uv venv
     # Windows: .\.venv\Scripts\activate
     # macOS/Linux: source .venv/bin/activate
-    
+
     # 安装Python依赖
     uv pip install .
     ```
@@ -122,7 +122,7 @@
     ```bash
     # 进入vue目录
     cd vue
-    
+
     # 安装Node.js依赖
     npm install
     ```
@@ -132,52 +132,9 @@
 
 本项目支持多种运行模式，以适应开发、测试和生产环境的需求。
 
-### 1. 开发模式 (前后端分离)
-
-此模式下，后端 API 服务和前端开发服务器独立运行，方便开发调试。
-
-**a. 启动后端 API 服务**
-
-在项目 **根目录** 下运行：
-
-```bash
-python run_api_server.py [--host <host>] [--port <port>] [--reload]
-# 示例: python run_api_server.py --host 127.0.0.1 --port 8100 --reload
-```
-- `run_api_server.py`: 启动纯 FastAPI 后端，监听指定地址和端口（默认 `http://127.0.0.1:8100`）。`--reload` 参数用于开发时的代码热重载。
-- **注意**: 后端 API 默认端口为 `8100`。
-
-**b. 启动前端开发服务器 (仅用于前端开发)**
-
-打开一个新的终端，进入 `vue` 目录，然后运行：
-
-```bash
-cd vue
-npm run dev
-```
-- `npm run dev`: 启动 Vue 前端开发服务器 (基于 Vite)，通常监听在 `http://localhost:5173`。
-- 启动后，请在浏览器中访问 Vite 提示的地址。
-- **重要**: 此步骤仅在您需要进行前端开发时才需要。
-
-### 2. 桌面应用模式
+### 1. 桌面应用模式
 
 此模式将后端 API 和前端 UI 集成到一个桌面应用中，通过 PyWebView 提供类似原生应用的体验。
-
-**a. 开发模式下的桌面应用 (用于前端开发调试)**
-
-此模式用于在开发前端时，通过桌面环境调试与系统交互的功能（如文件选择、拖放）。
-
-在项目 **根目录** 下运行：
-
-```bash
-python run_pywebview_dev.py
-```
-- `run_pywebview_dev.py`: 启动一个 PyWebView 窗口，并加载 `http://localhost:5173` (前端开发服务器地址)。
-- **重要**: 运行此脚本前，请确保 `run_api_server.py` 和 `npm run dev` 都已在后台启动。
-
-**b. 生产模式下的桌面应用 (最终发布版本)**
-
-此模式用于打包和发布最终的桌面应用程序，也是推荐的最终用户使用方式。它会内置后端服务并加载预构建的前端文件。
 
 在项目 **根目录** 下运行：
 
@@ -187,7 +144,7 @@ python run_desktop_app.py
 - `run_desktop_app.py`: 启动内部 FastAPI 后端服务，并使用 PyWebView 加载 `vue/dist` 目录下的静态前端文件。
 - **注意**: `vue/dist` 目录通常包含已构建好的前端静态资源。**项目会直接上传 `build` 好的 `vue/dist`，通常无需您手动执行 `npm run build`。** 如果 `vue/dist` 不存在或需要更新，您可以在 `vue` 目录下运行 `npm run build` 来生成。
 
-### 3. 纯 Web 服务器模式 (用于局域网/公网部署)
+### 2. 纯 Web 服务器模式 (用于局域网/公网部署)
 
 此模式是一个独立的 Web 应用部署方案，将后端 API 和预构建的前端静态文件整合在一个 FastAPI 服务器中。
 
