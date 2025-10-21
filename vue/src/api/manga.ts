@@ -71,6 +71,7 @@ export interface BatchCompressOptions {
   webp_quality: number;
   min_compression_ratio: number;
   preserve_original_names: boolean;
+  delete_source_on_success: boolean;
 }
 
 

@@ -234,7 +234,7 @@ async def scan_manga_files(interface: CoreInterface = Depends(get_interface)):
         dir_info = await interface.get_current_directory()
         if not dir_info.path or not dir_info.exists:
             raise CoreInterfaceError("漫画目录未设置或不存在，无法扫描。")
-        
+
         # 调用新的统一接口进行扫描（本质是添加）
         # 注意：force_rescan 的逻辑已移至 set_directory, 此处为增量扫描
         scan_result = await interface.add_mangas_from_paths([dir_info.path])
@@ -379,14 +379,14 @@ async def get_manga_info(
             raise HTTPException(status_code=400, detail="缺少manga_path参数")
 
         logging.info(f"通过路径查找漫画信息: {manga_path}")
-        
+
         # 调用接口层的封装方法
         manga_info = await interface.get_manga_by_path(manga_path)
 
         if not manga_info:
             logging.warning(f"漫画未找到: {manga_path}")
             raise HTTPException(status_code=404, detail="漫画未找到")
-        
+
         # MangaInfo -> MangaInfoResponse
         return MangaInfoResponse(
             file_path=manga_info.file_path,
@@ -465,7 +465,7 @@ async def compress_file_and_download(
         # 调用新的压缩模块
         compressor = get_image_compressor()
         compressor.reset_cancel_flag()  # 确保每次调用都是干净的状态
-        
+
         compressed_temp_path = compressor.compress_manga_file(
             file_path=temp_upload_path,
             webp_quality=webp_quality,
@@ -567,9 +567,9 @@ async def cleanup_cache(
     """清理过期的缓存文件"""
     try:
         max_age_days = request.get("max_age_days", 7) if request else 7
-        
+
         cleanup_result = interface.cleanup_cache(max_age_days=max_age_days)
-        
+
         return {
             "success": True,
             "message": "缓存清理完成",
@@ -588,3 +588,81 @@ async def clear_cache(interface: CoreInterface = Depends(get_interface)):
     except Exception as e:
         logging.error(f"清空缓存失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== 批量压缩功能 ====================
+
+class BatchCompressRequest(BaseModel):
+    """批量压缩请求模型"""
+    webp_quality: int = 85
+    min_compression_ratio: float = 0.05
+    preserve_original_names: bool = True
+    delete_source_on_success: bool = False
+
+@router.post("/batch-compress")
+@local_only
+async def start_batch_compression(
+    request: BatchCompressRequest,
+    http_request: Request,
+    interface: CoreInterface = Depends(get_interface)
+):
+    """
+    启动批量压缩任务
+    """
+    try:
+        # 调用核心接口的批量压缩方法
+        result = await interface.batch_compress_manga(
+            webp_quality=request.webp_quality,
+            min_compression_ratio=request.min_compression_ratio,
+            preserve_original_names=request.preserve_original_names,
+            delete_source_on_success=request.delete_source_on_success
+        )
+
+        return {
+            "success": result["success"],
+            "message": result["message"],
+            "task_id": result.get("task_id")
+        }
+
+    except CoreInterfaceError as e:
+        logging.error(f"启动批量压缩失败: {e}")
+        raise HTTPException(status_code=500, detail=e.message)
+    except Exception as e:
+        logging.error(f"启动批量压缩时发生未知错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
+
+@router.get("/batch-compress/status/{task_id}")
+async def get_batch_compression_status(
+    task_id: str,
+    interface: CoreInterface = Depends(get_interface)
+):
+    """
+    获取批量压缩任务状态
+    """
+    try:
+        status = interface.get_batch_compression_status(task_id)
+        return status
+    except CoreInterfaceError as e:
+        logging.error(f"获取批量压缩状态失败: {e}")
+        raise HTTPException(status_code=404, detail=e.message)
+    except Exception as e:
+        logging.error(f"获取批量压缩状态时发生未知错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
+
+@router.post("/batch-compress/cancel/{task_id}")
+async def cancel_batch_compression(
+    task_id: str,
+    interface: CoreInterface = Depends(get_interface)
+):
+    """
+    取消批量压缩任务
+    """
+    try:
+        success = interface.cancel_batch_compression(task_id)
+        return {"success": success, "message": "任务已取消" if success else "任务取消失败"}
+    except CoreInterfaceError as e:
+        logging.error(f"取消批量压缩失败: {e}")
+        raise HTTPException(status_code=404, detail=e.message)
+    except Exception as e:
+        logging.error(f"取消批量压缩时发生未知错误: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="服务器内部错误")
