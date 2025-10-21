@@ -31,6 +31,12 @@ from core.core_cache.thumbnail_cache import ThumbnailCache
 from core.config import config
 from core.core_cache.cache_factory import get_cache_factory_instance
 from core.image import processor
+from core.image.batch_compression_manager import (
+    get_batch_compression_manager,
+    CompressionResult,
+    CompressionTask,
+    CoreInterfaceError
+)
 import logging
 
 
@@ -69,12 +75,6 @@ class WebScanResult:
     errors: List[str] = None
 
 
-class CoreInterfaceError(Exception):
-    """接口层专用异常"""
-    def __init__(self, message: str, original_error: Exception = None):
-        self.message = message
-        self.original_error = original_error
-        super().__init__(self.message)
 
 
 class CoreInterface:
@@ -584,6 +584,193 @@ class CoreInterface:
 
             if expired_sessions:
                 logging.info(f"清理了 {len(expired_sessions)} 个过期的随机播放会话。")
+
+    # ==================== 批量压缩功能 ====================
+
+    async def batch_compress_manga(
+        self,
+        webp_quality: int = 85,
+        min_compression_ratio: float = 0.05,
+        preserve_original_names: bool = True,
+        delete_source_on_success: bool = False
+    ) -> Dict[str, Any]:
+        """
+        启动批量压缩任务
+        """
+        try:
+            # 获取所有漫画文件
+            manga_dicts = await self.manga_manager.get_manga_list(sort_by=None)
+            if not manga_dicts:
+                return {
+                    "success": False,
+                    "message": "没有找到可压缩的漫画文件"
+                }
+
+            total_files = len(manga_dicts)
+            batch_manager = get_batch_compression_manager()
+            task_id = batch_manager.create_task(total_files)
+
+            # 在后台启动压缩任务
+            asyncio.create_task(self._run_batch_compression(
+                task_id=task_id,
+                manga_paths=[m['file_path'] for m in manga_dicts],
+                webp_quality=webp_quality,
+                min_compression_ratio=min_compression_ratio,
+                preserve_original_names=preserve_original_names,
+                delete_source_on_success=delete_source_on_success
+            ))
+
+            return {
+                "success": True,
+                "message": f"批量压缩任务已启动，共 {total_files} 个文件",
+                "task_id": task_id
+            }
+
+        except Exception as e:
+            logging.error(f"启动批量压缩失败: {e}", exc_info=True)
+            raise CoreInterfaceError("启动批量压缩失败", e)
+
+    def get_batch_compression_status(self, task_id: str) -> Dict[str, Any]:
+        """获取批量压缩任务状态"""
+        try:
+            batch_manager = get_batch_compression_manager()
+            return batch_manager.get_task_status(task_id)
+        except Exception as e:
+            logging.error(f"获取批量压缩状态失败: {e}")
+            raise CoreInterfaceError("获取批量压缩状态失败", e)
+
+    def cancel_batch_compression(self, task_id: str) -> bool:
+        """取消批量压缩任务"""
+        try:
+            batch_manager = get_batch_compression_manager()
+            return batch_manager.cancel_task(task_id)
+        except Exception as e:
+            logging.error(f"取消批量压缩失败: {e}")
+            return False
+
+    async def _run_batch_compression(
+        self,
+        task_id: str,
+        manga_paths: List[str],
+        webp_quality: int,
+        min_compression_ratio: float,
+        preserve_original_names: bool,
+        delete_source_on_success: bool
+    ):
+        """后台运行批量压缩任务"""
+        try:
+            batch_manager = get_batch_compression_manager()
+            task = batch_manager.get_task(task_id)
+
+            if not task:
+                logging.error(f"任务 {task_id} 不存在")
+                return
+
+            task.status = "running"
+            task.start_time = time.time()
+
+            from core.image.image_compressor import get_image_compressor
+            compressor = get_image_compressor()
+            processed = 0
+            successful = 0
+
+            for manga_path in manga_paths:
+                if task.cancel_flag.is_set():
+                    logging.info(f"任务 {task_id} 被取消")
+                    break
+
+                if not os.path.exists(manga_path):
+                    logging.warning(f"漫画文件不存在: {manga_path}")
+                    processed += 1
+                    continue
+
+                try:
+                    task.current_file = os.path.basename(manga_path)
+                    batch_manager.update_task_progress(task_id, processed, successful, task.current_file)
+
+                    # 预检测是否值得压缩
+                    pretest_result = compressor.pre_test_compression(
+                        manga_path, webp_quality, min_compression_ratio
+                    )
+
+                    if not pretest_result["should_compress"]:
+                        logging.info(f"跳过文件 {manga_path}: {pretest_result['reason']}")
+                        result = CompressionResult(
+                            original_path=manga_path,
+                            compressed_path=None,
+                            success=True,
+                            error_message=f"跳过压缩: {pretest_result['reason']}"
+                        )
+                        batch_manager.add_result(task_id, result)
+                        processed += 1
+                        continue
+
+                    # 执行压缩
+                    compressed_path = compressor.compress_manga_file(
+                        file_path=manga_path,
+                        webp_quality=webp_quality,
+                        preserve_original_names=preserve_original_names
+                    )
+
+                    if compressed_path and os.path.exists(compressed_path):
+                        # 计算压缩率
+                        original_size = os.path.getsize(manga_path)
+                        compressed_size = os.path.getsize(compressed_path)
+                        compression_ratio = (original_size - compressed_size) / original_size if original_size > 0 else 0
+
+                        result = CompressionResult(
+                            original_path=manga_path,
+                            compressed_path=compressed_path,
+                            success=True,
+                            compression_ratio=compression_ratio
+                        )
+                        successful += 1
+                        logging.info(f"压缩成功: {manga_path} -> {compressed_path} (压缩率: {compression_ratio:.1%})")
+
+                        # 新增的核心删除逻辑
+                        if delete_source_on_success:
+                            try:
+                                logging.warning(f"准备删除源文件: {manga_path}")
+                                os.remove(manga_path)
+                                logging.info(f"成功删除源文件: {manga_path}")
+                            except Exception as delete_error:
+                                logging.error(f"删除源文件 {manga_path} 失败: {delete_error}")
+                                # 注意：即使删除失败，也不应影响整个任务的状态
+                    else:
+                        result = CompressionResult(
+                            original_path=manga_path,
+                            compressed_path=None,
+                            success=False,
+                            error_message="压缩失败或未返回有效路径"
+                        )
+                        logging.error(f"压缩失败: {manga_path}")
+
+                    batch_manager.add_result(task_id, result)
+
+                except Exception as e:
+                    logging.error(f"处理文件 {manga_path} 时出错: {e}", exc_info=True)
+                    result = CompressionResult(
+                        original_path=manga_path,
+                        compressed_path=None,
+                        success=False,
+                        error_message=str(e)
+                    )
+                    batch_manager.add_result(task_id, result)
+
+                processed += 1
+                batch_manager.update_task_progress(task_id, processed, successful, task.current_file)
+
+            # 任务完成
+            task.status = "completed"
+            task.end_time = time.time()
+            batch_manager.complete_task(task_id, success=True)
+
+            logging.info(f"批量压缩任务 {task_id} 完成: {successful}/{processed} 成功")
+
+        except Exception as e:
+            logging.error(f"批量压缩任务 {task_id} 异常: {e}", exc_info=True)
+            batch_manager = get_batch_compression_manager()
+            batch_manager.complete_task(task_id, success=False, error_message=str(e))
 
     def close(self):
         """关闭接口，清理资源"""

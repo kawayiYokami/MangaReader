@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
-import type { PropType } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useTaskStore } from '@/store/task';
 import type { BatchCompressOptions } from '@/api/manga';
 import { startBatchCompression } from '@/api/manga';
-import { useCacheStore } from '@/store/cache';
 
 const props = defineProps<{
   visible: boolean;
@@ -16,21 +14,19 @@ const emit = defineEmits<{
 }>();
 
 const taskStore = useTaskStore();
-const cacheStore = useCacheStore();
 const isLoading = ref(false);
 const isProcessing = ref(false);
-const results = ref<any | null>(null);
 
 const options = reactive<BatchCompressOptions>({
   webp_quality: 85,
   min_compression_ratio: 0.25,
   preserve_original_names: true,
+  delete_source_on_success: false,
 });
 
 const resetDialog = () => {
   isLoading.value = false;
   isProcessing.value = false;
-  results.value = null;
 };
 
 watch(() => props.visible, (newValue) => {
@@ -42,7 +38,6 @@ watch(() => props.visible, (newValue) => {
 const handleStartCompression = async () => {
   isLoading.value = true;
   isProcessing.value = true;
-  results.value = null;
 
   try {
     const response = await startBatchCompression(options);
@@ -96,6 +91,12 @@ const handleClose = () => {
           <el-switch v-model="options.preserve_original_names" />
            <div class="el-form-item__description">
             开启后，压缩后的文件将保留原始文件名（仅扩展名变为 .webp）。关闭则会使用新的命名规则。
+          </div>
+        </el-form-item>
+        <el-form-item label="压缩后删除源文件">
+          <el-switch v-model="options.delete_source_on_success" />
+           <div class="el-form-item__description">
+            开启后，压缩成功并验证通过后将自动删除原始文件以节省磁盘空间。此操作不可逆，请谨慎使用。
           </div>
         </el-form-item>
       </el-form>
