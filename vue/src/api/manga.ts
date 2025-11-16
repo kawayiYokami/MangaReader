@@ -93,3 +93,31 @@ export async function startBatchCompression(options: BatchCompressOptions) {
   }
   return response.json();
 }
+
+/**
+ * 获取批量压缩任务状态
+ * @param taskId 任务ID
+ */
+export async function getBatchCompressionStatus(taskId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/manga/batch-compress/status/${taskId}`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: '获取批量压缩状态失败' }));
+    throw new Error(errorData.detail);
+  }
+  return response.json();
+}
+
+/**
+ * 取消批量压缩任务
+ * @param taskId 任务ID
+ */
+export async function cancelBatchCompression(taskId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/manga/batch-compress/cancel/${taskId}`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: '取消批量压缩任务失败' }));
+    throw new Error(errorData.detail);
+  }
+  return response.json();
+}

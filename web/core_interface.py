@@ -31,6 +31,7 @@ from core.core_cache.thumbnail_cache import ThumbnailCache
 from core.config import config
 from core.core_cache.cache_factory import get_cache_factory_instance
 from core.image import processor
+from core.utils.file_system import safe_replace_file
 from core.image.batch_compression_manager import (
     get_batch_compression_manager,
     CompressionResult,
@@ -718,24 +719,28 @@ class CoreInterface:
                         compressed_size = os.path.getsize(compressed_path)
                         compression_ratio = (original_size - compressed_size) / original_size if original_size > 0 else 0
 
-                        result = CompressionResult(
-                            original_path=manga_path,
-                            compressed_path=compressed_path,
-                            success=True,
-                            compression_ratio=compression_ratio
-                        )
-                        successful += 1
-                        logging.info(f"压缩成功: {manga_path} -> {compressed_path} (压缩率: {compression_ratio:.1%})")
+                        # 使用您写好的安全替换函数替换原文件
+                        replace_success = safe_replace_file(compressed_path, manga_path)
 
-                        # 新增的核心删除逻辑
-                        if delete_source_on_success:
-                            try:
-                                logging.warning(f"准备删除源文件: {manga_path}")
-                                os.remove(manga_path)
-                                logging.info(f"成功删除源文件: {manga_path}")
-                            except Exception as delete_error:
-                                logging.error(f"删除源文件 {manga_path} 失败: {delete_error}")
-                                # 注意：即使删除失败，也不应影响整个任务的状态
+                        if replace_success:
+                            result = CompressionResult(
+                                original_path=manga_path,
+                                compressed_path=manga_path,  # 现在压缩文件已经替换原文件
+                                success=True,
+                                compression_ratio=compression_ratio
+                            )
+                            successful += 1
+                            logging.info(f"压缩并替换成功: {manga_path} (压缩率: {compression_ratio:.1%})")
+                        else:
+                            result = CompressionResult(
+                                original_path=manga_path,
+                                compressed_path=None,
+                                success=False,
+                                error_message="文件替换失败"
+                            )
+                            logging.error(f"文件替换失败: {manga_path}")
+
+                        batch_manager.add_result(task_id, result)
                     else:
                         result = CompressionResult(
                             original_path=manga_path,

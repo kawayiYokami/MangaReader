@@ -600,10 +600,8 @@ class BatchCompressRequest(BaseModel):
     delete_source_on_success: bool = False
 
 @router.post("/batch-compress")
-@local_only
 async def start_batch_compression(
     request: BatchCompressRequest,
-    http_request: Request,
     interface: CoreInterface = Depends(get_interface)
 ):
     """
