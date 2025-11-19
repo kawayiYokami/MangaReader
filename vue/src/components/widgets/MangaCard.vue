@@ -160,16 +160,16 @@ defineExpose({
       </h3>
     </div>
 
-    <div class="info-container" v-if="getOtherTags(manga.tags).length > 0">
+    <div v-if="getOtherTags(manga.tags).length > 0" class="info-container">
       <!-- Other Tags (Inside Info Container) -->
       <div class="manga-tags">
         <span
-          class="tag"
           v-for="tag in getOtherTags(manga.tags)"
           :key="tag"
-          @click.stop="onTagClick(tag)"
+          class="tag"
           :title="`点击搜索: ${tag}`"
           :class="{ 'is-active': selectedTags.includes(tag) }"
+          @click.stop="onTagClick(tag)"
         >
           {{ tag.split(':').pop() }}
         </span>

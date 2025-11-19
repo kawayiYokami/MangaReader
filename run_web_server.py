@@ -29,13 +29,13 @@ except ImportError as e:
 
 # ----- 全局常量 -----
 HOST = "0.0.0.0"  # 监听所有网络接口
-PORT = 8100       # 使用指定的 8080 端口
+PORT = 9000       # 使用指定的 9000 端口
 
 def main():
     """主函数"""
     # 初始化日志系统
     setup_logging()
-    
+
     # 挂载静态文件目录
     # 这会告诉FastAPI，任何不匹配API路由的请求都应尝试从'vue/dist'目录中查找文件
     # html=True 确保了对于像 '/' 这样的路径，它会提供 'index.html'
@@ -44,7 +44,7 @@ def main():
         print(f"错误: 前端静态文件目录不存在: {static_files_path}")
         print("请先在 'vue' 目录下运行 'npm run build' 来生成前端文件。")
         sys.exit(1)
-        
+
     app.mount("/", StaticFiles(directory=static_files_path, html=True), name="static")
 
     print("=" * 50)

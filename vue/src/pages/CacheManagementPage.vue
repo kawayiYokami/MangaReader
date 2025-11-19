@@ -66,7 +66,7 @@ const getTableColspan = () => {
           <div class="cache-stats">
             <span>{{ cacheStats[cacheType.key]?.entries || 0 }} 条</span>
           </div>
-          <div class="cache-actions" v-if="selectedCacheType === cacheType.key">
+          <div v-if="selectedCacheType === cacheType.key" class="cache-actions">
             <el-button size="small" type="danger" text @click.stop="cacheStore.clearCache(cacheType.key)">清空</el-button>
           </div>
         </div>
@@ -77,7 +77,7 @@ const getTableColspan = () => {
     <el-card v-if="selectedCacheType" class="cache-detail">
       <!-- Search and Action Bar -->
       <div class="search-and-actions-bar">
-        <el-input v-model="searchQuery" :placeholder="`在 ${getSelectedCacheName()} 中搜索...`" clearable @change="cacheStore.fetchEntries" class="search-input"/>
+        <el-input v-model="searchQuery" :placeholder="`在 ${getSelectedCacheName()} 中搜索...`" clearable class="search-input" @change="cacheStore.fetchEntries"/>
         
         <!-- Spacer -->
         <div class="spacer"></div>
@@ -92,13 +92,13 @@ const getTableColspan = () => {
         </template>
       </div>
 
-      <div class="entries-container" v-loading="isLoading.entries">
+      <div v-loading="isLoading.entries" class="entries-container">
         <el-table
           v-if="selectedCacheType === 'manga_list'"
           :data="entries"
           style="width: 100%"
-          @selection-change="handleMangaSelectionChange"
           row-key="key"
+          @selection-change="handleMangaSelectionChange"
         >
           <el-table-column type="selection" width="55" />
           <el-table-column prop="key" label="漫画" show-overflow-tooltip>

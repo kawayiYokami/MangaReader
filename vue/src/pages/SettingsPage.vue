@@ -182,7 +182,7 @@ const handleSave = async () => {
 <template>
   <div class="settings-page">
     <!-- 加载遮罩 -->
-    <el-skeleton :rows="15" animated v-if="isLoading" />
+    <el-skeleton v-if="isLoading" :rows="15" animated />
 
     <template v-else>
       <!-- 外观设置 -->
@@ -373,10 +373,10 @@ const handleSave = async () => {
             <div class="flex w-full">
               <el-input v-model="editingConfig.api_base_url" placeholder="例如 https://api.openai.com/v1" class="flex-grow" />
               <el-button 
-                @click="handleFetchModels" 
                 :loading="isLoadingModels" 
-                :disabled="!editingConfig.api_base_url || !editingConfig.api_key"
+                :disabled="!editingConfig.api_base_url || !editingConfig.api_key" 
                 class="ml-sm"
+                @click="handleFetchModels"
               >
                 获取模型
               </el-button>

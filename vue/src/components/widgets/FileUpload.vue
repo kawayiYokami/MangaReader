@@ -31,11 +31,11 @@ const handleDrop = (event: DragEvent) => {
   <div class="file-selection">
     <div
       class="upload-area upload-area-themed"
+      :class="{ dragover: dragOver }"
       @click="triggerFileSelect"
       @dragover.prevent="dragOver = true"
       @dragleave.prevent="dragOver = false"
       @drop.prevent="handleDrop"
-      :class="{ dragover: dragOver }"
     >
       <el-icon size="48">
         <upload-filled />
@@ -47,8 +47,8 @@ const handleDrop = (event: DragEvent) => {
         type="file"
         multiple
         accept=".zip,.cbz"
-        @change="handleFileSelect"
         style="display: none;"
+        @change="handleFileSelect"
       />
     </div>
   </div>

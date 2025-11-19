@@ -1,18 +1,18 @@
 <template>
-  <div class="paginated-view-container" ref="viewerContentRef">
+  <div ref="viewerContentRef" class="paginated-view-container">
     <!-- Left Sidebar -->
     <div class="left-sidebar">
       <div
         class="manga-title-section"
         :class="{ 'is-clickable': isPyWebView }"
-        @click="onTitleClick"
         title="在文件浏览器中显示"
+        @click="onTitleClick"
       >
         <div class="manga-title-vertical">{{ store.mangaInfo.title }}</div>
       </div>
 
       <div class="page-navigation">
-        <div class="viewer-btn" @click="goToPreviousPage" :class="{ 'is-disabled': !store.canPrevious }">arrow_upward</div>
+        <div class="viewer-btn" :class="{ 'is-disabled': !store.canPrevious }" @click="goToPreviousPage">arrow_upward</div>
 
         <div class="page-info" @click="showPageInput = true">
           <div v-if="!showPageInput" class="page-display">
@@ -36,14 +36,14 @@
           </div>
         </div>
 
-        <div class="viewer-btn" @click="goToNextPage" :class="{ 'is-disabled': !store.canNext }">arrow_downward</div>
+        <div class="viewer-btn" :class="{ 'is-disabled': !store.canNext }" @click="goToNextPage">arrow_downward</div>
       </div>
 
       <div class="bottom-toolbar">
-          <div class="viewer-btn" @click="goBack" title="返回浏览器">arrow_back</div>
-          <div class="viewer-btn" @click="switchToStripView" title="切换到条漫模式">view_day</div>
-          <div class="viewer-btn" @click="toggleTranslation" :class="{ 'is-active': store.isTranslationMode }" title="AI翻译">translate</div>
-          
+          <div class="viewer-btn" title="返回浏览器" @click="goBack">arrow_back</div>
+          <div class="viewer-btn" title="切换到条漫模式" @click="switchToStripView">view_day</div>
+          <div class="viewer-btn" :class="{ 'is-active': store.isTranslationMode }" title="AI翻译" @click="toggleTranslation">translate</div>
+
           <!-- Correct Autoplay Control with Popover -->
           <el-popover
             ref="autoplayPopoverRef"
@@ -240,7 +240,7 @@ watch(
             reason = `双页总宽(${totalDoublePageScaledWidth.toFixed(0)}) <= 容器宽度(${width.toFixed(0)})`;
         }
     }
-    
+
     // 唯一的副作用：更新决策状态
     finalDisplayMode.value = decision;
   },
@@ -266,7 +266,7 @@ watch(() => store.currentImages, (newImages) => {
 function preloadAndSwitchImages(newImages: MangaImage[]) {
   isLoadingNextPage.value = true;
   const imageUrls = newImages.map(img => img.src);
-  
+
   const promises = imageUrls.map(src => {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -407,7 +407,7 @@ function onImageClick(event: MouseEvent) {
   const rect = target.classList.contains('manga-image')
     ? target.getBoundingClientRect()
     : (event.currentTarget as HTMLElement).getBoundingClientRect();
-  
+
   const clickX = event.clientX - rect.left;
 
   if (clickX < rect.width / 3) {
@@ -427,6 +427,11 @@ async function goToPreviousPage() {
   if (!store.canPrevious) return;
   if (pageTurnDirection.value) return;
 
+  // 重置自动播放计时器
+  if (store.isAutoPaging) {
+    restartAutoPagingTimer();
+  }
+
   pageTurnDirection.value = 'backward';
   isInitialBackwardTurn.value = true; // 举起一次性令牌
   const targetPage = Math.max(0, store.currentPage - 2);
@@ -438,6 +443,11 @@ function goToNextPage() {
   if (!store.canNext) return;
   if (pageTurnDirection.value) return;
 
+  // 重置自动播放计时器
+  if (store.isAutoPaging) {
+    restartAutoPagingTimer();
+  }
+
   pageTurnDirection.value = 'forward';
   isInitialBackwardTurn.value = false; // 确保向前翻页时，令牌是放下的
   const step = finalDisplayMode.value === 'double' && imagesToActuallyRender.value.length > 1 ? 2 : 1;
@@ -448,6 +458,10 @@ function goToNextPage() {
 function onPageInputEnter() {
     const newPage = parseInt(pageInputText.value, 10);
     if (!isNaN(newPage) && newPage > 0 && newPage <= store.mangaInfo.totalPages) {
+        // 重置自动播放计时器
+        if (store.isAutoPaging) {
+            restartAutoPagingTimer();
+        }
         store.goToPage(newPage - 1);
     }
     showPageInput.value = false;
@@ -468,6 +482,12 @@ function onProgressMouseDown(event: MouseEvent) {
         isDragging.value = false;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
+
+        // 重置自动播放计时器
+        if (store.isAutoPaging) {
+            restartAutoPagingTimer();
+        }
+
         store.goToPage(store.currentPage);
     };
 
@@ -482,7 +502,7 @@ function updatePageFromProgress(event: MouseEvent, container: HTMLElement) {
     const rect = track.getBoundingClientRect();
     const clickY = event.clientY - rect.top;
     const percentage = Math.max(0, Math.min(1, clickY / rect.height));
-    
+
     if (store.mangaInfo.totalPages > 0) {
         const targetPage = Math.floor(percentage * (store.mangaInfo.totalPages -1));
         store.currentPage = targetPage;

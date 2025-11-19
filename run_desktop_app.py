@@ -39,9 +39,9 @@ except ImportError:
 
 
 # ----- 全局常量 -----
-API_SERVER_URL = "http://localhost:8100"
+API_SERVER_URL = "http://localhost:9000"
 HOST = "127.0.0.1"
-PORT = 8100
+PORT = 9000
 
 # 将项目根目录添加到Python路径
 project_root = Path(__file__).parent
@@ -263,7 +263,7 @@ def main():
     # 启动 PyWebView，并传入事件绑定函数
     webview.settings['ALLOW_DOWNLOADS'] = True
     logging.info("正在启动 PyWebView (生产模式)...")
-    webview.start(bind_drag_drop_events, window, debug=False, private_mode=False)
+    webview.start(bind_drag_drop_events, window, debug=False, private_mode=True)
     logging.info("PyWebView 已关闭。应用程序退出。")
 
 if __name__ == "__main__":

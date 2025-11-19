@@ -58,7 +58,7 @@ const props = defineProps({
         <div class="task-info">
           <div class="task-name" :title="task.fileName">{{ task.fileName }}</div>
         </div>
-        <div class="task-progress" v-if="task.status === 'processing'">
+        <div v-if="task.status === 'processing'" class="task-progress">
           <el-progress :percentage="task.progress" :show-text="false" />
         </div>
         <div class="task-actions">
@@ -67,7 +67,7 @@ const props = defineProps({
           <el-tag v-else-if="task.status === 'processing'" type="warning">处理中</el-tag>
           <el-tag v-else type="info">等待中</el-tag>
           <el-button v-if="task.status === 'completed'" size="small" type="primary" @click="downloadTask(task)">下载</el-button>
-          <el-button size="small" type="danger" @click="emit('remove-task', task.id)" :disabled="isProcessing && task.status !== 'pending'">移除</el-button>
+          <el-button size="small" type="danger" :disabled="isProcessing && task.status !== 'pending'" @click="emit('remove-task', task.id)">移除</el-button>
         </div>
       </div>
     </div>

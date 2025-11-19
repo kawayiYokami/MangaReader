@@ -25,16 +25,16 @@ const emit = defineEmits(['start', 'clear'])
     <div class="button-group">
       <AppButton
         type="primary"
-        @click="emit('start')"
         :disabled="disabled"
         :loading="loading"
+        @click="emit('start')"
       >
         {{ title }}
       </AppButton>
       <AppButton
         type="text"
-        @click="emit('clear')"
         :disabled="disabled"
+        @click="emit('clear')"
       >
         清空任务
       </AppButton>
