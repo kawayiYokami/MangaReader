@@ -34,7 +34,7 @@ export const updateTranslatorConfigs = async (configs: APIConfig[]): Promise<voi
 /**
  * 获取所有可用的翻译智能体
  */
-export const getTranslatorAgents = async (): Promise<any[]> => {
+export const getTranslatorAgents = async (): Promise<Record<string, unknown>[]> => {
   const response = await fetch(`${API_BASE_URL}/api/translators/agents`);
   if (!response.ok) {
     throw new Error('Failed to fetch translator agents');
@@ -76,11 +76,12 @@ export const fetchModelsFromProvider = async (baseUrl: string, apiKey: string): 
     }
 
     // 提取并返回模型ID
-    return data.data.map((model: any) => model.id).sort();
+    return data.data.map((model: { id: string }) => model.id).sort();
 
-  } catch (error: any) {
+  } catch (error) {
     // 捕获网络错误 (如 CORS) 或上面抛出的错误
-    if (error.message.includes('Failed to fetch')) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('Failed to fetch')) {
         throw new Error('网络请求失败。请检查浏览器控制台，并确认目标服务器是否配置了正确的CORS策略。');
     }
     throw error; // 重新抛出其他已知错误
@@ -91,7 +92,7 @@ export const fetchModelsFromProvider = async (baseUrl: string, apiKey: string): 
  * 对指定的漫画页面执行 AI 翻译
  * @param payload - 包含所有翻译所需参数的请求体
  */
-export const translateMangaPage = async (payload: any): Promise<ImageTranslationResult[]> => {
+export const translateMangaPage = async (payload: Record<string, unknown>): Promise<ImageTranslationResult[]> => {
   const response = await fetch(`${API_BASE_URL}/api/actions/translate_page`, {
     method: 'POST',
     headers: {

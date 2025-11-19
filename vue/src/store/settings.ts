@@ -1,14 +1,13 @@
 import { defineStore } from 'pinia';
 import {
   getAllSettings,
-  updateSetting as apiUpdateSetting,
-  type SettingItem
+  updateSetting as apiUpdateSetting
 } from '@/api/settings';
 
 // 定义 State 的类型
 export interface SettingsState {
   logLevel: string;
-  
+
   isLoading: boolean; // 通用加载状态
 
   // 页面缓存设置
@@ -50,19 +49,19 @@ export const useSettingsStore = defineStore('settings', {
         const settingsMap = settingsList.reduce((acc, setting) => {
             acc[setting.key] = setting.value;
             return acc;
-        }, {} as Record<string, any>);
+        }, {} as Record<string, string | number | boolean>);
 
         // 使用后端返回的值填充 state
-        this.logLevel = settingsMap.logLevel ?? this.logLevel;
+        this.logLevel = (settingsMap.logLevel as string) ?? this.logLevel;
 
         // 加载页面缓存设置
-        this.pageCacheEnabled = settingsMap.pageCacheEnabled ?? this.pageCacheEnabled;
-        this.pageCacheQuality = settingsMap.pageCacheQuality ?? this.pageCacheQuality;
-        this.pageCacheMaxSizeMb = settingsMap.pageCacheMaxSizeMb ?? this.pageCacheMaxSizeMb;
-        this.pageCacheStandardHeight = settingsMap.pageCacheStandardHeight ?? this.pageCacheStandardHeight;
-        this.pageCacheDecisionRatio = settingsMap.pageCacheDecisionRatio ?? this.pageCacheDecisionRatio;
-        this.pageCacheDecisionSizeMb = settingsMap.pageCacheDecisionSizeMb ?? this.pageCacheDecisionSizeMb;
-        this.pageCacheDecisionDimension = settingsMap.pageCacheDecisionDimension ?? this.pageCacheDecisionDimension;
+        this.pageCacheEnabled = (settingsMap.pageCacheEnabled as boolean) ?? this.pageCacheEnabled;
+        this.pageCacheQuality = (settingsMap.pageCacheQuality as number) ?? this.pageCacheQuality;
+        this.pageCacheMaxSizeMb = (settingsMap.pageCacheMaxSizeMb as number) ?? this.pageCacheMaxSizeMb;
+        this.pageCacheStandardHeight = (settingsMap.pageCacheStandardHeight as number) ?? this.pageCacheStandardHeight;
+        this.pageCacheDecisionRatio = (settingsMap.pageCacheDecisionRatio as number) ?? this.pageCacheDecisionRatio;
+        this.pageCacheDecisionSizeMb = (settingsMap.pageCacheDecisionSizeMb as number) ?? this.pageCacheDecisionSizeMb;
+        this.pageCacheDecisionDimension = (settingsMap.pageCacheDecisionDimension as number) ?? this.pageCacheDecisionDimension;
 
       } catch (error) {
         console.error('Failed to initialize settings:', error);
@@ -76,10 +75,10 @@ export const useSettingsStore = defineStore('settings', {
      * @param key - 设置项的键
      * @param value - 设置项的新值
      */
-    async updateSetting(key: keyof SettingsState, value: any) {
+    async updateSetting(key: keyof SettingsState, value: string | number | boolean) {
       if (key in this) {
         // optimistically update UI
-        (this as any)[key] = value;
+        (this as unknown as Record<string, string | number | boolean>)[key] = value;
         try {
           await apiUpdateSetting(key, value);
           console.log(`Setting ${key} successfully updated to:`, value);

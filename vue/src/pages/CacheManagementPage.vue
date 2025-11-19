@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref, reactive } from 'vue'
-import { ElMessageBox } from 'element-plus'
 import { useCacheStore } from '@/store/cache'
 import { storeToRefs } from 'pinia'
 import BatchCompressionDialog from '@/components/dialogs/BatchCompressionDialog.vue'
@@ -34,7 +33,7 @@ const showBatchCompressionDialog = () => {
   batchCompressionDialogState.visible = true;
 }
 
-const handleMangaSelectionChange = (selection: any[]) => {
+const handleMangaSelectionChange = (selection: { key: string }[]) => {
   selectedMangaKeys.value = selection.map(item => item.key);
 }
 
@@ -78,7 +77,7 @@ const getTableColspan = () => {
       <!-- Search and Action Bar -->
       <div class="search-and-actions-bar">
         <el-input v-model="searchQuery" :placeholder="`在 ${getSelectedCacheName()} 中搜索...`" clearable class="search-input" @change="cacheStore.fetchEntries"/>
-        
+
         <!-- Spacer -->
         <div class="spacer"></div>
 

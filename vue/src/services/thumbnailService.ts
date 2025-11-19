@@ -1,4 +1,4 @@
-import { get, set, del, createStore, keys, clear } from 'idb-keyval';
+import { get, set, del, createStore, clear } from 'idb-keyval';
 
 // --- 内存缓存 (L1 Cache) ---
 class LRUCache<K, V> {
@@ -106,7 +106,7 @@ class ThumbnailDBService {
   private async enforceSizeLimit(): Promise<void> {
     const metadata = await this.getMetadata();
     const allKeys = Object.keys(metadata);
-    
+
     let currentSize = allKeys.reduce((sum, key) => sum + (metadata[key]?.size || 0), 0);
     const maxSize = MAX_DB_SIZE_MB * 1024 * 1024;
 
@@ -115,24 +115,24 @@ class ThumbnailDBService {
     }
 
     // 按 LRU 排序
-    const sortedKeys = allKeys.sort((a, b) => 
+    const sortedKeys = allKeys.sort((a, b) =>
       (metadata[a]?.lastAccessed || 0) - (metadata[b]?.lastAccessed || 0)
     );
 
     for (const key of sortedKeys) {
       if (currentSize <= maxSize) break;
-      
+
       const itemSize = metadata[key]?.size || 0;
       await del(key, customStore);
       delete metadata[key];
       currentSize -= itemSize;
-      
+
       console.log(`[Cache Cleanup] Removed ${key} (${(itemSize / 1024).toFixed(2)} KB)`);
     }
 
     await this.saveMetadata(metadata);
   }
-  
+
   async clearAllCache(): Promise<void> {
     this.memoryCache.clear();
     await clear(customStore);

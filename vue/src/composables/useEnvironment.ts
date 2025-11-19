@@ -7,7 +7,7 @@ const isPyWebView = ref(false);
 // 确保在客户端环境中执行
 if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
   // 现代浏览器和WebView2支持 navigator.userAgentData
-  const uaData = (navigator as any).userAgentData;
+  const uaData = (navigator as Navigator & { userAgentData?: { brands: Array<{ brand: string; version: string }> } }).userAgentData;
 
   if (uaData && Array.isArray(uaData.brands)) {
     // 新标准：检查 brands 数组是否包含 "Microsoft Edge WebView2"

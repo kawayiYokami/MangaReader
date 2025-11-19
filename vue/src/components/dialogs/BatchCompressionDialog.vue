@@ -3,7 +3,6 @@ import { ref, reactive, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { BatchCompressOptions } from '@/api/manga';
 import { startBatchCompression, getBatchCompressionStatus } from '@/api/manga';
-import type { BatchCompressionTask } from '@/types/batchCompression';
 
 const props = defineProps<{
   visible: boolean;

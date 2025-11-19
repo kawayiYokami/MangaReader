@@ -15,7 +15,7 @@ export interface CacheStat {
 export interface CacheEntry {
   key: string;
   value_preview: string;
-  [key: string]: any; // For dynamic properties
+  [key: string]: string | number | boolean | null; // For dynamic properties
 }
 
 export interface CacheEntriesResponse {
@@ -66,13 +66,13 @@ export async function getCacheEntries(
   return response.json();
 }
 
-export async function clearCache(type: string): Promise<any> {
+export async function clearCache(type: string): Promise<Record<string, unknown>> {
   const response = await fetch(`${API_BASE_URL}/api/cache/${type}/clear`, { method: 'POST' });
   if (!response.ok) throw new Error(`Failed to clear cache for ${type}`);
   return response.json();
 }
 
-export async function deleteCacheEntry(type: string, key: string): Promise<any> {
+export async function deleteCacheEntry(type: string, key: string): Promise<Record<string, unknown>> {
   console.log(`[Cache API] Attempting to delete entry in '${type}' with key:`, key);
 
   try {
@@ -93,7 +93,7 @@ export async function deleteCacheEntry(type: string, key: string): Promise<any> 
   }
 }
 
-export async function addOrUpdateEntry(type: string, key: string, content: any): Promise<any> {
+export async function addOrUpdateEntry(type: string, key: string, content: string | number | boolean | Record<string, unknown>): Promise<Record<string, unknown>> {
   const payload = { key, content };
   console.log(`[Cache API] Attempting to add/update entry in '${type}' with payload:`, payload);
 

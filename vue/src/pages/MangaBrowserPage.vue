@@ -22,7 +22,7 @@ const {
 } = storeToRefs(mangaStore)
 
 // --- Infinite Scroll ---
-const mangaCardRefs = ref<any[]>([])
+const mangaCardRefs = ref<InstanceType<typeof MangaCard>[]>([])
 const loaderRef = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 
@@ -145,7 +145,7 @@ function selectDirectory() {
             <span class="material-symbols-rounded">filter_list</span>
           </el-button>
         </el-tooltip>
-        
+
         <el-tooltip :content="sort === 'random' ? '当前为随机排序' : '当前为默认排序'" placement="bottom">
             <el-button text @click="mangaStore.setSort(sort !== 'random' ? 'random' : 'last_modified DESC')">
                 <span class="material-symbols-rounded">{{ sort === 'random' ? 'shuffle' : 'sort' }}</span>

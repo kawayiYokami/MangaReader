@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
+import { computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { useRoute } from 'vue-router';
 import { useViewerStore } from '@/store/viewer';
 
@@ -29,7 +29,7 @@ const activeView = computed(() => {
 onMounted(() => {
   const mangaPath = route.query.path as string;
   const page = parseInt(route.query.page as string || '0', 10);
-  
+
   if (mangaPath) {
     store.initializeViewer(mangaPath, page);
   }

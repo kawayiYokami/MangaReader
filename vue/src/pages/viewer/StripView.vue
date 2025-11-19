@@ -27,7 +27,7 @@
         <div class="width-resizer-handle" @mousedown="onResizeMouseDown"></div>
       </div>
     </div>
-    
+
     <!-- Floating Header -->
     <div class="floating-header" :class="{ visible: isHeaderVisible }">
       <div class="viewer-btn" title="返回浏览器" @click="goBack">arrow_back</div>
@@ -36,8 +36,8 @@
     </div>
 
     <!-- Fast Scrubber -->
-    <div 
-      class="fast-scrubber-container" 
+    <div
+      class="fast-scrubber-container"
       :class="{ visible: isScrubberVisible, 'is-dragging': isDraggingScrubber }"
       @mousedown.stop="onScrubberPress"
       @touchstart.stop="onScrubberPress"
@@ -86,7 +86,6 @@ const isResizing = ref(false);
 let initialMouseX = 0;
 let initialWidth = 0;
 
-let hideHeaderTimeout: number | null = null;
 let hideScrubberTimeout: number | null = null;
 let observer: IntersectionObserver | null = null;
 let lastScrollTop = 0;
@@ -100,7 +99,7 @@ onMounted(async () => {
   }
 
   await store.initializeViewer(route.query.path as string, 0);
-  
+
   const screenWidth = window.innerWidth;
   const estimatedAspectRatio = 1.414;
   const estimatedHeight = screenWidth * estimatedAspectRatio;
@@ -182,7 +181,7 @@ function handleScroll() {
   lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
 
   if (isDraggingScrubber.value) return;
-  
+
   showScrubber();
   const { scrollHeight, clientHeight } = container;
   const scrollableHeight = scrollHeight - clientHeight;
@@ -232,12 +231,12 @@ function onResizeMouseUp() {
 function onScrubberPress(e: MouseEvent | TouchEvent) {
   isDraggingScrubber.value = true;
   document.body.style.cursor = 'grabbing';
-  
+
   window.addEventListener('mousemove', handleDragMove);
   window.addEventListener('mouseup', handleDragEnd);
   window.addEventListener('touchmove', handleDragMove, { passive: false });
   window.addEventListener('touchend', handleDragEnd);
-  
+
   e.preventDefault();
   handleDragMove(e);
 }
@@ -248,12 +247,12 @@ function handleDragMove(e: MouseEvent | TouchEvent) {
 
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
   const containerRect = scrollContainerRef.value.getBoundingClientRect();
-  
+
   let percentage = ((clientY - containerRect.top) / containerRect.height) * 100;
   percentage = Math.min(Math.max(percentage, 0), 100);
-  
+
   scrubberHandleTop.value = percentage;
-  
+
   const targetScrollTop = (percentage / 100) * (scrollContainerRef.value.scrollHeight - scrollContainerRef.value.clientHeight);
   scrollContainerRef.value.scrollTop = targetScrollTop;
 
@@ -264,12 +263,12 @@ function handleDragMove(e: MouseEvent | TouchEvent) {
 function handleDragEnd() {
   isDraggingScrubber.value = false;
   document.body.style.cursor = 'default';
-  
+
   window.removeEventListener('mousemove', handleDragMove);
   window.removeEventListener('mouseup', handleDragEnd);
   window.removeEventListener('touchmove', handleDragMove);
   window.removeEventListener('touchend', handleDragEnd);
-  
+
   showScrubber(); // Reset hide timer
 }
 

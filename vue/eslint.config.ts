@@ -16,7 +16,7 @@ export default [
   ...pluginVue.configs['flat/recommended'],
   
   {
-    files: ['**/*.vue'],
+    files: ['**/*.vue', '**/*.ts'],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser,
@@ -29,27 +29,11 @@ export default [
       }
     },
     rules: {
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unused-vars': 'error',
       'no-unused-vars': 'off',
       'no-undef': 'off',
       'vue/multi-word-component-names': 'off'
-    }
-  },
-  
-  {
-    files: ['**/*.ts'],
-    languageOptions: {
-      globals: {
-        ...globals.browser,
-        ...globals.node
-      }
-    },
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': 'warn',
-      'no-unused-vars': 'off',
-      'no-undef': 'off'
     }
   },
   
