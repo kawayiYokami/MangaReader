@@ -9,7 +9,7 @@ export interface Manga {
   file_type: string;
   last_modified: string;
   file_size: number;
-  [key: string]: any; // Allow other properties
+  [key: string]: string | number | boolean | string[]; // Allow other properties
 }
 
 export interface PaginatedMangaResponse {

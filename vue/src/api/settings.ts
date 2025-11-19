@@ -8,9 +8,9 @@ export interface SettingItem {
   key: string;
   name: string;
   description: string;
-  value: any;
+  value: string | number | boolean;
   type: string;
-  options?: any[];
+  options?: (string | number | boolean)[];
   min_value?: number;
   max_value?: number;
 }
@@ -51,17 +51,17 @@ export interface UpdateSettingResponse {
     success: boolean;
     message: string;
     key: string;
-    value: any;
+    value: string | number | boolean;
 }
 
 /**
  * @function updateSetting
  * @description 更新单个设置项到后端
  * @param {string} key - 设置项的键
- * @param {any} value - 设置项的新值
+ * @param {string | number | boolean} value - 设置项的新值
  * @returns {Promise<UpdateSettingResponse>}
  */
-export const updateSetting = async (key: string, value: any): Promise<UpdateSettingResponse> => {
+export const updateSetting = async (key: string, value: string | number | boolean): Promise<UpdateSettingResponse> => {
     try {
         const response = await fetch(`${API_BASE_URL}/api/settings/${key}`, {
             method: 'PUT',

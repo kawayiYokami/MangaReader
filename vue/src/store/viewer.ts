@@ -24,13 +24,13 @@ interface ViewerState {
     mangaInfo: MangaInfo;
     currentPage: number;
     currentImages: MangaImage[];
-    
+
     // 新增：用于分页模式的内存缓存
     pageImageCache: Map<number, MangaImage[]>;
 
     displayMode: DisplayMode;
     actualDisplayMode: 'single' | 'double';
-    
+
     isLoading: boolean;
     isSettingsPanelVisible: boolean; // 控制整体设置面板
     isAutoplaySettingsVisible: boolean; // 控制自动播放的悬浮设置
@@ -40,7 +40,7 @@ interface ViewerState {
     isTranslationMode: boolean; // 新增：翻译模式标志
 
     error: string | null;
-    
+
     // 内部状态
     _autoPagingTimerId: number | null;
 }
@@ -59,7 +59,7 @@ export const useViewerStore = defineStore('viewer', {
         pageImageCache: new Map(), // 初始化缓存
         displayMode: 'auto',
         actualDisplayMode: 'single',
-        
+
         isLoading: false,
         isSettingsPanelVisible: false,
         isAutoplaySettingsVisible: false,
@@ -92,7 +92,7 @@ export const useViewerStore = defineStore('viewer', {
             this.isLoading = true;
             this.error = null;
             this.isTranslationMode = false; // 重置翻译模式
-            
+
             // 如果是新的漫画，清空缓存
             if (this.mangaInfo.filePath !== mangaPath) {
                 this.pageImageCache.clear();
@@ -101,18 +101,23 @@ export const useViewerStore = defineStore('viewer', {
             try {
                 // API会自动创建会话
                 const mangaData = await viewerApi.setCurrentManga(mangaPath, initialPage);
-                if (mangaData && mangaData.manga_info) {
-                    this.mangaInfo.title = mangaData.manga_info.title;
-                    this.mangaInfo.totalPages = mangaData.manga_info.total_pages;
+                if (mangaData && typeof mangaData === 'object' && 'manga_info' in mangaData) {
+                    const info = mangaData.manga_info as { title: string; total_pages: number };
+                    this.mangaInfo.title = info.title;
+                    this.mangaInfo.totalPages = info.total_pages;
                     this.mangaInfo.filePath = mangaPath;
                     // 在这里只设置元数据，不设置 currentPage
                 }
                 // 使用 goToPage 来加载初始页面，确保逻辑统一
-                await this.goToPage(mangaData.current_page || initialPage);
-                
-            } catch (err: any) {
+                const currentPage = typeof mangaData === 'object' && mangaData !== null && 'current_page' in mangaData
+                    ? (mangaData.current_page as number)
+                    : initialPage;
+                await this.goToPage(currentPage);
+
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : '未知错误';
                 this.error = '初始化查看器失败';
-                ElMessage.error(err.message || this.error);
+                ElMessage.error(errorMessage || this.error);
                 console.error(err);
             } finally {
                 this.isLoading = false;
@@ -136,8 +141,9 @@ export const useViewerStore = defineStore('viewer', {
                 }
                 const metadata = await viewerApi.getPageMetadata(pageToFetch, modeToSend);
 
-                if (metadata && metadata.images) {
-                    return metadata.images.map((img: { pageIndex: number, url: string, width: number, height: number }) => ({
+                if (metadata && typeof metadata === 'object' && 'images' in metadata) {
+                    const images = metadata.images as Array<{ pageIndex: number; url: string; width: number; height: number }>;
+                    return images.map((img) => ({
                         pageIndex: img.pageIndex,
                         src: `${API_BASE_URL}${img.url}`, // 构造成绝对 URL
                         width: img.width,
@@ -145,9 +151,10 @@ export const useViewerStore = defineStore('viewer', {
                     }));
                 }
                 return [];
-            } catch (err: any) {
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : '未知错误';
                 this.error = `加载第 ${pageToFetch + 1} 页元数据失败`;
-                ElMessage.error(err.message || this.error);
+                ElMessage.error(errorMessage || this.error);
                 console.error(err);
                 return [];
             }
@@ -159,8 +166,9 @@ export const useViewerStore = defineStore('viewer', {
         async loadPageImages(page: number, displayMode: 'single' | 'double'): Promise<MangaImage[] | null> {
             try {
                 const metadata = await viewerApi.getPageMetadata(page, displayMode);
-                if (metadata && metadata.images) {
-                    return metadata.images.map((img: { pageIndex: number, url: string, width: number, height: number }) => ({
+                if (metadata && typeof metadata === 'object' && 'images' in metadata) {
+                    const images = metadata.images as Array<{ pageIndex: number; url: string; width: number; height: number }>;
+                    return images.map((img) => ({
                         pageIndex: img.pageIndex,
                         src: `${API_BASE_URL}${img.url}`,
                         width: img.width,
@@ -168,8 +176,9 @@ export const useViewerStore = defineStore('viewer', {
                     }));
                 }
                 return null;
-            } catch (err: any) {
-                console.error(`Failed to fetch images for page ${page}`, err);
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : '未知错误';
+                console.error(`Failed to fetch images for page ${page}`, errorMessage);
                 return null;
             }
         },
@@ -195,10 +204,10 @@ export const useViewerStore = defineStore('viewer', {
 
             // 更新图片URL列表，浏览器将开始在后台加载
             this.currentImages = newImages;
-            
+
             // 计时器重置的逻辑已完全移交 PaginatedView.vue 组件处理
         },
-        
+
         // nextPage 和 previousPage 的逻辑已完全移至 PaginatedView.vue 组件层
 
         // ==================== 功能切换 ====================
@@ -217,14 +226,14 @@ export const useViewerStore = defineStore('viewer', {
         },
 
         // ==================== 自动翻页 (仅管理状态) ====================
-        
+
         // 自动翻页的计时器和执行逻辑已移至 PaginatedView.vue 组件层
         // Store 只负责维护 isAutoPaging 和 autoPagingInterval 这两个全局状态
 
         toggleAutoPaging() {
             this.isAutoPaging = !this.isAutoPaging;
         },
-        
+
         setAutoPagingInterval(interval: number) {
             this.autoPagingInterval = interval;
         },

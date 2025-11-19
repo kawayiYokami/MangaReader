@@ -27,7 +27,7 @@ const {
 
 // AI 翻译器设置
 const translatorConfigs = ref<APIConfig[]>([])
-const translatorAgents = ref<any[]>([])
+const translatorAgents = ref<Record<string, unknown>[]>([])
 
 // 组件挂载时获取初始数据
 onMounted(async () => {
@@ -40,13 +40,13 @@ onMounted(async () => {
     ]);
     translatorConfigs.value = configs;
     translatorAgents.value = agents;
-  } catch (error) {
+  } catch {
     ElMessage.error('获取 AI 翻译器设置失败')
   }
 })
 
 // 统一的设置更新处理
-const onSettingChange = (key: keyof SettingsState, value: any) => {
+const onSettingChange = (key: keyof SettingsState, value: string | number | boolean) => {
   settingsStore.updateSetting(key, value);
 }
 
@@ -92,13 +92,13 @@ const handleDelete = async (configNameToDelete: string) => {
       type: 'warning',
     }
   )
-  
+
   const newConfigs = translatorConfigs.value.filter(c => c.name !== configNameToDelete)
   try {
     await updateTranslatorConfigs(newConfigs)
     translatorConfigs.value = newConfigs
     ElMessage.success('配置已删除')
-  } catch (error) {
+  } catch {
     ElMessage.error('删除配置失败')
   }
 }
@@ -133,8 +133,9 @@ const handleFetchModels = async () => {
       editingConfig.value.model = models[0];
     }
 
-  } catch (error: any) {
-    ElMessage.error(`获取模型失败: ${error.message}`);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : '未知错误';
+    ElMessage.error(`获取模型失败: ${errorMessage}`);
   } finally {
     isLoadingModels.value = false;
   }
@@ -152,7 +153,7 @@ const handleSave = async () => {
   if (!editingConfig.value) return
 
   const newConfigs = [...translatorConfigs.value]
-  
+
   if (isNewConfig.value) {
     // 检查名称是否重复
     if (newConfigs.some(c => c.name === editingConfig.value!.name)) {
@@ -172,7 +173,7 @@ const handleSave = async () => {
     translatorConfigs.value = newConfigs
     isDialogVisible.value = false
     ElMessage.success('配置已保存')
-  } catch (error) {
+  } catch {
     ElMessage.error('保存配置失败')
   }
 }
@@ -257,7 +258,7 @@ const handleSave = async () => {
           </el-form-item>
 
           <el-divider>缓存决策阈值</el-divider>
-          
+
           <el-form-item>
             <template #label>
               <div>
@@ -353,8 +354,8 @@ const handleSave = async () => {
           <el-input v-model="editingConfig.api_key" type="password" show-password />
         </el-form-item>
         <el-form-item label="模型名称">
-          <el-select 
-            v-model="editingConfig.model" 
+          <el-select
+            v-model="editingConfig.model"
             placeholder="请选择或输入模型名称"
             filterable
             allow-create
@@ -372,9 +373,9 @@ const handleSave = async () => {
         <el-form-item label="API Base URL (可选)">
             <div class="flex w-full">
               <el-input v-model="editingConfig.api_base_url" placeholder="例如 https://api.openai.com/v1" class="flex-grow" />
-              <el-button 
-                :loading="isLoadingModels" 
-                :disabled="!editingConfig.api_base_url || !editingConfig.api_key" 
+              <el-button
+                :loading="isLoadingModels"
+                :disabled="!editingConfig.api_base_url || !editingConfig.api_key"
                 class="ml-sm"
                 @click="handleFetchModels"
               >

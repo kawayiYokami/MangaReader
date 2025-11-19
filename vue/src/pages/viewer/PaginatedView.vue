@@ -141,12 +141,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { useElementSize } from '@vueuse/core';
 import { useViewerStore, type MangaImage } from '@/store/viewer';
 import { useMangaStore } from '@/store/manga';
-import { useSettingsStore } from '@/store/settings';
 import { useEnvironment } from '@/composables/useEnvironment';
 import { Loading } from '@element-plus/icons-vue';
 import { translateMangaPage, getTranslatorConfigs } from '@/api/translator';
 import type { TranslationScript, APIConfig } from '@/types/translator';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElPopover } from 'element-plus';
 
 // Environment
 const { isPyWebView } = useEnvironment();
@@ -154,14 +153,13 @@ const { isPyWebView } = useEnvironment();
 // Store and Router
 const store = useViewerStore();
 const mangaStore = useMangaStore();
-const settingsStore = useSettingsStore();
 const route = useRoute();
 const router = useRouter();
 
 // DOM Refs
 const viewerContentRef = ref<HTMLElement | null>(null);
 const pageInputRef = ref<HTMLInputElement | null>(null);
-const autoplayPopoverRef = ref<any>(null);
+const autoplayPopoverRef = ref<InstanceType<typeof ElPopover> | null>(null);
 
 // Local State for Seamless Page Turn
 const displayedImages = ref<MangaImage[]>([]);
@@ -212,16 +210,13 @@ watch(
     }
 
     let decision: 'single' | 'double' = 'single';
-    let reason = "默认或特殊情况";
 
     // 规则1：翻译模式强制单页
     if (isTranslation) {
-      reason = "翻译模式";
       decision = 'single';
     }
     // 规则2：只有一张图，强制单页
     else if (images.length === 1) {
-      reason = "只有一张图片";
       decision = 'single';
     }
     // 规则3：核心计算逻辑
@@ -234,10 +229,8 @@ watch(
 
         if (totalDoublePageScaledWidth > width) {
             decision = 'single';
-            reason = `双页总宽(${totalDoublePageScaledWidth.toFixed(0)}) > 容器宽度(${width.toFixed(0)})`;
         } else {
             decision = 'double';
-            reason = `双页总宽(${totalDoublePageScaledWidth.toFixed(0)}) <= 容器宽度(${width.toFixed(0)})`;
         }
     }
 
@@ -631,8 +624,8 @@ async function runTranslation() {
     } else {
       throw new Error(results[0]?.error_message || '翻译失败');
     }
-  } catch (error: any) {
-    const errorMessage = error.message || '翻译时发生未知错误';
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : '翻译时发生未知错误';
     translationError.value = errorMessage;
     ElMessage.error(errorMessage);
   } finally {

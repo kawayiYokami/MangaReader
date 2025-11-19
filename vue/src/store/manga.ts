@@ -104,8 +104,9 @@ export const useMangaStore = defineStore('manga', {
         this.totalItems = response.total;
         this.totalPages = response.total_pages;
 
-      } catch (e: any) {
-        this.error = e.message || 'An unknown error occurred';
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred';
+        this.error = errorMessage;
       } finally {
         this.isLoading = false;
         this.isLoadingMore = false;
@@ -116,8 +117,9 @@ export const useMangaStore = defineStore('manga', {
       try {
         this.availableTags = await getAllTags();
         this.processTagsByCategory();
-      } catch (e: any) {
-        console.error("Failed to fetch tags:", e.message);
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+        console.error("Failed to fetch tags:", errorMessage);
       }
     },
 
@@ -130,7 +132,7 @@ export const useMangaStore = defineStore('manga', {
       this.applyFilters();
     },
 
-    setSearchQuery: debounce(function(this: any, query: string) {
+    setSearchQuery: debounce(function(this: MangaState & { applyFilters(): void }, query: string) {
       this.searchQuery = query;
       this.applyFilters();
     }, 300),

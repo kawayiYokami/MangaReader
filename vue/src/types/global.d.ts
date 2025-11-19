@@ -12,7 +12,7 @@ interface PywebviewApi {
   open_in_explorer: (filePath: string) => Promise<{ success: boolean; message: string }>;
 
   // 可以为未来添加的其他API函数保留一个索引签名
-  [key: string]: (...args: any[]) => Promise<any> | any;
+  [key: string]: ((...args: unknown[]) => Promise<Record<string, unknown>>) | ((...args: unknown[]) => Record<string, unknown>);
 }
 
 

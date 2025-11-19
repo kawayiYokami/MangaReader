@@ -3,15 +3,6 @@ import type { ProcessingTask } from '@/types/tasks.d';
 
 const emit = defineEmits(['remove-task', 'download-task'])
 
-const getTaskStatusText = (status: ProcessingTask['status']) => {
-  switch (status) {
-    case 'pending': return '等待中';
-    case 'processing': return '处理中';
-    case 'completed': return '已完成';
-    case 'error': return '失败';
-  }
-}
-
 const downloadTask = (task: ProcessingTask) => {
   if (task.result) {
     const url = URL.createObjectURL(task.result);

@@ -17,7 +17,7 @@ export const useBatchCompressionStore = defineStore('batchCompression', () => {
     activeTaskIds.value.push(taskId)
   }
 
-  function updateTask(taskId: string, statusData: any) {
+  function updateTask(taskId: string, statusData: Record<string, unknown>) {
     if (tasks.value[taskId]) {
       tasks.value[taskId] = {
         ...tasks.value[taskId],

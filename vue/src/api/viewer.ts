@@ -51,7 +51,7 @@ const sessionManager = new SessionManager();
 
 // ==================== API 封装 ====================
 
-async function fetchWithSession(url: string, options: RequestInit = {}): Promise<any> {
+async function fetchWithSession(url: string, options: RequestInit = {}): Promise<Record<string, unknown>> {
     const sessionId = await sessionManager.getSessionId();
     const headers = new Headers(options.headers || {});
     headers.set('X-Session-Id', sessionId);
@@ -64,7 +64,7 @@ async function fetchWithSession(url: string, options: RequestInit = {}): Promise
         const errorData = await response.json().catch(() => ({ detail: '未知错误' }));
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
-    
+
     const responseData = await response.json();
     if (responseData.success === false) { // 检查明确的 false
         throw new Error(responseData.message || 'API 请求未成功');
