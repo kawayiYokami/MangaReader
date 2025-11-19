@@ -1,5 +1,5 @@
 <template>
-  <div class="strip-view-container" ref="scrollContainerRef" @scroll="handleScroll">
+  <div ref="scrollContainerRef" class="strip-view-container" @scroll="handleScroll">
     <div v-if="store.isLoading" class="loading-spinner">
       <el-icon class="is-loading" :size="50"><Loading /></el-icon>
     </div>
@@ -30,9 +30,9 @@
     
     <!-- Floating Header -->
     <div class="floating-header" :class="{ visible: isHeaderVisible }">
-      <div class="viewer-btn" @click="goBack" title="返回浏览器">arrow_back</div>
+      <div class="viewer-btn" title="返回浏览器" @click="goBack">arrow_back</div>
       <div class="manga-title">{{ store.mangaInfo.title }}</div>
-      <div class="viewer-btn" @click="switchToPaginatedView" title="切换到分页模式">view_carousel</div>
+      <div class="viewer-btn" title="切换到分页模式" @click="switchToPaginatedView">view_carousel</div>
     </div>
 
     <!-- Fast Scrubber -->

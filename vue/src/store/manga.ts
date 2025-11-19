@@ -17,7 +17,7 @@ export interface MangaState {
   mangaList: Manga[];
   availableTags: string[];
   tagsByCategory: TagsByCategory;
-  
+
   // Filtering and Sorting State
   selectedTags: string[];
   searchQuery: string;
@@ -66,7 +66,7 @@ export const useMangaStore = defineStore('manga', {
     async fetchInitialData() {
       await this.fetchMangaPage({ mode: 'new' });
       await this.fetchTags();
-      
+
       if (!this.isWebSocketInitialized) {
         this.initializeWebSocket();
       }
@@ -83,7 +83,7 @@ export const useMangaStore = defineStore('manga', {
         this.page += 1;
         this.isLoadingMore = true;
       }
-      
+
       this.error = null;
 
       try {
@@ -94,13 +94,13 @@ export const useMangaStore = defineStore('manga', {
           tags: this.selectedTags,
           query: this.searchQuery,
         });
-        
+
         if (mode === 'new') {
           this.mangaList = response.items;
         } else {
           this.mangaList.push(...response.items);
         }
-        
+
         this.totalItems = response.total;
         this.totalPages = response.total_pages;
 
@@ -111,7 +111,7 @@ export const useMangaStore = defineStore('manga', {
         this.isLoadingMore = false;
       }
     },
-    
+
     async fetchTags() {
       try {
         this.availableTags = await getAllTags();
@@ -155,7 +155,7 @@ export const useMangaStore = defineStore('manga', {
       if (this.isWebSocketInitialized) return;
 
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.hostname}:8100/ws`;
+      const wsUrl = `${wsProtocol}//${window.location.hostname}:9000/ws`;
 
       console.log(`[MangaStore] Initializing WebSocket connection to ${wsUrl}`);
       const ws = new WebSocket(wsUrl);
@@ -190,7 +190,7 @@ export const useMangaStore = defineStore('manga', {
         ws.close();
       };
     },
-    
+
     processTagsByCategory() {
       const categories: Record<string, TagInfo[]> = {};
       const prefixes = ['作者:', '作品:', '组:', '平台:', '汉化:', '会场:', '其他:'];
@@ -200,7 +200,7 @@ export const useMangaStore = defineStore('manga', {
 
         let category = '其他';
         let displayName = tag;
-        
+
         for (const prefix of prefixes) {
           if (tag.startsWith(prefix)) {
             category = prefix.slice(0, -1);
@@ -218,7 +218,7 @@ export const useMangaStore = defineStore('manga', {
       for (const category in categories) {
         categories[category].sort((a, b) => a.display.localeCompare(b.display, 'zh-CN'));
       }
-      
+
       this.tagsByCategory = categories;
     },
 

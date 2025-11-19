@@ -159,10 +159,10 @@ const getProgressStatus = (status: string) => {
     :model-value="visible"
     title="批量压缩漫画缓存"
     width="500px"
-    @update:model-value="$emit('update:visible', $event)"
     :before-close="handleClose"
-    @closed="resetDialog"
     destroy-on-close
+    @update:model-value="$emit('update:visible', $event)"
+    @closed="resetDialog"
   >
     <div v-loading="isLoading">
       <el-form :model="options" label-position="top">
@@ -210,12 +210,12 @@ const getProgressStatus = (status: string) => {
 
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="handleClose" :disabled="isProcessing">取消</el-button>
+        <el-button :disabled="isProcessing" @click="handleClose">取消</el-button>
         <el-button
           type="primary"
-          @click="handleStartCompression"
           :loading="isLoading"
           :disabled="isProcessing"
+          @click="handleStartCompression"
         >
           {{ isProcessing ? '压缩中...' : '启动压缩' }}
         </el-button>

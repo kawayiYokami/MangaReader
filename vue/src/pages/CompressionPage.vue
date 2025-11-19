@@ -36,9 +36,9 @@ const handleFilesSelected = (files: File[]) => {
           title="开始压缩"
           :loading="isProcessing"
           :disabled="tasks.length === 0 || isProcessing"
+          style="margin-top: 16px;"
           @start="compressionStore.startCompression"
           @clear="compressionStore.clearTasks"
-          style="margin-top: 16px;"
         />
       </div>
 
@@ -51,7 +51,7 @@ const handleFilesSelected = (files: File[]) => {
               <span>{{ tasks.length }} 个任务</span>
             </div>
           </template>
-          <TaskList :tasks="tasks" :is-processing="isProcessing" @remove-task="compressionStore.removeTask" task-type="compressed" />
+          <TaskList :tasks="tasks" :is-processing="isProcessing" task-type="compressed" @remove-task="compressionStore.removeTask" />
         </el-card>
       </div>
     </div>

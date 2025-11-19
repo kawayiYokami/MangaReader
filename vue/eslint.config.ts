@@ -1,40 +1,57 @@
+import eslint from '@eslint/js'
 import tseslint from 'typescript-eslint'
-import eslintPluginVue from 'eslint-plugin-vue'
-import vueParser from 'vue-eslint-parser'
+import pluginVue from 'eslint-plugin-vue'
 import eslintConfigPrettier from 'eslint-config-prettier'
+import globals from 'globals'
 
-/**
- * This configuration file is manually crafted to avoid issues with the
- * helper functions (`tseslint.config`, `defineConfigWithVueTs`) which have
- * proven to have incompatible or broken type definitions in this project's
- * dependency environment.
- *
- * This is a standard ESLint Flat Config array.
- */
 export default [
-  // 1. Global Ignores - MUST be the first element
   {
-    ignores: ['**/dist/**', '**/dist-ssr/**', '**/coverage/**'],
+    ignores: ['dist/**', '**/dist-ssr/**', '**/coverage/**', '**/node_modules/**']
   },
-
-  // 2. Vue Recommended Rules
-  ...eslintPluginVue.configs['flat/recommended'],
-
-  // 3. TypeScript Recommended Rules
+  
+  eslint.configs.recommended,
+  
   ...tseslint.configs.recommended,
-
-  // 4. Custom override for Vue files to ensure the TS parser is used correctly
+  
+  ...pluginVue.configs['flat/recommended'],
+  
   {
     files: ['**/*.vue'],
     languageOptions: {
-      parser: vueParser,
       parserOptions: {
         parser: tseslint.parser,
-        sourceType: 'module',
+        ecmaVersion: 'latest',
+        sourceType: 'module'
       },
+      globals: {
+        ...globals.browser,
+        ...globals.node
+      }
     },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': 'warn',
+      'no-unused-vars': 'off',
+      'no-undef': 'off',
+      'vue/multi-word-component-names': 'off'
+    }
   },
-
-  // 5. Prettier config to disable formatting rules
-  eslintConfigPrettier,
+  
+  {
+    files: ['**/*.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node
+      }
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': 'warn',
+      'no-unused-vars': 'off',
+      'no-undef': 'off'
+    }
+  },
+  
+  eslintConfigPrettier
 ]

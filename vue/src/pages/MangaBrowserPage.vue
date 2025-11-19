@@ -134,27 +134,27 @@ function selectDirectory() {
       <div class="filter-header">
         <el-input
           :model-value="searchQuery"
-          @update:model-value="mangaStore.setSearchQuery"
           placeholder="搜索漫画标题..."
           prefix-icon="Search"
           clearable
           style="flex: 1;"
+          @update:model-value="mangaStore.setSearchQuery"
         />
         <el-tooltip content="过滤器" placement="bottom">
-          <el-button @click="isFilterDrawerVisible = true" :class="{ 'is-active': selectedTags.length > 0 }" text>
+          <el-button :class="{ 'is-active': selectedTags.length > 0 }" text @click="isFilterDrawerVisible = true">
             <span class="material-symbols-rounded">filter_list</span>
           </el-button>
         </el-tooltip>
         
         <el-tooltip :content="sort === 'random' ? '当前为随机排序' : '当前为默认排序'" placement="bottom">
-            <el-button @click="mangaStore.setSort(sort !== 'random' ? 'random' : 'last_modified DESC')" text>
+            <el-button text @click="mangaStore.setSort(sort !== 'random' ? 'random' : 'last_modified DESC')">
                 <span class="material-symbols-rounded">{{ sort === 'random' ? 'shuffle' : 'sort' }}</span>
             </el-button>
         </el-tooltip>
 
         <!-- PyWebView 专属按钮 -->
         <el-tooltip v-if="isPyWebView" content="选择目录" placement="bottom">
-            <el-button @click="selectDirectory" text>
+            <el-button text @click="selectDirectory">
                 <span class="material-symbols-rounded">folder_open</span>
             </el-button>
         </el-tooltip>
@@ -177,8 +177,8 @@ function selectDirectory() {
         <MangaCard
           v-for="manga in mangaList"
           :key="manga.file_path"
-          :manga="manga"
           :ref="(el: any) => { if (el) mangaCardRefs.push(el) }"
+          :manga="manga"
           @tag-click="(tag) => onTagClick(tag, manga)"
         />
       </div>
@@ -207,7 +207,8 @@ function selectDirectory() {
                     <transition name="accordion">
                       <div v-show="activeAccordion === String(category)" class="accordion-content">
                           <div class="tag-list">
-                              <span v-for="tag in tags"
+                              <span
+v-for="tag in tags"
                                     :key="tag.full"
                                     class="tag"
                                     :class="{ 'is-active': selectedTags.includes(tag.full) }"
