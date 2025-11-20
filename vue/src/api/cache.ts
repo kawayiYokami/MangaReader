@@ -15,7 +15,7 @@ export interface CacheStat {
 export interface CacheEntry {
   key: string;
   value_preview: string;
-  [key: string]: string | number | boolean | null; // For dynamic properties
+  [key: string]: string | number | boolean | null | Record<string, unknown>; // For dynamic properties
 }
 
 export interface CacheEntriesResponse {

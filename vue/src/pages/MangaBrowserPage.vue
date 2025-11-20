@@ -22,9 +22,15 @@ const {
 } = storeToRefs(mangaStore)
 
 // --- Infinite Scroll ---
-const mangaCardRefs = ref<InstanceType<typeof MangaCard>[]>([])
+const mangaCardRefs = ref<Array<{ manga: Manga; $el: HTMLElement }>>([])
 const loaderRef = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
+
+const setMangaCardRef = (el: unknown) => {
+  if (el && typeof el === 'object' && 'manga' in el && '$el' in el) {
+    mangaCardRefs.value.push(el as { manga: Manga; $el: HTMLElement });
+  }
+};
 
 const loadMore = () => {
   mangaStore.fetchMangaPage({ mode: 'append' });
@@ -177,7 +183,7 @@ function selectDirectory() {
         <MangaCard
           v-for="manga in mangaList"
           :key="manga.file_path"
-          :ref="(el: any) => { if (el) mangaCardRefs.push(el) }"
+          :ref="setMangaCardRef"
           :manga="manga"
           @tag-click="(tag) => onTagClick(tag, manga)"
         />

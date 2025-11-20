@@ -40,8 +40,10 @@ onMounted(async () => {
     ]);
     translatorConfigs.value = configs;
     translatorAgents.value = agents;
-  } catch {
-    ElMessage.error('获取 AI 翻译器设置失败')
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : '未知错误';
+    console.error('获取 AI 翻译器设置失败:', errorMessage);
+    ElMessage.error('获取 AI 翻译器设置失败');
   }
 })
 
@@ -98,8 +100,10 @@ const handleDelete = async (configNameToDelete: string) => {
     await updateTranslatorConfigs(newConfigs)
     translatorConfigs.value = newConfigs
     ElMessage.success('配置已删除')
-  } catch {
-    ElMessage.error('删除配置失败')
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : '未知错误';
+    console.error('删除配置失败:', errorMessage);
+    ElMessage.error('删除配置失败');
   }
 }
 
@@ -173,8 +177,10 @@ const handleSave = async () => {
     translatorConfigs.value = newConfigs
     isDialogVisible.value = false
     ElMessage.success('配置已保存')
-  } catch {
-    ElMessage.error('保存配置失败')
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : '未知错误';
+    console.error('保存配置失败:', errorMessage);
+    ElMessage.error('保存配置失败');
   }
 }
 
