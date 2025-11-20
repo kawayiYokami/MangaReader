@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(uv add:*)",
+      "Bash(uv run python:*)",
+      "WebSearch",
+      "mcp__tavily-mcp__tavily-search"
     ],
     "deny": [],
     "ask": []
