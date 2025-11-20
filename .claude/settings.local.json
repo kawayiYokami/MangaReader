@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tree:*)"
+      "Bash(npm install:*)",
+      "Bash(git check-ignore:*)"
     ],
     "deny": [],
     "ask": []

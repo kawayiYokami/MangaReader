@@ -39,12 +39,12 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = [
-    "core",
-    "web",
-    "web.api",
-    "web.websocket",
-    "web.utils",
-    "utils"
+    "src.backend.core",
+    "src.backend.web",
+    "src.backend.web.api",
+    "src.backend.web.websocket",
+    "src.backend.web.utils",
+    "src.backend.utils"
 ]
 
 [tool.uv.workspace]

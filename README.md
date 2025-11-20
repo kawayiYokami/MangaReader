@@ -37,25 +37,34 @@
 
 ```
 .
-├── core/                # 核心业务逻辑 (Python)
-│   ├── manga/           # 漫画管理、解析、元数据
-│   ├── ai_translator/   # AI翻译模块，包含智能体和配置管理
-│   └── ...
+├── src/                 # 源代码根目录
+│   ├── backend/         # 后端代码 (Python)
+│   │   ├── core/        # 核心业务逻辑
+│   │   │   ├── manga/           # 漫画管理、解析、元数据
+│   │   │   ├── ai_translator/   # AI翻译模块，包含智能体和配置管理
+│   │   │   └── ...
+│   │   ├── web/         # Web API和接口层
+│   │   └── utils/       # 后端工具函数
+│   │
+│   ├── frontend/        # 前端应用 (Vue 3)
+│   │   ├── src/         # 源代码
+│   │   │   ├── components/  # 组件
+│   │   │   ├── pages/       # 页面视图
+│   │   │   ├── store/       # Pinia状态管理
+│   │   │   └── router/      # 路由
+│   │   └── ...
+│   │
+│   └── common/          # 前后端共享资源
+│       └── fonts/       # 字体文件
 │
-├── vue/                 # 前端应用 (Vue 3)
-│   ├── src/             # 源代码
-│   │   ├── components/  # 组件
-│   │   ├── pages/       # 页面视图
-│   │   ├── store/       # Pinia状态管理
-│   │   └── router/      # 路由
-│   └── package.json     # 前端依赖与脚本
+├── scripts/             # 启动和构建脚本
+│   ├── run_desktop_app.py    # 桌面应用启动器
+│   └── run_web_server.py     # Web服务器启动器
 │
-├── web/                 # 后端API服务 (FastAPI)
-│   ├── api/             # API路由模块
-│   ├── websocket/       # WebSocket处理
-│   └── api_server.py    # FastAPI应用入口
-│
-├── utils/               # 通用工具模块
+├── cache/               # 运行时缓存目录
+├── docs/                # 文档
+├── app/                 # 应用配置和代理
+└── 配置文件...
 ├── pyproject.toml       # Python项目配置与依赖
 └── README.md            # 就是你正在看的文件
 ```
@@ -85,7 +94,7 @@
     ```
 4.  **直接启动桌面应用**:
     ```bash
-    python run_desktop_app.py
+    python scripts/run_desktop_app.py
     ```
     - 这将自动启动内部后端服务并显示桌面界面。
 
@@ -120,13 +129,13 @@
 
 3.  **安装前端依赖 (仅用于前端开发或手动构建)**:
     ```bash
-    # 进入vue目录
-    cd vue
+    # 进入frontend目录
+    cd src/frontend
 
     # 安装Node.js依赖
     npm install
     ```
-    - **注意**: 如果您只是想运行桌面应用或纯Web服务端，且 `vue/dist` 目录已存在，则无需执行此步骤。本项目通常会直接提供已 `build` 好的 `vue/dist` 文件。
+    - **注意**: 如果您只是想运行桌面应用或纯Web服务端，且 `src/frontend/dist` 目录已存在，则无需执行此步骤。本项目通常会直接提供已 `build` 好的 `src/frontend/dist` 文件。
 
 ## 🚀 运行程序
 
@@ -139,10 +148,10 @@
 在项目 **根目录** 下运行：
 
 ```bash
-python run_desktop_app.py
+python scripts/run_desktop_app.py
 ```
-- `run_desktop_app.py`: 启动内部 FastAPI 后端服务，并使用 PyWebView 加载 `vue/dist` 目录下的静态前端文件。
-- **注意**: `vue/dist` 目录通常包含已构建好的前端静态资源。**项目会直接上传 `build` 好的 `vue/dist`，通常无需您手动执行 `npm run build`。** 如果 `vue/dist` 不存在或需要更新，您可以在 `vue` 目录下运行 `npm run build` 来生成。
+- `scripts/run_desktop_app.py`: 启动内部 FastAPI 后端服务，并使用 PyWebView 加载 `src/frontend/dist` 目录下的静态前端文件。
+- **注意**: `src/frontend/dist` 目录通常包含已构建好的前端静态资源。**项目会直接上传 `build` 好的 `src/frontend/dist`，通常无需您手动执行 `npm run build`。** 如果 `src/frontend/dist` 不存在或需要更新，您可以在 `src/frontend` 目录下运行 `npm run build` 来生成。
 
 ### 2. 纯 Web 服务器模式 (用于局域网/公网部署)
 
@@ -151,11 +160,11 @@ python run_desktop_app.py
 在项目 **根目录** 下运行：
 
 ```bash
-python run_web_server.py [--host <host>] [--port <port>]
-# 示例: python run_web_server.py --host 0.0.0.0 --port 8100
+python scripts/run_web_server.py [--host <host>] [--port <port>]
+# 示例: python scripts/run_web_server.py --host 0.0.0.0 --port 8100
 ```
-- `run_web_server.py`: 启动 FastAPI 后端，并将 `vue/dist` 目录挂载为静态文件服务。它会监听所有网络接口 (`0.0.0.0`)，允许局域网或公网访问。
-- **注意**: 前端文件将从 `vue/dist` 目录提供。**项目会直接上传 `build` 好的 `vue/dist`，通常无需您手动执行 `npm run build`。**
+- `scripts/run_web_server.py`: 启动 FastAPI 后端，并将 `src/frontend/dist` 目录挂载为静态文件服务。它会监听所有网络接口 (`0.0.0.0`)，允许局域网或公网访问。
+- **注意**: 前端文件将从 `src/frontend/dist` 目录提供。**项目会直接上传 `build` 好的 `src/frontend/dist`，通常无需您手动执行 `npm run build`。**
 - 访问地址通常为 `http://<你的IP地址>:<port>`。
 
 ## 📋 使用流程
