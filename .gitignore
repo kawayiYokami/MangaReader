@@ -110,6 +110,11 @@ dmypy.json
 .idea/
 *.swp
 
+# OS specific
+.DS_Store
+Thumbs.db
+*.tmp
+
 cache/
 OnnxOCR/
 storage/
@@ -123,6 +128,7 @@ tests/
 
 # Vue / Vite specific
 # ===================
+dist/
 dist-ssr/
 .vite/
 .env.local
@@ -131,6 +137,14 @@ dist-ssr/
 # Package manager logs
 pnpm-debug.log*
 lerna-debug.log*
+
+# Frontend specific
+# ===================
+src/frontend/node_modules/
+src/frontend/dist/
+src/frontend/.vite/
+src/frontend/.env.local
+src/frontend/.env.*.local
 
 # Keep VS Code extensions recommendations
 !.vscode/extensions.json
