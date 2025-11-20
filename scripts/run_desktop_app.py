@@ -27,16 +27,29 @@ import uvicorn
 from pathlib import Path
 
 # 将项目根目录添加到Python路径
-project_root = Path(__file__).parent.parent
+if hasattr(sys, '_MEIPASS'):
+    # 在 PyInstaller 打包的环境中，使用MEIPASS作为资源根目录
+    project_root = Path(sys._MEIPASS)
+else:
+    # 在开发环境中，使用脚本的上上级目录
+    project_root = Path(__file__).parent.parent
+
 sys.path.insert(0, str(project_root))
 
 # 尝试从项目中导入日志模块
 try:
     from src.backend.utils.manga_logger import setup_logging
+    setup_logging()
 except ImportError as e:
     print(f"错误: 无法导入项目模块: {e}")
     print(f"项目根目录: {project_root}")
     print("请确保从项目根目录运行此脚本，并已安装所有依赖。")
+    print("\n按任意键退出...")
+    try:
+        input()
+    except:
+        import time
+        time.sleep(10)
     sys.exit(1)
 
 
@@ -45,16 +58,32 @@ API_SERVER_URL = "http://localhost:9000"
 HOST = "127.0.0.1"
 PORT = 9000
 
-from src.backend.web.api_server import app as fastapi_app
-from fastapi.staticfiles import StaticFiles
+try:
+    from src.backend.web.api_server import app as fastapi_app
+    from fastapi.staticfiles import StaticFiles
+except ImportError as e:
+    print(f"ERROR: 关键模块导入失败: {e}")
+    print("请确保所有依赖都已正确安装，并且脚本在正确的项目结构中运行。")
+    print("\n按任意键退出...")
+    try:
+        input()
+    except:
+        import time
+        time.sleep(10)  # 如果input()失败，等待10秒
+    sys.exit(1)
 
 def run_server():
     """在后台线程中运行 uvicorn 服务器，并预先挂载静态文件。"""
     logging.info(f"准备在后台线程启动API服务器，地址 http://{HOST}:{PORT}")
 
-    # 与 run_web_server.py 相同的逻辑: 挂载静态文件目录
-    project_root = Path(__file__).parent.parent
-    static_files_path = project_root / "src" / "frontend" / "dist"
+    # 挂载静态文件目录 - 处理打包后的路径问题
+    if hasattr(sys, '_MEIPASS'):
+        # 在 PyInstaller 打包的环境中
+        static_files_path = Path(sys._MEIPASS) / "src" / "frontend" / "dist"
+    else:
+        # 在开发环境中
+        project_root = Path(__file__).parent.parent
+        static_files_path = project_root / "src" / "frontend" / "dist"
 
     if not static_files_path.exists() or not (static_files_path / "index.html").exists():
         logging.error(f"前端静态文件目录不存在或不完整: {static_files_path}")
@@ -63,7 +92,6 @@ def run_server():
         return
 
     fastapi_app.mount("/", StaticFiles(directory=static_files_path, html=True), name="static")
-    logging.info(f"已将静态文件目录 '{static_files_path}' 挂载到 FastAPI 应用。")
 
     try:
         uvicorn.run(
