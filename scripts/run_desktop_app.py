@@ -24,6 +24,7 @@ import subprocess
 import threading
 import time
 import uvicorn
+import argparse
 from pathlib import Path
 
 # 将项目根目录添加到Python路径
@@ -39,6 +40,9 @@ sys.path.insert(0, str(project_root))
 # 尝试从项目中导入日志模块
 try:
     from src.backend.utils.manga_logger import setup_logging
+    from src.backend.web.utils.port_manager import PortManager
+    from src.backend.web.utils.singleton_checker import SingletonChecker
+    from src.backend.web.utils.port_config_manager import PortConfigManager
     setup_logging()
 except ImportError as e:
     print(f"错误: 无法导入项目模块: {e}")
@@ -54,9 +58,12 @@ except ImportError as e:
 
 
 # ----- 全局常量 -----
-API_SERVER_URL = "http://localhost:9000"
-HOST = "127.0.0.1"
-PORT = 9000
+DEFAULT_PORT = 9000
+DEFAULT_HOST = "127.0.0.1"
+
+# 全局变量，用于存储实际使用的端口
+actual_port = DEFAULT_PORT
+actual_host = DEFAULT_HOST
 
 try:
     from src.backend.web.api_server import app as fastapi_app
@@ -74,7 +81,8 @@ except ImportError as e:
 
 def run_server():
     """在后台线程中运行 uvicorn 服务器，并预先挂载静态文件。"""
-    logging.info(f"准备在后台线程启动API服务器，地址 http://{HOST}:{PORT}")
+    global actual_port, actual_host
+    logging.info(f"准备在后台线程启动API服务器，地址 http://{actual_host}:{actual_port}")
 
     # 挂载静态文件目录 - 处理打包后的路径问题
     if hasattr(sys, '_MEIPASS'):
@@ -96,8 +104,8 @@ def run_server():
     try:
         uvicorn.run(
             fastapi_app, # 直接传递修改后的 app 对象
-            host=HOST,
-            port=PORT,
+            host=actual_host,
+            port=actual_port,
             log_level="info",
             reload=False
         )
@@ -122,6 +130,9 @@ def _dispatch_feedback_event(window, success, message, **kwargs):
 
 def _trigger_select_directory_logic(window):
     """打开目录选择对话框，并通过API请求后端进行扫描"""
+    global actual_port, actual_host
+    api_server_url = f"http://{actual_host}:{actual_port}"
+    
     logging.info("目录选择逻辑: 开始执行")
     try:
         result = window.create_file_dialog(webview.FOLDER_DIALOG)
@@ -130,7 +141,7 @@ def _trigger_select_directory_logic(window):
             logging.info(f"目录选择逻辑: 已选择目录: {selected_path}，正在通过API请求后端扫描...")
             try:
                 response = requests.post(
-                    f"{API_SERVER_URL}/api/manga/scan-directory",
+                    f"{api_server_url}/api/manga/scan-directory",
                     json={"directory_path": selected_path},
                     timeout=10
                 )
@@ -205,6 +216,9 @@ def on_dragover(e):
 
 def on_drop(e):
     """处理文件放置事件。"""
+    global actual_port, actual_host
+    api_server_url = f"http://{actual_host}:{actual_port}"
+    
     window = webview.windows[0] if webview.windows else None
     if not window:
         logging.error("无法处理文件放置：窗口实例不可用。")
@@ -228,7 +242,7 @@ def on_drop(e):
         def call_api():
             try:
                 response = requests.post(
-                    f"{API_SERVER_URL}/api/manga/add",
+                    f"{api_server_url}/api/manga/add",
                     json={"paths": paths},
                     timeout=60
                 )
@@ -256,41 +270,149 @@ def bind_drag_drop_events(window):
     logging.info("拖放事件绑定完成。")
 
 
+def parse_arguments():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(description="漫画翻译工具 - 桌面应用")
+    parser.add_argument("--port", type=int, 
+                       help="指定端口号 (覆盖配置文件设置)")
+    parser.add_argument("--host", type=str, 
+                       help="指定主机地址 (覆盖配置文件设置)")
+    parser.add_argument("--auto-kill", action="store_true", 
+                       help="自动杀死占用端口的进程 (覆盖配置文件设置)")
+    parser.add_argument("--port-range", type=int, 
+                       help="端口搜索范围 (覆盖配置文件设置)")
+    parser.add_argument("--config-show", action="store_true", 
+                       help="显示当前配置并退出")
+    return parser.parse_args()
+
 def main():
     """主函数"""
-    print("漫画翻译工具 - 桌面应用 (生产模式)")
-    print("=" * 50)
-    setup_logging()
+    global actual_port, actual_host
+    singleton = None
+    
+    try:
+        # 解析命令行参数
+        args = parse_arguments()
+        
+        # 初始化配置管理器
+        config_manager = PortConfigManager()
+        
+        # 如果只是显示配置，显示后退出
+        if args.config_show:
+            config_manager.print_config()
+            return
+        
+        # 加载配置
+        desktop_config = config_manager.get_desktop_app_config()
+        
+        # 命令行参数覆盖配置文件
+        port = args.port if args.port is not None else desktop_config.get("preferred_port", DEFAULT_PORT)
+        host = args.host if args.host is not None else desktop_config.get("host", DEFAULT_HOST)
+        auto_kill = args.auto_kill if args.auto_kill else desktop_config.get("auto_kill", True)
+        port_range = args.port_range if args.port_range is not None else desktop_config.get("port_range", 100)
+        
+        print("漫画翻译工具 - 桌面应用 (生产模式)")
+        print("=" * 50)
+        setup_logging()
 
-    # 在后台启动API服务器
-    server_thread = threading.Thread(target=run_server, daemon=True)
-    server_thread.start()
-    logging.info("API服务器线程已启动。等待服务器初始化...")
-    time.sleep(3) # 等待3秒，确保服务器完全启动
+        # 检查应用单例
+        singleton = SingletonChecker("MangaReader-Desktop")
+        if singleton.is_another_instance_running():
+            info = singleton.get_running_instance_info()
+            if info:
+                print(f"错误: 桌面应用已在运行 (PID: {info.get('PID', 'Unknown')})")
+                print(f"启动时间: {info.get('Start time', 'Unknown')}")
+            else:
+                print("错误: 桌面应用已在运行")
+            print("请先关闭正在运行的实例。")
+            print("\n按任意键退出...")
+            try:
+                input()
+            except:
+                time.sleep(10)
+            sys.exit(1)
 
-    # PyWebView 窗口相关设置
-    window_title = "Manga Manager"
-    api = DesktopApi()
+        # 获取单例锁
+        try:
+            singleton.acquire_lock()
+        except Exception as e:
+            print(f"错误: 无法获取应用锁: {e}")
+            print("\n按任意键退出...")
+            try:
+                input()
+            except:
+                time.sleep(10)
+            sys.exit(1)
 
-    logging.info(f"即将创建PyWebView窗口，加载后端URL: {API_SERVER_URL}")
+        # 设置实际使用的主机和端口
+        actual_host = host
+        
+        # 确保端口可用
+        try:
+            actual_port = PortManager.ensure_port_available(
+                preferred_port=port,
+                auto_kill=auto_kill
+            )
+            if actual_port != port:
+                print(f"端口 {port} 被占用，已自动切换到端口 {actual_port}")
+        except RuntimeError as e:
+            print(f"错误: {e}")
+            print("\n按任意键退出...")
+            try:
+                input()
+            except:
+                time.sleep(10)
+            sys.exit(1)
+        
+        # 保存最后使用的端口
+        config_manager.set_last_used_port("desktop_app", actual_port)
 
-    # 创建窗口，直接加载 FastAPI 服务器的 URL
-    # 这是解决 405 Method Not Allowed 问题的关键
-    window = webview.create_window(
-        window_title,
-        url=API_SERVER_URL,
-        js_api=api,
-        width=1280,
-        height=800,
-        resizable=True,
-        min_size=(900, 600)
-    )
+        api_server_url = f"http://{actual_host}:{actual_port}"
 
-    # 启动 PyWebView，并传入事件绑定函数
-    webview.settings['ALLOW_DOWNLOADS'] = True
-    logging.info("正在启动 PyWebView (生产模式)...")
-    webview.start(bind_drag_drop_events, window, debug=False, private_mode=True)
-    logging.info("PyWebView 已关闭。应用程序退出。")
+        # 在后台启动API服务器
+        server_thread = threading.Thread(target=run_server, daemon=True)
+        server_thread.start()
+        logging.info("API服务器线程已启动。等待服务器初始化...")
+        time.sleep(3) # 等待3秒，确保服务器完全启动
+
+        # PyWebView 窗口相关设置
+        window_title = "Manga Manager"
+        api = DesktopApi()
+
+        logging.info(f"即将创建PyWebView窗口，加载后端URL: {api_server_url}")
+
+        # 创建窗口，直接加载 FastAPI 服务器的 URL
+        # 这是解决 405 Method Not Allowed 问题的关键
+        window = webview.create_window(
+            window_title,
+            url=api_server_url,
+            js_api=api,
+            width=1280,
+            height=800,
+            resizable=True,
+            min_size=(900, 600)
+        )
+
+        # 启动 PyWebView，并传入事件绑定函数
+        webview.settings['ALLOW_DOWNLOADS'] = True
+        logging.info("正在启动 PyWebView (生产模式)...")
+        webview.start(bind_drag_drop_events, window, debug=False, private_mode=True)
+        logging.info("PyWebView 已关闭。应用程序退出。")
+        
+    except KeyboardInterrupt:
+        print("\n用户中断，正在关闭应用...")
+    except Exception as e:
+        print(f"启动桌面应用时发生错误: {e}")
+        print("\n按任意键退出...")
+        try:
+            input()
+        except:
+            time.sleep(10)
+        sys.exit(1)
+    finally:
+        # 释放单例锁
+        if singleton:
+            singleton.release_lock()
 
 if __name__ == "__main__":
     main()
