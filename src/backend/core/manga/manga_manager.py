@@ -221,8 +221,10 @@ class MangaManager:
         
         if manga and not os.path.exists(manga.file_path):
             logging.warning(f"漫画文件不存在: {manga.file_path}，将从数据库中移除。")
-            # TODO: [重构] 需要一个 repository 方法来从数据库中删除漫画。
-            # await self.manga_repo.delete_manga_by_path(manga.file_path)
+            # 从数据库中删除不可用的漫画
+            deleted = await self.manga_repo.delete_manga_by_path(manga.file_path)
+            if deleted:
+                logging.info(f"已从数据库删除不可用的漫画: {manga.file_path}")
             self.current_manga = None
             config.current_manga_path.value = ""
             self._emit_event('current_manga_changed', {'manga': None})

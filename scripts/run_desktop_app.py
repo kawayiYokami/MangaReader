@@ -51,7 +51,7 @@ except ImportError as e:
     print("\n按任意键退出...")
     try:
         input()
-    except:
+    except Exception:
         import time
         time.sleep(10)
     sys.exit(1)
@@ -74,7 +74,7 @@ except ImportError as e:
     print("\n按任意键退出...")
     try:
         input()
-    except:
+    except Exception:
         import time
         time.sleep(10)  # 如果input()失败，等待10秒
     sys.exit(1)
@@ -132,7 +132,7 @@ def _trigger_select_directory_logic(window):
     """打开目录选择对话框，并通过API请求后端进行扫描"""
     global actual_port, actual_host
     api_server_url = f"http://{actual_host}:{actual_port}"
-    
+
     logging.info("目录选择逻辑: 开始执行")
     try:
         result = window.create_file_dialog(webview.FOLDER_DIALOG)
@@ -218,7 +218,7 @@ def on_drop(e):
     """处理文件放置事件。"""
     global actual_port, actual_host
     api_server_url = f"http://{actual_host}:{actual_port}"
-    
+
     window = webview.windows[0] if webview.windows else None
     if not window:
         logging.error("无法处理文件放置：窗口实例不可用。")
@@ -273,15 +273,15 @@ def bind_drag_drop_events(window):
 def parse_arguments():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description="漫画翻译工具 - 桌面应用")
-    parser.add_argument("--port", type=int, 
+    parser.add_argument("--port", type=int,
                        help="指定端口号 (覆盖配置文件设置)")
-    parser.add_argument("--host", type=str, 
+    parser.add_argument("--host", type=str,
                        help="指定主机地址 (覆盖配置文件设置)")
-    parser.add_argument("--auto-kill", action="store_true", 
+    parser.add_argument("--auto-kill", action="store_true",
                        help="自动杀死占用端口的进程 (覆盖配置文件设置)")
-    parser.add_argument("--port-range", type=int, 
+    parser.add_argument("--port-range", type=int,
                        help="端口搜索范围 (覆盖配置文件设置)")
-    parser.add_argument("--config-show", action="store_true", 
+    parser.add_argument("--config-show", action="store_true",
                        help="显示当前配置并退出")
     return parser.parse_args()
 
@@ -289,28 +289,28 @@ def main():
     """主函数"""
     global actual_port, actual_host
     singleton = None
-    
+
     try:
         # 解析命令行参数
         args = parse_arguments()
-        
+
         # 初始化配置管理器
         config_manager = PortConfigManager()
-        
+
         # 如果只是显示配置，显示后退出
         if args.config_show:
             config_manager.print_config()
             return
-        
+
         # 加载配置
         desktop_config = config_manager.get_desktop_app_config()
-        
+
         # 命令行参数覆盖配置文件
         port = args.port if args.port is not None else desktop_config.get("preferred_port", DEFAULT_PORT)
         host = args.host if args.host is not None else desktop_config.get("host", DEFAULT_HOST)
         auto_kill = args.auto_kill if args.auto_kill else desktop_config.get("auto_kill", True)
-        port_range = args.port_range if args.port_range is not None else desktop_config.get("port_range", 100)
-        
+        # port_range = args.port_range if args.port_range is not None else desktop_config.get("port_range", 100)
+
         print("漫画翻译工具 - 桌面应用 (生产模式)")
         print("=" * 50)
         setup_logging()
@@ -328,7 +328,7 @@ def main():
             print("\n按任意键退出...")
             try:
                 input()
-            except:
+            except Exception:
                 time.sleep(10)
             sys.exit(1)
 
@@ -340,13 +340,13 @@ def main():
             print("\n按任意键退出...")
             try:
                 input()
-            except:
+            except Exception:
                 time.sleep(10)
             sys.exit(1)
 
         # 设置实际使用的主机和端口
         actual_host = host
-        
+
         # 确保端口可用
         try:
             actual_port = PortManager.ensure_port_available(
@@ -360,10 +360,10 @@ def main():
             print("\n按任意键退出...")
             try:
                 input()
-            except:
+            except Exception:
                 time.sleep(10)
             sys.exit(1)
-        
+
         # 保存最后使用的端口
         config_manager.set_last_used_port("desktop_app", actual_port)
 
@@ -398,7 +398,7 @@ def main():
         logging.info("正在启动 PyWebView (生产模式)...")
         webview.start(bind_drag_drop_events, window, debug=False, private_mode=True)
         logging.info("PyWebView 已关闭。应用程序退出。")
-        
+
     except KeyboardInterrupt:
         print("\n用户中断，正在关闭应用...")
     except Exception as e:
@@ -406,7 +406,7 @@ def main():
         print("\n按任意键退出...")
         try:
             input()
-        except:
+        except Exception:
             time.sleep(10)
         sys.exit(1)
     finally:
