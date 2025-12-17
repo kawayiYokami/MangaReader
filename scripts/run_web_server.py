@@ -38,43 +38,43 @@ DEFAULT_PORT = 9000  # 默认端口
 def parse_arguments():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description="漫画翻译工具 - Web 服务器")
-    parser.add_argument("--port", type=int, 
+    parser.add_argument("--port", type=int,
                        help="指定端口号 (覆盖配置文件设置)")
-    parser.add_argument("--host", type=str, 
+    parser.add_argument("--host", type=str,
                        help="指定主机地址 (覆盖配置文件设置)")
-    parser.add_argument("--auto-kill", action="store_true", 
+    parser.add_argument("--auto-kill", action="store_true",
                        help="自动杀死占用端口的进程 (覆盖配置文件设置)")
-    parser.add_argument("--port-range", type=int, 
+    parser.add_argument("--port-range", type=int,
                        help="端口搜索范围 (覆盖配置文件设置)")
-    parser.add_argument("--config-show", action="store_true", 
+    parser.add_argument("--config-show", action="store_true",
                        help="显示当前配置并退出")
     return parser.parse_args()
 
 def main():
     """主函数"""
     singleton = None
-    
+
     try:
         # 解析命令行参数
         args = parse_arguments()
-        
+
         # 初始化配置管理器
         config_manager = PortConfigManager()
-        
+
         # 如果只是显示配置，显示后退出
         if args.config_show:
             config_manager.print_config()
             return
-        
+
         # 加载配置
         web_config = config_manager.get_web_server_config()
-        
+
         # 命令行参数覆盖配置文件
         port = args.port if args.port is not None else web_config.get("preferred_port", DEFAULT_PORT)
         host = args.host if args.host is not None else web_config.get("host", HOST)
         auto_kill = args.auto_kill if args.auto_kill else web_config.get("auto_kill", False)
-        port_range = args.port_range if args.port_range is not None else web_config.get("port_range", 100)
-        
+        # port_range = args.port_range if args.port_range is not None else web_config.get("port_range", 100)
+
         # 初始化日志系统
         setup_logging()
 
@@ -108,7 +108,7 @@ def main():
         except RuntimeError as e:
             print(f"错误: {e}")
             sys.exit(1)
-        
+
         # 保存最后使用的端口
         config_manager.set_last_used_port("web_server", available_port)
 
@@ -138,7 +138,7 @@ def main():
             reload=False,  # 生产模式下禁用自动重载
             log_level="info",
         )
-        
+
     except KeyboardInterrupt:
         print("\n用户中断，正在关闭服务器...")
     except Exception as e:

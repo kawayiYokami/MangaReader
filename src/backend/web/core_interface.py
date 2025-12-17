@@ -35,7 +35,6 @@ from src.backend.core.utils.file_system import safe_replace_file
 from src.backend.core.image.batch_compression_manager import (
     get_batch_compression_manager,
     CompressionResult,
-    CompressionTask,
     CoreInterfaceError
 )
 import logging

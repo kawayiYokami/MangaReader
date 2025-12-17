@@ -157,7 +157,8 @@ export const useMangaStore = defineStore('manga', {
       if (this.isWebSocketInitialized) return;
 
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.hostname}:9000/ws`;
+      // 使用当前页面的端口，而不是硬编码的 9000
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
 
       console.log(`[MangaStore] Initializing WebSocket connection to ${wsUrl}`);
       const ws = new WebSocket(wsUrl);

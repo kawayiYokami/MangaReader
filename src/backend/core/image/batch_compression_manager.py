@@ -2,17 +2,14 @@
 批量压缩管理器 - 处理漫画文件的批量压缩任务
 """
 
-import os
 import time
 import uuid
 import threading
-import asyncio
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 import logging
 from enum import Enum
 
-from src.backend.core.image.image_compressor import get_image_compressor
 
 
 class CoreInterfaceError(Exception):

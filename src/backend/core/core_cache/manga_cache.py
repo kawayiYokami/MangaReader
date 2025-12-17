@@ -33,7 +33,7 @@ class MangaListCacheManager(CacheInterface):
         # 如果是内存数据库，则无需创建目录
         if self.db_path == ":memory:":
             return
-            
+
         directory = os.path.dirname(self.db_path)
         if directory and not os.path.exists(directory):
             try:
@@ -51,7 +51,7 @@ class MangaListCacheManager(CacheInterface):
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                
+
                 # 1. 漫画主表
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS mangas (
@@ -104,15 +104,15 @@ class MangaListCacheManager(CacheInterface):
                 with sqlite3.connect(self.db_path) as conn:
                     conn.row_factory = sqlite3.Row
                     cursor = conn.cursor()
-                    
+
                     all_tags = set()
                     for manga in mangas:
                         logging.info(f"[CacheManager] Preparing to cache '{manga.file_path}' with last_modified: {manga.last_modified}")
                         all_tags.update(manga.tags)
-                    
+
                     if all_tags:
                         cursor.executemany("INSERT OR IGNORE INTO tags (name) VALUES (?)", [(tag,) for tag in all_tags])
-                        
+
                     manga_data_to_upsert = [
                         (
                             m.file_path, m.title, m.last_modified, m.total_pages, m.file_size, m.file_type,
@@ -122,7 +122,7 @@ class MangaListCacheManager(CacheInterface):
                             m.dimension_variance, m.is_likely_manga
                         ) for m in mangas
                     ]
-                    
+
                     manga_sql = """
                     INSERT INTO mangas (
                         file_path, title, last_modified, total_pages, file_size, file_type,
@@ -140,22 +140,22 @@ class MangaListCacheManager(CacheInterface):
                     manga_paths = [m.file_path for m in mangas]
                     placeholders = ','.join('?' for _ in manga_paths)
                     cursor.execute(f"DELETE FROM manga_tags WHERE manga_path IN ({placeholders})", manga_paths)
-                    
+
                     tag_to_id_map = {row['name']: row['id'] for row in cursor.execute("SELECT id, name FROM tags")}
-                    
+
                     manga_tags_to_insert = []
                     for manga in mangas:
                         for tag_name in manga.tags:
                             if tag_id := tag_to_id_map.get(tag_name):
                                 manga_tags_to_insert.append((manga.file_path, tag_id))
-                    
+
                     if manga_tags_to_insert:
                         cursor.executemany("INSERT INTO manga_tags (manga_path, tag_id) VALUES (?, ?)", manga_tags_to_insert)
 
                 logging.info(f"成功批量添加/更新 {len(mangas)} 本漫画到数据库。")
             except sqlite3.Error as e:
                 logging.error(f"批量更新漫画时发生数据库错误: {e}", exc_info=True)
-        
+
         await asyncio.to_thread(_db_operation)
 
     async def get_manga_list_for_display(self, sort_by="last_modified DESC", tag_filters: List[str] = None) -> List[Dict]:
@@ -173,7 +173,7 @@ class MangaListCacheManager(CacheInterface):
                     LEFT JOIN tags t ON mt.tag_id = t.id
                     """
                     params = []
-                    
+
                     if tag_filters:
                         placeholders = ','.join('?' for _ in tag_filters)
                         base_sql += f"""
@@ -207,7 +207,7 @@ class MangaListCacheManager(CacheInterface):
             except sqlite3.Error as e:
                 logging.error(f"从数据库获取漫画列表时出错: {e}", exc_info=True)
                 return []
-        
+
         return await asyncio.to_thread(_db_operation)
 
     async def get_manga_list_paginated(
@@ -226,7 +226,7 @@ class MangaListCacheManager(CacheInterface):
             try:
                 with sqlite3.connect(self.db_path) as conn:
                     conn.row_factory = sqlite3.Row
-                    
+
                     where_clauses = []
                     params = []
 
@@ -301,13 +301,13 @@ class MangaListCacheManager(CacheInterface):
                         row_dict = dict(row)
                         row_dict['tags'] = row_dict['tags'].split(',') if row_dict['tags'] else []
                         result_items.append(row_dict)
-                    
+
                     return {'items': result_items, 'total': total_count}
 
             except sqlite3.Error as e:
                 logging.error(f"从数据库分页获取漫画列表时出错: {e}", exc_info=True)
                 return {'items': [], 'total': 0}
-        
+
         return await asyncio.to_thread(_db_operation)
 
     async def get_manga_count(self) -> int:
@@ -322,7 +322,7 @@ class MangaListCacheManager(CacheInterface):
             except sqlite3.Error as e:
                 logging.error(f"获取漫画总数时出错: {e}", exc_info=True)
                 return 0
-        
+
         return await asyncio.to_thread(_db_operation)
 
     async def get_all_tags(self) -> List[str]:
@@ -337,7 +337,7 @@ class MangaListCacheManager(CacheInterface):
             except sqlite3.Error as e:
                 logging.error(f"获取所有标签时出错: {e}", exc_info=True)
                 return []
-        
+
         return await asyncio.to_thread(_db_operation)
 
     async def clear(self) -> None:
@@ -351,7 +351,7 @@ class MangaListCacheManager(CacheInterface):
                 logging.info("所有漫画缓存表已清空。")
             except sqlite3.Error as e:
                 logging.error(f"清空漫画缓存表时发生错误: {e}")
-        
+
         await asyncio.to_thread(_db_operation)
 
     def get_cache_size_bytes(self) -> int:
@@ -423,15 +423,15 @@ class MangaListCacheManager(CacheInterface):
 
                     if not row:
                         return None
-                    
+
                     manga_data = dict(row)
-                    
+
                     pages_json = manga_data.pop('pages_json', None)
                     page_dimensions_json = manga_data.pop('page_dimensions_json', None)
-                    
+
                     manga_data['pages'] = json.loads(pages_json) if pages_json else []
                     manga_data['page_dimensions'] = json.loads(page_dimensions_json) if page_dimensions_json else []
-                    
+
                     tags_str = manga_data.get('tags')
                     manga_data['tags'] = set(tags_str.split(',')) if tags_str else set()
 
@@ -439,5 +439,36 @@ class MangaListCacheManager(CacheInterface):
             except sqlite3.Error as e:
                 logging.error(f"从数据库获取漫画 '{file_path}' 时出错: {e}", exc_info=True)
                 return None
-        
+
+        return await asyncio.to_thread(_db_operation)
+
+    async def delete_manga_by_path(self, file_path: str) -> bool:
+        """从数据库中删除指定路径的漫画及其所有标签关联"""
+        def _db_operation():
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    cursor = conn.cursor()
+                    # 检查漫画是否存在
+                    cursor.execute("SELECT COUNT(*) FROM mangas WHERE file_path = ?", (file_path,))
+                    if cursor.fetchone()[0] == 0:
+                        logging.warning(f"尝试删除不存在的漫画: {file_path}")
+                        return False
+
+                    # 删除操作会因外键约束自动级联删除 manga_tags 表中的关联记录
+                    cursor.execute("DELETE FROM mangas WHERE file_path = ?", (file_path,))
+                    affected_rows = cursor.rowcount
+
+                    conn.commit()
+
+                    if affected_rows > 0:
+                        logging.info(f"成功从数据库删除漫画: {file_path}")
+                        return True
+                    else:
+                        logging.warning(f"删除漫画失败，可能不存在: {file_path}")
+                        return False
+
+            except sqlite3.Error as e:
+                logging.error(f"删除漫画 '{file_path}' 时发生数据库错误: {e}", exc_info=True)
+                return False
+
         return await asyncio.to_thread(_db_operation)
