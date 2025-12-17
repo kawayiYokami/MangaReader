@@ -6,13 +6,11 @@
 import os
 import tempfile
 import zipfile
-import cv2
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import threading
-import warnings
-import numpy as np
 import logging
+from PIL import Image
 
 class ImageCompressor:
     """
@@ -85,12 +83,8 @@ class ImageCompressor:
                         with tempfile.NamedTemporaryFile(suffix='.webp', delete=False) as temp_webp_file:
                             temp_webp_path = temp_webp_file.name
 
-                        encode_params = [cv2.IMWRITE_WEBP_QUALITY, 101 if webp_quality == 100 else webp_quality]
-                        success = cv2.imwrite(temp_webp_path, img, encode_params)
-
-                        if not success:
-                            return {"should_compress": True, "reason": "WebP压缩测试失败，默认压缩"}
-
+                        # 使用Pillow保存为WebP
+                        img.save(temp_webp_path, 'WEBP', quality=webp_quality)
                         compressed_size = os.path.getsize(temp_webp_path)
                     finally:
                         if temp_webp_path and os.path.exists(temp_webp_path):
@@ -252,9 +246,9 @@ class ImageCompressor:
             output_filename = f"{Path(img_path).stem}.webp" if preserve_original_names else f"page_{index+1:03d}.webp"
             output_path = os.path.join(output_dir, output_filename)
 
-            encode_params = [cv2.IMWRITE_WEBP_QUALITY, 101 if webp_quality == 100 else webp_quality]
-            success = cv2.imwrite(output_path, img, encode_params)
-            return output_path if success else None
+            # 使用Pillow保存为WebP
+            img.save(output_path, 'WEBP', quality=webp_quality)
+            return output_path
         except Exception as e:
             logging.error(f"处理图片时发生错误 {img_path}: {e}")
             return None
@@ -307,23 +301,14 @@ class ImageCompressor:
             logging.error(f"验证压缩包时发生严重错误: {e}")
             return False
 
-    def _read_image_robustly(self, img_path: str) -> Optional[np.ndarray]:
-        """健壮地读取图片文件，抑制iCCP警告。"""
+    def _read_image_robustly(self, img_path: str) -> Optional[Image.Image]:
+        """健壮地读取图片文件。"""
         try:
-            # 统一使用OpenCV读取，移除Pillow回退
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=UserWarning, message=".*iCCP.*")
-                img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+            img = Image.open(img_path)
 
-            if img is None:
-                logging.warning(f"OpenCV could not read {img_path}")
-                return None
-
-            # 保持原有的通道转换逻辑，确保输出是BGR
-            if len(img.shape) == 2:
-                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-            elif img.shape[2] == 4: # 如果是BGRA, 转换为BGR
-                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+            # 统一转换为RGB模式
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
 
             return img
 

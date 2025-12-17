@@ -18,19 +18,23 @@ classifiers = [
 ]
 
 dependencies = [
-    "pywebview==5.4",
+    "pywebview==6.1",
     "pyyaml==6.0.1",
     "openai",
     "requests",
     "uvicorn",
     "fastapi",
     "Pillow",
-    "opencv-contrib-python",
     "filelock",
     "coloredlogs",
     "python-multipart",
     "fonttools",
     "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pyinstaller>=6.0",
 ]
 
 [build-system]

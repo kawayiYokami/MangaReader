@@ -1,179 +1,63 @@
-# Manga Manager & Reader - 漫画管理器与阅读器
+# Manga Manager & Reader
 
-[![Python-Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/) [![Vue-Version](https://img.shields.io/badge/vue-3.x-brightgreen.svg)](https://vuejs.org/) [![License](https://img.shields.io/badge/license-GPL--3.0-brightgreen.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![Vue](https://img.shields.io/badge/vue-3.x-brightgreen.svg)](https://vuejs.org/)
+[![License](https://img.shields.io/badge/license-GPL--3.0-brightgreen.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/kawayiYokami/MangaReader)](https://github.com/kawayiYokami/MangaReader/releases/latest)
 
-一款专为漫画收藏爱好者设计的本地管理器与阅读器。它能自动扫描、解析和组织您的漫画收藏，通过强大的元数据和标签系统提供极致的浏览体验。
+本地漫画管理与阅读器，自动扫描、解析和组织漫画收藏。
 
-## ✨ 核心功能
+## ✨ 主要功能
 
-### 📚 智能漫画库管理
-- **自动化元数据解析**: 无需手动整理！仅通过文件名，即可自动解析出 `作者`, `作品系列`, `汉化组`, `会场` 等信息，并生成分类标签。
-- **强大的标签系统**:
-  - **分类标签**: 所有标签按 `作者`, `作品`, `汉化` 等类别清晰展示。
-  - **快速过滤**: 只需点击标签，即可在海量收藏中快速筛选出您想看的内容。
-- **批量图像压缩**: 支持将处理后的图片保存为 `WEBP` 格式，有效减小存储体积。
-- **前后端分离架构**: 基于 FastAPI 和 Vue 3，提供现代化的、可独立部署的 Web UI。
-- **持久化缓存**: 为漫画封面、图片和元数据建立缓存，实现秒速加载和浏览。
+- **智能解析**: 自动从文件名提取作者、系列、汉化组等元数据
+- **标签系统**: 分类标签 + 快速过滤
+- **批量压缩**: WebP 格式图像压缩
+- **阅读模式**: 单页/双页、左右阅读方向
+- **AI翻译**: 集成 LLM 翻译服务
+- **现代UI**: Element Plus，支持亮/暗色主题
 
-### 📖 沉浸式阅读体验
-- **灵活的阅读模式**: 支持从右到左、从左到右的阅读顺序，以及单页、双页显示模式。
-- **AI 辅助翻译**:
-    - 在阅读器中一键开启，将漫画原文以“剧本”形式展示在侧边栏。
-    - 支持接入多种大语言模型（LLM）服务，可在设置中灵活配置。
-- **现代化UI**: 界面基于 Element Plus，支持亮色、暗色及自动（跟随系统）三种主题。
-- **跨设备同步**: （需部署在可访问的网络）通过Web服务，可在不同设备上继续阅读。
+## 📥 下载
 
-### ⚙️ 系统设置
-- **AI 服务配置**: 提供对外部 AI 翻译服务的可视化配置管理。
-- **缓存管理**: 可查看和清理漫画列表缓存。
+[📦 最新版本](https://github.com/kawayiYokami/MangaReader/releases/latest) - Windows 免安装，解压即用
+
+## 🚀 快速开始（开发者）
+
+### 要求
+- Python 3.11+
+- Node.js 22+ (仅开发前端时)
+
+### 安装运行
+
+```bash
+# 克隆仓库
+git clone https://github.com/kawayiYokami/MangaReader.git
+cd MangaReader
+
+# 安装依赖
+pip install uv
+uv sync
+
+# 桌面模式
+python scripts/run_desktop_app.py
+
+# Web服务模式
+python scripts/run_web_server.py --host 0.0.0.0 --port 8100
+```
+
+## 📝 使用说明
+
+1. 启动应用
+2. 在设置页面配置漫画目录路径
+3. 自动扫描并解析元数据
+4. 通过标签筛选或搜索漫画
+5. 点击封面进入阅读
 
 ## 🛠️ 技术栈
 
-- **后端**: `Python 3.11+`, `FastAPI`, `Uvicorn`
-- **前端**: `Vue 3`, `Vite`, `TypeScript`, `Pinia`, `Element Plus`
-- **数据库/缓存**: `LMDB` 用于持久化缓存
+**后端**: Python 3.11, FastAPI, Uvicorn
+**前端**: Vue 3, Vite, TypeScript, Pinia, Element Plus
+**缓存**: LMDB
 
-## 🏗️ 项目结构
+## 📄 许可证
 
-```
-.
-├── src/                 # 源代码根目录
-│   ├── backend/         # 后端代码 (Python)
-│   │   ├── core/        # 核心业务逻辑
-│   │   │   ├── manga/           # 漫画管理、解析、元数据
-│   │   │   ├── ai_translator/   # AI翻译模块，包含智能体和配置管理
-│   │   │   └── ...
-│   │   ├── web/         # Web API和接口层
-│   │   └── utils/       # 后端工具函数
-│   │
-│   ├── frontend/        # 前端应用 (Vue 3)
-│   │   ├── src/         # 源代码
-│   │   │   ├── components/  # 组件
-│   │   │   ├── pages/       # 页面视图
-│   │   │   ├── store/       # Pinia状态管理
-│   │   │   └── router/      # 路由
-│   │   └── ...
-│   │
-│   └── common/          # 前后端共享资源
-│       └── fonts/       # 字体文件
-│
-├── scripts/             # 启动和构建脚本
-│   ├── run_desktop_app.py    # 桌面应用启动器
-│   └── run_web_server.py     # Web服务器启动器
-│
-├── cache/               # 运行时缓存目录
-├── docs/                # 文档
-├── app/                 # 应用配置和代理
-└── 配置文件...
-├── pyproject.toml       # Python项目配置与依赖
-└── README.md            # 就是你正在看的文件
-```
-
-## 🚀 快速开始
-
-### 🚀 快速使用 (桌面应用模式)
-
-对于大多数用户，最简单的启动方式是直接运行桌面应用。
-在确保已安装 `uv` 并完成后端依赖安装后，您无需启动单独的后端 API 或前端开发服务器。
-
-1.  **安装 `uv` (如果尚未安装)**:
-    ```bash
-    pip install uv
-    ```
-2.  **克隆项目仓库并进入目录**:
-    ```bash
-    git clone https://github.com/kawayiYokami/MangaReader.git
-    cd MangaReader
-    ```
-3.  **安装后端依赖**:
-    ```bash
-    uv venv
-    # Windows: .\.venv\Scripts\activate
-    # macOS/Linux: source .venv/bin/activate
-    uv pip install .
-    ```
-4.  **直接启动桌面应用**:
-    ```bash
-    python scripts/run_desktop_app.py
-    ```
-    - 这将自动启动内部后端服务并显示桌面界面。
-
-### 环境要求
-
-*   **Python**: `>=3.11,<3.14`
-*   **Node.js**: `>=22.0.0` (仅开发前端或手动构建前端时需要)
-*   **uv**: (推荐的Python包管理器)
-*   **npm** 或 **pnpm** 或 **yarn**: (Node.js包管理器，仅开发前端或手动构建前端时需要)
-
-### 安装步骤
-
-1.  **克隆项目仓库**:
-    ```bash
-    git clone https://github.com/kawayiYokami/MangaReader.git
-    cd MangaReader
-    ```
-
-2.  **安装后端依赖**:
-    ```bash
-    # 安装 uv (如果尚未安装)
-    pip install uv
-
-    # 创建并激活虚拟环境
-    uv venv
-    # Windows: .\.venv\Scripts\activate
-    # macOS/Linux: source .venv/bin/activate
-
-    # 安装Python依赖
-    uv pip install .
-    ```
-
-3.  **安装前端依赖 (仅用于前端开发或手动构建)**:
-    ```bash
-    # 进入frontend目录
-    cd src/frontend
-
-    # 安装Node.js依赖
-    npm install
-    ```
-    - **注意**: 如果您只是想运行桌面应用或纯Web服务端，且 `src/frontend/dist` 目录已存在，则无需执行此步骤。本项目通常会直接提供已 `build` 好的 `src/frontend/dist` 文件。
-
-## 🚀 运行程序
-
-本项目支持多种运行模式，以适应开发、测试和生产环境的需求。
-
-### 1. 桌面应用模式
-
-此模式将后端 API 和前端 UI 集成到一个桌面应用中，通过 PyWebView 提供类似原生应用的体验。
-
-在项目 **根目录** 下运行：
-
-```bash
-python scripts/run_desktop_app.py
-```
-- `scripts/run_desktop_app.py`: 启动内部 FastAPI 后端服务，并使用 PyWebView 加载 `src/frontend/dist` 目录下的静态前端文件。
-- **注意**: `src/frontend/dist` 目录通常包含已构建好的前端静态资源。**项目会直接上传 `build` 好的 `src/frontend/dist`，通常无需您手动执行 `npm run build`。** 如果 `src/frontend/dist` 不存在或需要更新，您可以在 `src/frontend` 目录下运行 `npm run build` 来生成。
-
-### 2. 纯 Web 服务器模式 (用于局域网/公网部署)
-
-此模式是一个独立的 Web 应用部署方案，将后端 API 和预构建的前端静态文件整合在一个 FastAPI 服务器中。
-
-在项目 **根目录** 下运行：
-
-```bash
-python scripts/run_web_server.py [--host <host>] [--port <port>]
-# 示例: python scripts/run_web_server.py --host 0.0.0.0 --port 8100
-```
-- `scripts/run_web_server.py`: 启动 FastAPI 后端，并将 `src/frontend/dist` 目录挂载为静态文件服务。它会监听所有网络接口 (`0.0.0.0`)，允许局域网或公网访问。
-- **注意**: 前端文件将从 `src/frontend/dist` 目录提供。**项目会直接上传 `build` 好的 `src/frontend/dist`，通常无需您手动执行 `npm run build`。**
-- 访问地址通常为 `http://<你的IP地址>:<port>`。
-
-## 📋 使用流程
-
-1.  **启动应用**: 根据您的需求选择上述任一运行模式启动程序。
-2.  **设置漫画目录**: **在桌面应用界面中**，进入 `设置` 页面，输入漫画根文件夹的 **绝对路径** 并保存。
-3.  **自动扫描**: 程序会自动扫描目录下的所有漫画文件和文件夹，并解析元数据。
-4.  **浏览与筛选**: 在主页，使用顶部的搜索框或点击下方的分类标签来筛选您的漫画。
-5.  **阅读**: 点击任意漫画封面即可进入阅读界面。
-
-## 🙏 致谢
-本项目的发展离不开众多优秀的开源库和社区的支持。
+GPL-3.0 License
