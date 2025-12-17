@@ -25,7 +25,6 @@ dependencies = [
     "uvicorn",
     "fastapi",
     "Pillow",
-    "opencv-contrib-python",
     "filelock",
     "coloredlogs",
     "python-multipart",

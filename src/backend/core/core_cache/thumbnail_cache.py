@@ -183,7 +183,7 @@ class ThumbnailCache:
                 return None  # 无法获取文件信息
 
             master_metadata = self.metadata.get(master_key)
-            
+
             # 如果主键存在，检查这个尺寸的缩略图是否存在
             if master_metadata:
                 # 使用 str(self.output_size) 作为键
@@ -217,7 +217,7 @@ class ThumbnailCache:
             source_bytes, first_page_image = self._get_first_page_bytes_and_image(manga_path)
             if not first_page_image or not source_bytes:
                 return None
-            
+
             # --- 步骤2: 按需执行一次性分析 ---
             if needs_analysis:
                 # 分析过程即为模拟一次缩略图生成，以计算压缩比。
@@ -233,10 +233,8 @@ class ThumbnailCache:
                     raise ValueError("分析时创建缩略图失败")
 
                 # 步骤 B: 使用最终的质量设置将其编码为 WebP
-                import cv2
-                import numpy as np
-                cv2_image = cv2.cvtColor(np.array(analysis_image), cv2.COLOR_RGB2BGR)
-                processed_bytes = processor.write_image(cv2_image, ext='.webp', quality=self.webp_quality)
+                # processor.write_image 现在接受PIL图像，直接传入即可
+                processed_bytes = processor.write_image(analysis_image, ext='.webp', quality=self.webp_quality)
                 if not processed_bytes:
                     raise ValueError("分析时图像编码失败")
 
@@ -262,18 +260,18 @@ class ThumbnailCache:
                     },
                     "thumbnails": {}
                 }
-                
+
 
             # --- 步骤3: 生成当前请求的缩略图 ---
             thumbnail_file_key = self._get_thumbnail_file_key(master_key, self.output_size)
             cache_file_path = self._get_cache_file_path(thumbnail_file_key)
-            
+
             # 只有在文件不存在时才创建
             if not cache_file_path.exists():
                 thumbnail = self._create_thumbnail(first_page_image)
                 if thumbnail is None:
                     return None
-                
+
                 # 统一使用WebP格式
                 thumbnail.save(
                     cache_file_path,
@@ -281,7 +279,7 @@ class ThumbnailCache:
                     quality=self.webp_quality,
                     method=6,
                 )
-            
+
             # --- 步骤4: 更新元数据并保存 ---
             current_time = time.time()
             thumbnail_metadata = {
@@ -335,7 +333,7 @@ class ThumbnailCache:
             if not image_files:
                 return None, None
             image_files.sort(key=lambda x: x.name.lower())
-            
+
             image_path = image_files[0]
             with open(image_path, 'rb') as f:
                 source_bytes = f.read()
